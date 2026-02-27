@@ -1521,12 +1521,14 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             {flavors.map((flavor, index) => (
-              <span
+              <button
+                type="button"
                 key={`${flavor}-${index}`}
+                onClick={() => setShowBeanFlavorTags(false)}
                 className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-sm font-medium text-neutral-600 dark:bg-neutral-800/40 dark:text-neutral-400"
               >
                 {flavor}
-              </span>
+              </button>
             ))}
           </motion.div>
         ) : (
