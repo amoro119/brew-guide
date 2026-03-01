@@ -2,24 +2,9 @@ const API_ALLOWED_HEADERS = [
   'Content-Type',
   'Authorization',
   'X-Requested-With',
-  'Depth',
-  'Destination',
-  'Overwrite',
 ];
 
-const API_ALLOWED_METHODS = [
-  'GET',
-  'POST',
-  'PUT',
-  'DELETE',
-  'PATCH',
-  'OPTIONS',
-  'PROPFIND',
-  'MKCOL',
-  'PROPPATCH',
-  'COPY',
-  'MOVE',
-];
+const API_ALLOWED_METHODS = ['GET', 'POST', 'OPTIONS'];
 
 const IMAGE_ALLOWED_TYPES = [
   'image/jpeg',
@@ -113,8 +98,6 @@ const YEARLY_REPORT_PROMPT = `你是一位专业的咖啡品鉴师和文案作�
 const runtimeConfigCache = {
   allowedOriginsRaw: null,
   allowedOriginsParsed: { allowAll: true, list: [] },
-  proxyAllowlistRaw: null,
-  proxyAllowlistParsed: [],
 };
 
 function getAllowedOriginsConfig(env) {
@@ -138,22 +121,6 @@ function getAllowedOriginsConfig(env) {
 
   runtimeConfigCache.allowedOriginsRaw = value;
   runtimeConfigCache.allowedOriginsParsed = parsed;
-  return parsed;
-}
-
-function getProxyAllowlist(env) {
-  const value = (env?.CORS_PROXY_ALLOWLIST || '').trim();
-  if (runtimeConfigCache.proxyAllowlistRaw === value) {
-    return runtimeConfigCache.proxyAllowlistParsed;
-  }
-
-  const parsed = value
-    .split(',')
-    .map(item => item.trim().toLowerCase())
-    .filter(Boolean);
-
-  runtimeConfigCache.proxyAllowlistRaw = value;
-  runtimeConfigCache.proxyAllowlistParsed = parsed;
   return parsed;
 }
 
@@ -696,115 +663,6 @@ async function handleYearlyReport(context) {
   );
 }
 
-function proxyHeadersFromRequest(request) {
-  const allowed = [
-    'authorization',
-    'content-type',
-    'accept',
-    'depth',
-    'destination',
-    'overwrite',
-  ];
-  const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
-    const lower = key.toLowerCase();
-    if (allowed.includes(lower)) {
-      headers.set(key, value);
-    }
-  }
-  return headers;
-}
-
-function sanitizeProxyResponseHeaders(upstreamHeaders) {
-  const headers = new Headers();
-  const blocked = [
-    'connection',
-    'keep-alive',
-    'transfer-encoding',
-    'access-control-allow-origin',
-    'access-control-allow-methods',
-    'access-control-allow-headers',
-    'access-control-allow-credentials',
-  ];
-
-  upstreamHeaders.forEach((value, key) => {
-    if (!blocked.includes(key.toLowerCase())) {
-      headers.set(key, value);
-    }
-  });
-  return headers;
-}
-
-function isProxyTargetAllowed(targetUrl, env) {
-  const list = getProxyAllowlist(env);
-  if (list.length === 0) return true;
-  const host = targetUrl.hostname.toLowerCase();
-  return list.some(rule => host === rule || host.endsWith(`.${rule}`));
-}
-
-async function handleCorsProxy(context) {
-  const { request, env } = context;
-  if (request.method === 'OPTIONS') return noContentResponse(request, env);
-
-  const url = new URL(request.url);
-  const target = url.searchParams.get('url');
-  if (!target) {
-    return errorResponse(request, env, '缺少 url 参数', 400);
-  }
-
-  let targetUrl;
-  try {
-    targetUrl = new URL(target);
-  } catch {
-    return errorResponse(request, env, 'url 参数格式无效', 400);
-  }
-
-  if (!['http:', 'https:'].includes(targetUrl.protocol)) {
-    return errorResponse(request, env, '仅支持 http/https 代理', 400);
-  }
-
-  if (!isProxyTargetAllowed(targetUrl, env)) {
-    return errorResponse(request, env, '目标地址不在允许列表中', 403);
-  }
-
-  if (!API_ALLOWED_METHODS.includes(request.method)) {
-    return errorResponse(request, env, 'Method Not Allowed', 405);
-  }
-
-  const requestBody =
-    request.method === 'GET' || request.method === 'HEAD'
-      ? undefined
-      : request.body;
-
-  let upstream;
-  try {
-    upstream = await fetch(targetUrl.toString(), {
-      method: request.method,
-      headers: proxyHeadersFromRequest(request),
-      body: requestBody,
-      redirect: 'follow',
-    });
-  } catch (error) {
-    return errorResponse(
-      request,
-      env,
-      `代理请求失败: ${error?.message || 'unknown error'}`,
-      502
-    );
-  }
-
-  const headers = sanitizeProxyResponseHeaders(upstream.headers);
-  return withCors(
-    request,
-    env,
-    new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers,
-    })
-  );
-}
-
 export default async function onRequest(context) {
   const { request, env } = context;
 
@@ -825,10 +683,6 @@ export default async function onRequest(context) {
 
     if (pathname === '/api/yearly-report') {
       return await handleYearlyReport(context);
-    }
-
-    if (pathname === '/api/cors-proxy') {
-      return await handleCorsProxy(context);
     }
 
     if (request.method === 'OPTIONS') return noContentResponse(request, env);
