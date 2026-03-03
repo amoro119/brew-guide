@@ -1302,7 +1302,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                             initial={{ opacity: 0.8 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.26 }}
-                            className="mt-1 text-sm font-medium tracking-wide"
+                            className="mt-1 text-sm font-medium tracking-wide tabular-nums"
                           >
                             {currentStage
                               ? formatTime(currentStage.endTime, true)
@@ -1320,7 +1320,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                             initial={{ opacity: 0.8 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.26 }}
-                            className="mt-1 flex flex-col text-sm font-medium tracking-wide"
+                            className="mt-1 flex flex-col text-sm font-medium tracking-wide tabular-nums"
                           >
                             {currentStage?.water ? (
                               <div
@@ -1351,7 +1351,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                               initial={{ opacity: 0.8 }}
                               animate={{ opacity: 1 }}
                               transition={{ duration: 0.26 }}
-                              className="mt-1 text-sm font-medium tracking-wide"
+                              className="mt-1 text-sm font-medium tracking-wide tabular-nums"
                             >
                               {currentStage?.type === 'pour' ? (
                                 <span>{displayFlowRate.toFixed(1)}</span>
@@ -1441,7 +1441,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                                 目标时间
                               </div>
-                              <div className="mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
+                              <div className="mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400">
                                 {formatTime(nextStage.endTime, true)}
                               </div>
                             </div>
@@ -1452,7 +1452,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                                 目标水量
                               </div>
                               <div
-                                className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400 ${
+                                className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
                                   localLayoutSettings.stageInfoReversed
                                     ? 'text-left'
                                     : 'text-right'
@@ -1467,7 +1467,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                                   流速
                                 </div>
                                 <div
-                                  className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400 ${
+                                  className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
                                     localLayoutSettings.stageInfoReversed
                                       ? 'text-left'
                                       : 'text-right'
@@ -1619,7 +1619,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         {currentStage && (
                           <div
                             key={`current-${currentStage.endTime}-${resolvedCurrentStageIndex}`}
-                            className="absolute top-0 text-[9px] font-medium text-neutral-600 dark:text-neutral-300"
+                            className="absolute top-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300"
                             style={{
                               left: `${(currentStage.endTime / expandedStagesRef.current[expandedStagesRef.current.length - 1].endTime) * 100}%`,
                               transform: 'translateX(-100%)',
@@ -1633,7 +1633,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         {expandedStagesRef.current.length > 0 && (
                           <div
                             key="final-time"
-                            className="absolute top-0 right-0 text-[9px] font-medium text-neutral-600 dark:text-neutral-300"
+                            className="absolute top-0 right-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300"
                           >
                             {formatTime(
                               expandedStagesRef.current[
@@ -1690,7 +1690,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         localLayoutSettings.controlsReversed
                           ? 'text-right'
                           : 'text-left'
-                      } transform-gpu`}
+                      } transform-gpu tabular-nums`}
                       style={{
                         willChange: 'transform, opacity',
                         transform: 'translateZ(0)',
@@ -1711,7 +1711,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         localLayoutSettings.controlsReversed
                           ? 'text-right'
                           : 'text-left'
-                      } transform-gpu`}
+                      } transform-gpu tabular-nums`}
                       style={{
                         willChange: 'transform, opacity',
                         transform: 'translateZ(0)',
@@ -1744,7 +1744,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                     localLayoutSettings.controlsReversed
                       ? 'text-right'
                       : 'text-left'
-                  } transform-gpu`}
+                  } transform-gpu tabular-nums`}
                   animate={{
                     opacity: [null, 1],
                     scale: currentWaterAmount > 0 ? [1.02, 1] : 1,
@@ -1787,7 +1787,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                       localLayoutSettings.controlsReversed
                         ? 'text-right'
                         : 'text-left'
-                    } transform-gpu`}
+                    } transform-gpu tabular-nums`}
                     animate={{
                       opacity: [null, 1],
                       scale: displayFlowRate > 0 ? [1.02, 1] : 1,
