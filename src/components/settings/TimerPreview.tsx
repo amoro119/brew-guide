@@ -137,7 +137,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                     <div className="text-xs text-neutral-500 dark:text-neutral-400">
                       目标时间
                     </div>
-                    <div className="mt-1 text-sm font-medium tracking-wide">
+                    <div className="mt-1 text-sm font-medium tracking-wide tabular-nums">
                       {formatTime(timerData.currentStage.endTime, true)}
                     </div>
                   </div>
@@ -146,7 +146,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                       目标水量
                     </div>
                     <div
-                      className={`mt-1 flex flex-col text-sm font-medium tracking-wide`}
+                      className={`mt-1 flex flex-col text-sm font-medium tracking-wide tabular-nums`}
                     >
                       <div
                         className={`flex items-baseline ${
@@ -166,7 +166,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                       <div className="text-xs text-neutral-500 dark:text-neutral-400">
                         流速
                       </div>
-                      <div className="mt-1 text-sm font-medium tracking-wide">
+                      <div className="mt-1 text-sm font-medium tracking-wide tabular-nums">
                         {timerData.flowRate.toFixed(1)}
                       </div>
                     </div>
@@ -203,7 +203,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                     <div className="text-xs text-neutral-500 dark:text-neutral-400">
                       目标时间
                     </div>
-                    <div className="mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
+                    <div className="mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400">
                       {formatTime(timerData.nextStage.endTime, true)}
                     </div>
                   </div>
@@ -212,7 +212,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                       目标水量
                     </div>
                     <div
-                      className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400 ${
+                      className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
                         stageInfoReversed ? 'text-left' : 'text-right'
                       }`}
                     >
@@ -225,7 +225,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                         流速
                       </div>
                       <div
-                        className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 dark:text-neutral-400 ${
+                        className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
                           stageInfoReversed ? 'text-left' : 'text-right'
                         }`}
                       >
@@ -322,7 +322,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                 {/* 时间标记 */}
                 <div className="relative mt-1 h-3 w-full">
                   <div
-                    className="absolute top-0 text-[9px] font-medium text-neutral-600 dark:text-neutral-300"
+                    className="absolute top-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300"
                     style={{
                       left: `${(timerData.currentStage.endTime / timerData.totalTime) * 100}%`,
                       transform: 'translateX(-100%)',
@@ -331,7 +331,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                     {formatTime(timerData.currentStage.endTime, true)}
                   </div>
 
-                  <div className="absolute top-0 right-0 text-[9px] font-medium text-neutral-600 dark:text-neutral-300">
+                  <div className="absolute top-0 right-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300">
                     {formatTime(timerData.totalTime, true)}
                   </div>
                 </div>
@@ -362,7 +362,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                 <div
                   className={`timer-font min-w-[3ch] ${fontSizeClass} font-light tracking-widest text-neutral-800 dark:text-neutral-100 ${
                     controlsReversed ? 'text-right' : 'text-left'
-                  }`}
+                  } tabular-nums`}
                 >
                   {formatTime(currentTime)}
                 </div>
@@ -380,7 +380,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                 <div
                   className={`timer-font min-w-[3ch] ${fontSizeClass} font-light tracking-widest text-neutral-800 dark:text-neutral-100 ${
                     controlsReversed ? 'text-right' : 'text-left'
-                  }`}
+                  } tabular-nums`}
                 >
                   <span>{currentWater}</span>
                   <span className="ml-1 text-sm text-neutral-500 dark:text-neutral-400">
@@ -402,7 +402,7 @@ const TimerPreview: React.FC<TimerPreviewProps> = ({ settings }) => {
                   <div
                     className={`timer-font min-w-[2.5ch] ${fontSizeClass} font-light tracking-widest text-neutral-800 dark:text-neutral-100 ${
                       controlsReversed ? 'text-right' : 'text-left'
-                    }`}
+                    } tabular-nums`}
                   >
                     <span>{timerData.flowRate.toFixed(1)}</span>
                   </div>
