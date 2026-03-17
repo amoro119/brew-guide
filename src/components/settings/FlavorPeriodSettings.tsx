@@ -246,7 +246,7 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
 
   return (
     <SettingPage
-      title="自定义赏味期预设"
+      title="赏味期"
       isVisible={isVisible}
       onClose={handleClose}
     >

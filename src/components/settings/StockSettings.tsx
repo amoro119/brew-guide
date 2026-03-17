@@ -123,7 +123,7 @@ const StockSettings: React.FC<StockSettingsProps> = ({
 
   return (
     <SettingPage
-      title="库存扣除预设值"
+      title="库存扣除"
       isVisible={isVisible}
       onClose={handleClose}
     >
