@@ -431,7 +431,7 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   };
 
   return (
-    <SettingPage title="数据管理" isVisible={isVisible} onClose={handleClose}>
+    <SettingPage title="数据与备份" isVisible={isVisible} onClose={handleClose}>
       {/* 云同步设置组 */}
       <div className="-mt-4 px-6 py-4">
         <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">

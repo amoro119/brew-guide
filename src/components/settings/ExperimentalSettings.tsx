@@ -167,7 +167,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
   };
 
   return (
-    <SettingPage title="实验功能" isVisible={isVisible} onClose={handleClose}>
+    <SettingPage title="实验性功能" isVisible={isVisible} onClose={handleClose}>
       <SettingSection
         title="咖啡豆"
         footer="开启后，手动添加咖啡豆将使用全屏表单。"
