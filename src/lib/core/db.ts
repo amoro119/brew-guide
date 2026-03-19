@@ -1,6 +1,7 @@
 import Dexie from 'dexie';
 import { BrewingNote, Method, CustomEquipment } from './config';
 import { CoffeeBean } from '@/types/app';
+import type { AutoPourDetectionSettings } from '@/components/brewing/AutoPourDetection/types';
 
 /**
  * 研磨度历史记录
@@ -311,6 +312,9 @@ export interface AppSettings {
   // 注意: grinders 字段已迁移到独立的 grinders 表
   // 此字段仅用于兼容旧数据导入，运行时不使用
   grinders?: Grinder[];
+
+  // 自动注水检测设置
+  autoPourDetection?: AutoPourDetectionSettings;
 }
 
 /**

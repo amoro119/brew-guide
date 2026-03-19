@@ -17,6 +17,7 @@ import {
   RoasterConfig,
   DEFAULT_FLAVOR_DIMENSIONS,
 } from '@/lib/core/db';
+import type { AutoPourDetectionSettings } from '@/components/brewing/AutoPourDetection/types';
 import { LayoutSettings } from '@/components/brewing/Timer/Settings';
 import { VIEW_OPTIONS } from '@/components/coffee-bean/List/constants';
 
@@ -205,6 +206,30 @@ export const defaultSettings: AppSettings = {
   roasterFieldEnabled: false, // 是否启用独立烘焙商字段
   roasterSeparator: ' ', // 烘焙商分隔符，默认空格
   roasterMigrationCompleted: false, // @deprecated 已废弃，按需迁移策略不再使用此标记
+
+  // 自动注水检测设置
+  autoPourDetection: {
+    enabled: false,
+    mode: 'off',
+    frameDiffThreshold: 25,
+    minMotionRatio: 0.02,
+    maxMotionRatio: 0.8,
+    requiredConsecutiveDetections: 6,
+    stateTimeout: 5000,
+    cooldownDuration: 2000,
+    cameraDeviceId: null,
+    cameraFacingMode: 'user',
+    videoResolution: { width: 320, height: 240 },
+    frameRate: 30,
+    showCameraPreview: false,
+    showDebugOverlay: false,
+    autoStopCamera: true,
+    showToastNotification: true,
+    undoWindowDuration: 2000,
+    useWebWorker: false,
+    downsampleScale: 1.0,
+    regionOfInterest: null,
+  },
 };
 
 /**
@@ -236,6 +261,9 @@ interface SettingsStore {
   ) => Promise<void>;
   updateSupabaseSyncSettings: (
     supabase: Partial<NonNullable<AppSettings['supabaseSync']>>
+  ) => Promise<void>;
+  updateAutoPourDetectionSettings: (
+    updates: Partial<AutoPourDetectionSettings>
   ) => Promise<void>;
 
   // 隐藏器具/方案管理
@@ -446,6 +474,14 @@ export const useSettingsStore = create<SettingsStore>()(
       };
       await get().updateSettings({
         supabaseSync: newSupabaseSettings as AppSettings['supabaseSync'],
+      });
+    },
+
+    updateAutoPourDetectionSettings: async updates => {
+      const current =
+        get().settings.autoPourDetection ?? defaultSettings.autoPourDetection!;
+      await get().updateSettings({
+        autoPourDetection: { ...current, ...updates },
       });
     },
 
