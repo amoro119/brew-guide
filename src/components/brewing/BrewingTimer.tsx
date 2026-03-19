@@ -39,6 +39,19 @@ import type {
 } from '@/components/brewing/Timer';
 import { globalAudioManager } from '@/lib/audio/globalAudioManager';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
+import {
+  CameraManager,
+  PourDetector,
+  UndoController,
+} from '@/components/brewing/AutoPourDetection';
+import CameraActiveIndicator from '@/components/brewing/AutoPourDetection/components/CameraActiveIndicator';
+import DetectionStateIndicator from '@/components/brewing/AutoPourDetection/components/DetectionStateIndicator';
+import UndoButton from '@/components/brewing/AutoPourDetection/components/UndoButton';
+import { showToast } from '@/components/common/feedback/LightToast';
+import type {
+  DetectionConfig,
+  StateMachineState,
+} from '@/components/brewing/AutoPourDetection/types';
 
 // 保留布局设置接口的导出，但使用从Timer模块导入的定义
 export type { LayoutSettings } from '@/components/brewing/Timer';
@@ -130,6 +143,33 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
   const [localShowFlowRate, setLocalShowFlowRate] = useState(
     settings.showFlowRate
   );
+
+  // Auto pour detection refs and state
+  const cameraManagerRef = useRef<CameraManager | null>(null);
+  const pourDetectorRef = useRef<PourDetector | null>(null);
+  const undoControllerRef = useRef<UndoController | null>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+  const frameProcessorRef = useRef<{
+    startCapture: (frameRate: number) => void;
+    stopCapture: () => void;
+    supportsVideoFrameCallback: () => boolean;
+  } | null>(null);
+
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [showUndoButton, setShowUndoButton] = useState(false);
+  const [undoRemainingMs, setUndoRemainingMs] = useState(0);
+  const [highlightPlayButton, setHighlightPlayButton] = useState(false);
+  const [debugState, setDebugState] = useState<{
+    state: StateMachineState;
+    consecutiveCount: number;
+    motionScore: number;
+    processingTimeMs: number;
+  }>({
+    state: 'idle',
+    consecutiveCount: 0,
+    motionScore: 0,
+    processingTimeMs: 0,
+  });
 
   // 监听布局设置变化
   useEffect(() => {
@@ -785,6 +825,208 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
     startCountdown,
   ]);
 
+  const startTimerImmediately = useCallback(() => {
+    clearTimerAndStates();
+    setIsRunning(true);
+    setHasStartedOnce(true);
+    startMainTimer();
+  }, [clearTimerAndStates, startMainTimer]);
+
+  const stopCamera = useCallback(() => {
+    frameProcessorRef.current?.stopCapture();
+    cameraManagerRef.current?.stopVideoStream();
+    pourDetectorRef.current?.stopDetection();
+    setIsCameraActive(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    undoControllerRef.current?.undo();
+    undoControllerRef.current = null;
+    setShowUndoButton(false);
+    clearTimerAndStates();
+    setIsRunning(false);
+    setCurrentTime(0);
+    setHasStartedOnce(false);
+    showToast({ type: 'info', title: '已撤销', duration: 1000 });
+  }, [clearTimerAndStates]);
+
+  const handlePourDetected = useCallback(() => {
+    const autoPourSettings =
+      useSettingsStore.getState().settings.autoPourDetection;
+    if (!autoPourSettings || autoPourSettings.mode === 'off') return;
+    if (isRunning || hasStartedOnce) return;
+
+    if (autoPourSettings.mode === 'auto-start') {
+      const snapshot = { currentTime, isRunning, hasStartedOnce };
+      startTimerImmediately();
+      showToast({
+        type: 'success',
+        title: '检测到注水，已开始计时',
+        duration: 2000,
+      });
+      undoControllerRef.current = new UndoController();
+      undoControllerRef.current.startUndoWindow(
+        autoPourSettings.undoWindowDuration ?? 2000,
+        snapshot,
+        {
+          onTick: remaining => {
+            setUndoRemainingMs(remaining);
+          },
+          onExpire: () => {
+            setShowUndoButton(false);
+          },
+          onUndo: () => {},
+        }
+      );
+      setShowUndoButton(true);
+      if (autoPourSettings.autoStopCamera) stopCamera();
+    } else if (autoPourSettings.mode === 'remind-only') {
+      showToast({
+        type: 'info',
+        title: '检测到注水，点击开始',
+        duration: 3000,
+        action: { label: '开始', onClick: () => startTimer() },
+      });
+      setHighlightPlayButton(true);
+      setTimeout(() => setHighlightPlayButton(false), 3000);
+    }
+  }, [
+    isRunning,
+    hasStartedOnce,
+    currentTime,
+    startTimerImmediately,
+    startTimer,
+    stopCamera,
+  ]);
+
+  const initAutoPourDetection = useCallback(async () => {
+    const autoSettings = useSettingsStore.getState().settings.autoPourDetection;
+    if (!autoSettings || autoSettings.mode === 'off') return;
+    if (isRunning || hasStartedOnce) return;
+
+    const cm = new CameraManager();
+    const initResult = await cm.initialize();
+    if (!initResult.success) {
+      console.warn('CameraManager initialize failed:', initResult.error);
+      return;
+    }
+
+    const permission = await cm.requestPermission();
+    if (permission === 'denied') {
+      showToast({
+        type: 'error',
+        title: '摄像头权限被拒绝，请在设置中授予权限',
+        duration: 5000,
+        action: { label: '去设置', onClick: () => {} },
+      });
+      return;
+    }
+
+    cameraManagerRef.current = cm;
+
+    try {
+      await cm.startVideoStream({
+        facingMode: autoSettings.cameraFacingMode ?? 'user',
+        width: autoSettings.videoResolution?.width ?? 320,
+        height: autoSettings.videoResolution?.height ?? 240,
+        frameRate: autoSettings.frameRate ?? 30,
+      });
+
+      const detectionConfig: DetectionConfig = {
+        sensitivity: 50,
+        frameDiffThreshold: autoSettings.frameDiffThreshold ?? 25,
+        minMotionRatio: autoSettings.minMotionRatio ?? 0.02,
+        maxMotionRatio: autoSettings.maxMotionRatio ?? 0.8,
+        requiredConsecutiveDetections:
+          autoSettings.requiredConsecutiveDetections ?? 6,
+        stateTimeout: autoSettings.stateTimeout ?? 5000,
+        cooldownDuration: autoSettings.cooldownDuration ?? 2000,
+      };
+
+      const pd = new PourDetector(detectionConfig);
+      pd.onPourDetected(handlePourDetected);
+      pourDetectorRef.current = pd;
+      pd.startDetection();
+      setIsCameraActive(true);
+
+      const FrameProcessorClass = (
+        await import('./AutoPourDetection/FrameProcessor')
+      ).default;
+      const fp = new FrameProcessorClass();
+
+      const videoEl = document.createElement('video');
+      videoEl.autoplay = true;
+      videoEl.playsInline = true;
+      videoEl.muted = true;
+      videoEl.srcObject = cm.getStream();
+      videoElementRef.current = videoEl;
+
+      await new Promise<void>(resolve => {
+        videoEl.onloadedmetadata = () => {
+          videoEl.play().then(() => resolve());
+        };
+      });
+
+      fp.initialize(videoEl);
+      fp.onFrameReady(frame => {
+        const result = pd.processFrame(frame);
+        if (autoSettings.showDebugOverlay) {
+          setDebugState({
+            state: result.currentState,
+            consecutiveCount: result.consecutiveCount,
+            motionScore: result.motionScore,
+            processingTimeMs: result.processingTime,
+          });
+        }
+      });
+      fp.startCapture(autoSettings.frameRate ?? 30);
+      frameProcessorRef.current = fp;
+    } catch (error) {
+      console.error('Failed to start video stream:', error);
+      showToast({
+        type: 'error',
+        title: '摄像头启动失败',
+        duration: 3000,
+      });
+    }
+  }, [handlePourDetected, isRunning, hasStartedOnce]);
+
+  useEffect(() => {
+    initAutoPourDetection();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopCamera();
+      } else {
+        const autoSettings =
+          useSettingsStore.getState().settings.autoPourDetection;
+        if (autoSettings?.mode !== 'off' && !isRunning && !hasStartedOnce) {
+          initAutoPourDetection();
+        }
+      }
+    };
+
+    const handleBrewingReset = () => {
+      stopCamera();
+      setShowUndoButton(false);
+      undoControllerRef.current = null;
+      const autoSettings =
+        useSettingsStore.getState().settings.autoPourDetection;
+      if (autoSettings?.mode !== 'off') {
+        setTimeout(() => initAutoPourDetection(), 100);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('brewing:reset', handleBrewingReset);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('brewing:reset', handleBrewingReset);
+      stopCamera();
+    };
+  }, [initAutoPourDetection, stopCamera, isRunning, hasStartedOnce]);
+
   useEffect(() => {
     if (isRunning) {
       const waterAmount = calculateCurrentWaterAmount();
@@ -1177,6 +1419,18 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
           )}
         </AnimatePresence>
 
+        {debugState.state !== 'idle' && (
+          <div className="absolute top-8 right-6 z-50">
+            <DetectionStateIndicator
+              state={debugState.state}
+              consecutiveCount={debugState.consecutiveCount}
+              motionScore={debugState.motionScore}
+              processingTimeMs={debugState.processingTimeMs}
+              visible={true}
+            />
+          </div>
+        )}
+
         <AnimatePresence>
           {showSkipButton && (
             <motion.button
@@ -1441,7 +1695,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                                 目标时间
                               </div>
-                              <div className="mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400">
+                              <div className="mt-1 text-sm font-medium tracking-wide text-neutral-600 tabular-nums dark:text-neutral-400">
                                 {formatTime(nextStage.endTime, true)}
                               </div>
                             </div>
@@ -1452,7 +1706,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                                 目标水量
                               </div>
                               <div
-                                className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
+                                className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 tabular-nums dark:text-neutral-400 ${
                                   localLayoutSettings.stageInfoReversed
                                     ? 'text-left'
                                     : 'text-right'
@@ -1467,7 +1721,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                                   流速
                                 </div>
                                 <div
-                                  className={`mt-1 text-sm font-medium tracking-wide tabular-nums text-neutral-600 dark:text-neutral-400 ${
+                                  className={`mt-1 text-sm font-medium tracking-wide text-neutral-600 tabular-nums dark:text-neutral-400 ${
                                     localLayoutSettings.stageInfoReversed
                                       ? 'text-left'
                                       : 'text-right'
@@ -1619,7 +1873,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         {currentStage && (
                           <div
                             key={`current-${currentStage.endTime}-${resolvedCurrentStageIndex}`}
-                            className="absolute top-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300"
+                            className="absolute top-0 text-[9px] font-medium text-neutral-600 tabular-nums dark:text-neutral-300"
                             style={{
                               left: `${(currentStage.endTime / expandedStagesRef.current[expandedStagesRef.current.length - 1].endTime) * 100}%`,
                               transform: 'translateX(-100%)',
@@ -1633,7 +1887,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                         {expandedStagesRef.current.length > 0 && (
                           <div
                             key="final-time"
-                            className="absolute top-0 right-0 text-[9px] font-medium tabular-nums text-neutral-600 dark:text-neutral-300"
+                            className="absolute top-0 right-0 text-[9px] font-medium text-neutral-600 tabular-nums dark:text-neutral-300"
                           >
                             {formatTime(
                               expandedStagesRef.current[
@@ -1817,9 +2071,17 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
                 : 'flex-row space-x-3'
             }`}
           >
+            {isCameraActive && <CameraActiveIndicator onStop={stopCamera} />}
+            {showUndoButton && (
+              <UndoButton
+                remainingMs={undoRemainingMs}
+                onUndo={handleUndo}
+                visible={showUndoButton}
+              />
+            )}
             <motion.button
               onClick={isRunning ? pauseTimer : startTimer}
-              className={`${localShowFlowRate ? 'h-11 w-11 sm:h-12 sm:w-12' : 'h-12 w-12 sm:h-14 sm:w-14'} flex flex-shrink-0 transform-gpu items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400`}
+              className={`${localShowFlowRate ? 'h-11 w-11 sm:h-12 sm:w-12' : 'h-12 w-12 sm:h-14 sm:w-14'} flex flex-shrink-0 transform-gpu items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 ${highlightPlayButton ? 'animate-pulse ring-2 ring-green-400' : ''}`}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1, ease: [0.4, 0, 0.2, 1] }}
               style={{
