@@ -29,41 +29,12 @@ export interface AutoPourDetectionSettings {
   /** Detection mode: auto-start, remind-only, or off */
   mode: DetectionMode;
 
-  // Layer 1: Frame difference detection config
-  /** Frame difference threshold (0-255) */
-  frameDiffThreshold: number;
-
-  /** Minimum motion pixel ratio (0-1) */
-  minMotionRatio: number;
-
-  /** Maximum motion pixel ratio (0-1, default 0.8, prevents fullscreen changes) */
-  maxMotionRatio: number;
-
-  // Layer 2: State machine config
-  /** Number of consecutive detections required to trigger */
-  requiredConsecutiveDetections: number;
-
-  /** State timeout in milliseconds */
-  stateTimeout: number;
-
-  /** Cooldown duration after undo in milliseconds (default 2000) */
-  cooldownDuration: number;
-
   // Camera config
   /** Selected camera device ID */
   cameraDeviceId: string | null;
 
   /** Camera facing mode: 'user' = front (recommended), 'environment' = back */
   cameraFacingMode: 'user' | 'environment';
-
-  /** Video resolution */
-  videoResolution: {
-    width: number;
-    height: number;
-  };
-
-  /** Frame rate (15/30/60) */
-  frameRate: number;
 
   // UI config
   /** Whether to show camera preview */
@@ -81,22 +52,6 @@ export interface AutoPourDetectionSettings {
 
   /** Undo window duration in milliseconds (default 2000) */
   undoWindowDuration: number;
-
-  // Performance config
-  /** Whether to use Web Worker */
-  useWebWorker: boolean;
-
-  /** Downsample scale (0.25-1.0) */
-  downsampleScale: number;
-
-  /** Region of interest for detection */
-  regionOfInterest: {
-    enabled: boolean;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null;
 }
 
 // ============================================================================

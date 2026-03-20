@@ -207,28 +207,17 @@ export const defaultSettings: AppSettings = {
   roasterSeparator: ' ', // 烘焙商分隔符，默认空格
   roasterMigrationCompleted: false, // @deprecated 已废弃，按需迁移策略不再使用此标记
 
-  // 自动注水检测设置
+  // 自动注水检测设置（仅保留用户可配置项）
   autoPourDetection: {
     enabled: false,
     mode: 'off',
-    frameDiffThreshold: 25,
-    minMotionRatio: 0.02,
-    maxMotionRatio: 0.8,
-    requiredConsecutiveDetections: 1,
-    stateTimeout: 5000,
-    cooldownDuration: 2000,
     cameraDeviceId: null,
     cameraFacingMode: 'user',
-    videoResolution: { width: 320, height: 240 },
-    frameRate: 30,
     showCameraPreview: false,
     showDebugOverlay: false,
     autoStopCamera: true,
     showToastNotification: true,
     undoWindowDuration: 2000,
-    useWebWorker: false,
-    downsampleScale: 1.0,
-    regionOfInterest: null,
   },
 };
 

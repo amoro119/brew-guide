@@ -932,21 +932,39 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
     cameraManagerRef.current = cm;
 
     try {
+      // 开发者可调参数 - 硬编码便于调试
+      const DETECTION_PARAMS = {
+        // 视频流配置
+        videoResolution: { width: 320, height: 240 },
+        frameRate: 30,
+
+        // 检测算法参数
+        frameDiffThreshold: 30,
+        minMotionRatio: 0.03,
+        maxMotionRatio: 0.8,
+
+        // 状态机参数
+        requiredConsecutiveDetections: 1,
+        stateTimeout: 5000,
+        cooldownDuration: 2000,
+      };
+
       await cm.startVideoStream({
         facingMode: autoSettings.cameraFacingMode ?? 'user',
-        width: autoSettings.videoResolution?.width ?? 320,
-        height: autoSettings.videoResolution?.height ?? 240,
-        frameRate: autoSettings.frameRate ?? 30,
+        width: DETECTION_PARAMS.videoResolution.width,
+        height: DETECTION_PARAMS.videoResolution.height,
+        frameRate: DETECTION_PARAMS.frameRate,
       });
 
       const detectionConfig: DetectionConfig = {
         sensitivity: 50,
-        frameDiffThreshold: 30,
-        minMotionRatio: 0.03,
-        maxMotionRatio: 0.8,
-        requiredConsecutiveDetections: 1,
-        stateTimeout: 5000,
-        cooldownDuration: 2000,
+        frameDiffThreshold: DETECTION_PARAMS.frameDiffThreshold,
+        minMotionRatio: DETECTION_PARAMS.minMotionRatio,
+        maxMotionRatio: DETECTION_PARAMS.maxMotionRatio,
+        requiredConsecutiveDetections:
+          DETECTION_PARAMS.requiredConsecutiveDetections,
+        stateTimeout: DETECTION_PARAMS.stateTimeout,
+        cooldownDuration: DETECTION_PARAMS.cooldownDuration,
       };
 
       const pd = new PourDetector(detectionConfig);
@@ -987,7 +1005,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
           });
         }
       });
-      fp.startCapture(autoSettings.frameRate ?? 30);
+      fp.startCapture(DETECTION_PARAMS.frameRate);
       frameProcessorRef.current = fp;
     } catch (error) {
       console.error('Failed to start video stream:', error);
