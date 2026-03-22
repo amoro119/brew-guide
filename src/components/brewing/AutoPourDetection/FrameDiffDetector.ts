@@ -2,47 +2,175 @@
  * FrameDiffDetector
  *
  * Layer 1: Pixel-level motion analysis using frame differencing.
- * Detects kettle tilt motion using TEMPORAL motion difference between top and bottom.
+ * Detects kettle tilt (pour) using three complementary signals:
  *
- * Core insight: Rotation causes differential motion
- * - Top (spout) moves DOWN faster than bottom (handle) during tilt
- * - Translation moves both equally
- * - tiltSignal = topDeltaY - bottomDeltaY captures this differential motion
+ * 1. **Vertical histogram valley** (primary spatial discriminator):
+ *    Compute a per-row histogram of diff pixels inside the bounding box.
+ *    Translation always creates TWO horizontal strips (trailing + leading edge)
+ *    with the unchanged kettle body between them → deep VALLEY in the histogram.
+ *    Rotation (pour) creates ONE connected arc → NO internal valley.
+ *      valleyDepth > 0.55 → two-strip translation   (REJECT)
+ *      valleyDepth ≤ 0.55 → continuous arc           (PASS)
+ *
+ *    Why this beats fillRatio:
+ *      fillRatio = 2d/(h+d) can exceed the threshold for small/fast objects.
+ *      The valley test is invariant to object size — a gap is a gap.
+ *
+ * 2. **Horizontal asymmetry** (secondary spatial discriminator):
+ *    Translation strips span the full width → symmetric around the center X.
+ *    Rotation concentrates diff at the SPOUT END (one side) → asymmetric.
+ *      asymmetry > 0.25 → rotation-like              (PASS)
+ *      asymmetry < 0.12 → translation-like (symmetric)(REJECT)
+ *
+ * 3. **bottomRatioTrend** (temporal confidence booster):
+ *    Least-squares slope of (bottomPixels/totalPixels) over last N frames.
+ *    Demoted from primary discriminator to secondary confidence signal.
+ *    Positive slope → spout sweeping downward → boosts rotationScore.
+ *    No longer used as a hard gate for translation rejection.
+ *
+ * 4. **Motion pixel accumulator** (slow-pour sensitivity):
+ *    A 10-frame sliding-window union of all diff pixel coordinates.
+ *    Slow pours produce very few pixels per frame; accumulating them lets
+ *    the signal exceed the minimum-pixel threshold that individual frames miss.
+ *    Detection is run on the accumulated map in parallel with per-frame analysis.
  *
  * Performance target: ≤5ms for 320×240 resolution
  */
 
-import type { FrameDiffResult, MotionAnalysis } from './types';
+import type { FrameDiffResult, MotionAnalysis, DetectionConfig } from './types';
 
 interface RegionCenters {
-  topCenterY: number;
-  bottomCenterY: number;
   topPixelCount: number;
   bottomPixelCount: number;
+  /** Fraction of diff pixels in the bottom half of the frame (0–1) */
+  bottomRatio: number;
+  /** Fraction of diff pixels right of frame centre (0–1); 0.5 = symmetric */
+  rightRatio: number;
 }
 
 interface TiltHistory {
-  topCenterY: number;
-  bottomCenterY: number;
-  tiltSignal: number;
+  bottomRatio: number;
+  fillRatio: number;
   timestamp: number;
+  totalMotionPixels: number;
+}
+
+/**
+ * Accumulates diff-pixel presence over a sliding window of frames.
+ * Each cell stores the count of frames in which that pixel was active.
+ * Used for slow-pour detection where per-frame signal is too weak.
+ */
+class MotionAccumulator {
+  private readonly _width: number;
+  private readonly _height: number;
+  private readonly _windowSize: number;
+  /** Circular buffer of per-frame bitmaps (1 = diff pixel active) */
+  private readonly _frames: Uint8Array[];
+  private _head = 0;
+  private _count = 0;
+  /** Sum map: how many frames each pixel was active */
+  private _sumMap: Uint8Array;
+
+  constructor(width: number, height: number, windowSize = 12) {
+    this._width = width;
+    this._height = height;
+    this._windowSize = windowSize;
+    this._frames = Array.from(
+      { length: windowSize },
+      () => new Uint8Array(width * height)
+    );
+    this._sumMap = new Uint8Array(width * height);
+  }
+
+  /** Push a new frame's diff bitmap and update the sum map */
+  push(diffMap: number[][], threshold: number): void {
+    const evicted = this._frames[this._head];
+    const incoming = this._frames[this._head]; // reuse buffer
+
+    for (let y = 0; y < this._height; y++) {
+      for (let x = 0; x < this._width; x++) {
+        const idx = y * this._width + x;
+        const wasActive = evicted[idx];
+        const isActive = diffMap[y][x] > threshold ? 1 : 0;
+        incoming[idx] = isActive;
+        this._sumMap[idx] = Math.max(
+          0,
+          (this._sumMap[idx] - wasActive + isActive) as number
+        );
+      }
+    }
+
+    this._head = (this._head + 1) % this._windowSize;
+    if (this._count < this._windowSize) this._count++;
+  }
+
+  /** Number of frames currently in the accumulator */
+  get frameCount(): number {
+    return this._count;
+  }
+
+  /**
+   * Returns a pseudo-diffMap where a pixel is "active" if it fired in
+   * at least `minFrames` out of the sliding window.
+   * Using minFrames=1 gives the union; minFrames=2 filters single-frame noise.
+   */
+  getAccumulatedMap(minFrames = 1): number[][] {
+    const map: number[][] = Array.from({ length: this._height }, () =>
+      new Array(this._width).fill(0)
+    );
+    for (let y = 0; y < this._height; y++) {
+      for (let x = 0; x < this._width; x++) {
+        if (this._sumMap[y * this._width + x] >= minFrames) {
+          map[y][x] = 255; // treat as "above threshold"
+        }
+      }
+    }
+    return map;
+  }
+
+  reset(): void {
+    for (const frame of this._frames) frame.fill(0);
+    this._sumMap.fill(0);
+    this._head = 0;
+    this._count = 0;
+  }
 }
 
 export default class FrameDiffDetector {
-  private _previousROI: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null = null;
-
-  // History buffer for temporal motion analysis
   private _tiltHistory: TiltHistory[] = [];
-  private readonly _historySize = 5;
+  private readonly _historySize = 8;
+
+  private _config: DetectionConfig;
 
   /**
-   * Compute frame difference between current and previous frame
+   * EMA of bottomRatioTrend (alpha = 0.35).
+   * Prevents a single noisy frame from zeroing the rotation score —
+   * the smoothed signal persists through brief negative excursions.
    */
+  private _smoothedTrend = 0;
+  private readonly _trendAlpha = 0.35;
+
+  /** Lazy-initialised — created on first frame once we know dimensions */
+  private _accumulator: MotionAccumulator | null = null;
+  private _lastWidth = 0;
+  private _lastHeight = 0;
+
+  constructor(config?: DetectionConfig) {
+    this._config = config ?? {
+      sensitivity: 50,
+      frameDiffThreshold: 30,
+      minMotionRatio: 0.005,
+      maxMotionRatio: 0.8,
+      requiredConsecutiveDetections: 2,
+      stateTimeout: 5000,
+      cooldownDuration: 2000,
+    };
+  }
+
+  updateConfig(config: Partial<DetectionConfig>): void {
+    this._config = { ...this._config, ...config };
+  }
+
   computeFrameDiff(
     currentFrame: ImageData,
     previousFrame: ImageData
@@ -86,7 +214,7 @@ export default class FrameDiffDetector {
     }
 
     const motionRatio = motionPixelCount / totalPixels;
-    const isLargeSceneChange = motionRatio > 0.8;
+    const isLargeSceneChange = motionRatio > this._config.maxMotionRatio;
 
     let motionCenterY = 0.5;
     if (motionPixelCount > 0) {
@@ -101,6 +229,10 @@ export default class FrameDiffDetector {
       motionCenterY = sumY / motionPixelCount / height;
     }
 
+    // Feed accumulator (always, even if per-frame ratio is low)
+    this._ensureAccumulator(width, height);
+    this._accumulator!.push(diffMap, this._config.frameDiffThreshold);
+
     return {
       diffMap,
       totalDiff,
@@ -112,92 +244,107 @@ export default class FrameDiffDetector {
     };
   }
 
-  /**
-   * Detect kettle tilt motion using TEMPORAL motion difference
-   *
-   * KEY INSIGHT: Rotation produces differential motion
-   * - Tilt: top moves down MORE than bottom (topDeltaY > bottomDeltaY)
-   * - Translation: both move equally (topDeltaY ≈ bottomDeltaY)
-   * - tiltSignal = topDeltaY - bottomDeltaY captures this
-   */
   detectDownwardMotion(diffMap: number[][], threshold: number): MotionAnalysis {
     const height = diffMap.length;
     const width = diffMap[0]?.length || 0;
-    const midY = Math.floor(height / 2);
 
-    // First pass: find bounding box of all motion
-    let totalMotionPixels = 0;
-    let minX = width;
-    let maxX = 0;
-    let minY = height;
-    let maxY = 0;
+    const perFrame = this._extractRegionFeatures(
+      diffMap,
+      threshold,
+      width,
+      height
+    );
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (diffMap[y][x] > threshold) {
-          totalMotionPixels++;
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        }
-      }
+    let accAnalysis: ReturnType<typeof this._extractRegionFeatures> | null =
+      null;
+    if (this._accumulator && this._accumulator.frameCount >= 3) {
+      const accMap = this._accumulator.getAccumulatedMap(2);
+      accAnalysis = this._extractRegionFeatures(accMap, 128, width, height);
     }
+
+    const useAcc =
+      accAnalysis !== null &&
+      accAnalysis.totalMotionPixels > perFrame.totalMotionPixels * 1.5 &&
+      perFrame.totalMotionPixels < 80;
+
+    const primary = useAcc ? accAnalysis! : perFrame;
+    const {
+      totalMotionPixels,
+      topPixels,
+      bottomPixels,
+      rightPixels,
+      bottomRatio,
+      rightRatio,
+      bbWidth,
+      bbHeight,
+      bbArea,
+      centroidX,
+      centroidY,
+    } = primary;
 
     if (totalMotionPixels === 0) {
       return this._createEmptyAnalysis();
     }
 
-    // Calculate dynamic regions based on bounding box
-    const motionHeight = maxY - minY;
-    const topRegionEnd = minY + motionHeight * 0.3;
-    const bottomRegionStart = minY + motionHeight * 0.7;
+    const fillRatio = totalMotionPixels / Math.max(1, bbArea);
 
-    // Second pass: analyze motion in dynamic top and bottom regions
-    let topPixels = 0;
-    let bottomPixels = 0;
-    let topSumY = 0;
-    let bottomSumY = 0;
+    const valleyDepth = this._computeValleyDepth(
+      primary.rowHistogram,
+      primary.bbMinY,
+      primary.bbMaxY
+    );
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (diffMap[y][x] > threshold) {
-          if (y < topRegionEnd) {
-            topPixels++;
-            topSumY += y;
-          } else if (y >= bottomRegionStart) {
-            bottomPixels++;
-            bottomSumY += y;
-          }
-        }
-      }
-    }
+    const leftPixels = totalMotionPixels - rightPixels;
+    const asymmetry =
+      totalMotionPixels > 0
+        ? Math.abs(leftPixels - rightPixels) / totalMotionPixels
+        : 0;
 
-    // Calculate current frame's region centers
     const currentCenters: RegionCenters = {
-      topCenterY: topPixels > 0 ? topSumY / topPixels / height : 0.25,
-      bottomCenterY:
-        bottomPixels > 0 ? bottomSumY / bottomPixels / height : 0.75,
       topPixelCount: topPixels,
       bottomPixelCount: bottomPixels,
+      bottomRatio,
+      rightRatio,
     };
 
-    // Calculate temporal tilt signal
-    const tiltSignal = this._calculateTemporalTiltSignal(currentCenters);
+    const bottomRatioTrend = this._calculateBottomRatioTrend(bottomRatio);
+    const trendConsistency = this._calculateTrendConsistency(bottomRatioTrend);
+    const motionMagnitude = this._calculateMotionMagnitude(bottomRatio);
 
-    // Calculate tilt consistency across recent frames
-    const tiltConsistency = this._calculateTiltConsistency();
+    this._updateTiltHistory(currentCenters, totalMotionPixels);
 
-    // Calculate motion magnitude for minimum motion threshold
-    const motionMagnitude = this._calculateMotionMagnitude();
+    this._smoothedTrend =
+      this._trendAlpha * bottomRatioTrend +
+      (1 - this._trendAlpha) * this._smoothedTrend;
 
-    // Calculate bounding box
-    const boundingBoxWidth = maxX - minX;
-    const boundingBoxHeight = maxY - minY;
-    const boundingBoxArea = boundingBoxWidth * boundingBoxHeight;
+    const isTranslation = this._isTranslation(valleyDepth, fillRatio, bbHeight);
 
-    // Determine motion region
-    const topRatio = topPixels / (totalMotionPixels || 1);
+    const rotationScore = this._calculateRotationScore(
+      this._smoothedTrend,
+      isTranslation,
+      trendConsistency,
+      motionMagnitude
+    );
+
+    const translationScore = isTranslation
+      ? Math.min(1, 0.5 + valleyDepth * 0.5)
+      : Math.max(0, valleyDepth * 0.4);
+
+    const isKettleTilt = this._isKettleTilt(
+      isTranslation,
+      this._smoothedTrend,
+      trendConsistency,
+      totalMotionPixels
+    );
+
+    const gradientStability =
+      this._calculateGradientStability(bottomRatioTrend);
+
+    const trendStrength = Math.min(1, Math.max(0, this._smoothedTrend) / 0.04);
+    const rotationEvidence =
+      trendStrength * 0.5 + (isTranslation ? 0 : 0.3) + trendConsistency * 0.2;
+
+    const topRatio = topPixels / totalMotionPixels;
     let motionRegion: 'top' | 'middle' | 'bottom';
     if (topRatio > 0.6) {
       motionRegion = 'top';
@@ -207,223 +354,357 @@ export default class FrameDiffDetector {
       motionRegion = 'middle';
     }
 
-    // Update history
-    this._updateTiltHistory(currentCenters, tiltSignal);
-
-    // Calculate rotation score based on tilt signal and consistency
-    const rotationScore = this._calculateRotationScore(
-      tiltSignal,
-      tiltConsistency,
-      motionMagnitude
-    );
-
-    // Determine if this is a kettle tilt
-    const isKettleTilt = this._isKettleTilt(
-      tiltSignal,
-      tiltConsistency,
-      rotationScore,
-      motionMagnitude
-    );
-
-    const hasMotion = rotationScore >= 0.3;
-    const isDownward = tiltSignal > 0.02;
+    const hasMotion = rotationScore >= 0.2;
+    const isDownward =
+      bottomRatioTrend > 0.002 || (useAcc && bottomRatio > 0.55);
 
     return {
       hasMotion,
       isDownward,
       motionScore: rotationScore,
-      verticalBias: tiltSignal,
+      verticalBias: bottomRatioTrend,
       motionRegion,
       areaChangeRatio: 0,
       isLargeSceneChange: false,
       totalMotionPixels,
-      motionCenterX: 0.5,
-      motionCenterY:
-        (currentCenters.topCenterY + currentCenters.bottomCenterY) / 2,
-      boundingBoxArea,
-      boundingBoxWidth,
-      boundingBoxHeight,
-      boundingBoxAspectRatio:
-        boundingBoxWidth > 0 ? boundingBoxHeight / boundingBoxWidth : 1,
-      centerYDisplacement: tiltSignal,
-      centerYHistory: this._tiltHistory.map(h => h.topCenterY),
-      downwardVelocity: tiltSignal,
+      motionCenterX: centroidX,
+      motionCenterY: centroidY,
+      boundingBoxArea: bbArea,
+      boundingBoxWidth: bbWidth,
+      boundingBoxHeight: bbHeight,
+      boundingBoxAspectRatio: bbWidth > 0 ? bbHeight / bbWidth : 1,
+      centerYDisplacement: bottomRatioTrend,
+      centerYHistory: this._tiltHistory.map(h => h.bottomRatio),
+      downwardVelocity: bottomRatioTrend,
       isKettleTilt,
-      kettleTiltConfidence: isKettleTilt ? tiltConsistency : 0,
+      kettleTiltConfidence: isKettleTilt
+        ? Math.min(1, rotationScore + trendConsistency * 0.3)
+        : 0,
       hasRotation: rotationScore > 0.2,
       rotationScore,
-      topCenterY: currentCenters.topCenterY,
-      bottomCenterY: currentCenters.bottomCenterY,
-      centerYDiff: currentCenters.bottomCenterY - currentCenters.topCenterY,
+      topCenterY: topRatio,
+      bottomCenterY: bottomRatio,
+      centerYDiff: bottomRatio - topRatio,
       verticalGradient: topRatio - 0.5,
-      asymmetryScore: 0,
+      asymmetryScore: asymmetry,
       topPixelCount: topPixels,
       bottomPixelCount: bottomPixels,
-      tiltSignal,
-      tiltConsistency,
+      tiltSignal: this._smoothedTrend,
+      tiltConsistency: trendConsistency,
+      translationScore,
+      commonModeDisplacement: bottomRatio,
+      rotationEvidence,
+      velocityRatio: valleyDepth,
+      gradientStability,
     };
   }
 
+  // ─── Feature extraction ───────────────────────────────────────────────────
+
+  private _extractRegionFeatures(
+    diffMap: number[][],
+    threshold: number,
+    width: number,
+    height: number
+  ) {
+    const midY = Math.floor(height / 2);
+    const midX = Math.floor(width / 2);
+
+    let totalMotionPixels = 0;
+    let bbMinX = width,
+      bbMaxX = 0;
+    let bbMinY = height,
+      bbMaxY = 0;
+    let topPixels = 0,
+      bottomPixels = 0;
+    let rightPixels = 0;
+    let sumCX = 0,
+      sumCY = 0;
+
+    // Row histogram — indexed from row 0 of the frame
+    const rowHistogram = new Int32Array(height);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (diffMap[y][x] > threshold) {
+          totalMotionPixels++;
+          if (x < bbMinX) bbMinX = x;
+          if (x > bbMaxX) bbMaxX = x;
+          if (y < bbMinY) bbMinY = y;
+          if (y > bbMaxY) bbMaxY = y;
+          if (y < midY) topPixels++;
+          else bottomPixels++;
+          if (x >= midX) rightPixels++;
+          sumCX += x;
+          sumCY += y;
+          rowHistogram[y]++;
+        }
+      }
+    }
+
+    if (totalMotionPixels === 0) {
+      return {
+        totalMotionPixels: 0,
+        topPixels: 0,
+        bottomPixels: 0,
+        rightPixels: 0,
+        bottomRatio: 0,
+        rightRatio: 0.5,
+        bbMinX: 0,
+        bbMaxX: 0,
+        bbMinY: 0,
+        bbMaxY: 0,
+        bbWidth: 0,
+        bbHeight: 0,
+        bbArea: 0,
+        centroidX: 0.5,
+        centroidY: 0.5,
+        rowHistogram,
+      };
+    }
+
+    const bbWidth = bbMaxX - bbMinX + 1;
+    const bbHeight = bbMaxY - bbMinY + 1;
+    const bbArea = bbWidth * bbHeight;
+
+    return {
+      totalMotionPixels,
+      topPixels,
+      bottomPixels,
+      rightPixels,
+      bottomRatio: bottomPixels / totalMotionPixels,
+      rightRatio: rightPixels / totalMotionPixels,
+      bbMinX,
+      bbMaxX,
+      bbMinY,
+      bbMaxY,
+      bbWidth,
+      bbHeight,
+      bbArea,
+      centroidX: sumCX / totalMotionPixels / width,
+      centroidY: sumCY / totalMotionPixels / height,
+      rowHistogram,
+    };
+  }
+
+  // ─── Valley detection ─────────────────────────────────────────────────────
+
   /**
-   * Calculate temporal tilt signal
-   * tiltSignal = topDeltaY - bottomDeltaY
+   * Detect internal gap (valley) in the vertical row histogram.
    *
-   * Rotation: top moves down MORE than bottom → positive tiltSignal
-   * Translation: both move equally → tiltSignal ≈ 0
+   * For downward translation: rows outside the two strips have near-zero
+   * counts → a clear valley between the top strip and bottom strip.
+   * For a pour arc: the histogram is unimodal or broadly continuous → no valley.
+   *
+   * Algorithm:
+   *   1. Take the sub-histogram within [bbMinY .. bbMaxY].
+   *   2. Find the peak value.
+   *   3. Find the minimum value in the MIDDLE 60% of that range
+   *      (avoids confusing the actual sparse edges with a valley).
+   *   4. valleyDepth = (peak − min) / peak
+   *
+   * Returns 0 if there are fewer than 4 rows (not enough to detect a valley).
    */
-  private _calculateTemporalTiltSignal(currentCenters: RegionCenters): number {
-    if (this._tiltHistory.length === 0) {
-      return 0;
+  private _computeValleyDepth(
+    rowHistogram: Int32Array,
+    bbMinY: number,
+    bbMaxY: number
+  ): number {
+    const span = bbMaxY - bbMinY + 1;
+    if (span < 4) return 0;
+
+    // Extract sub-histogram
+    let peak = 0;
+    for (let y = bbMinY; y <= bbMaxY; y++) {
+      if (rowHistogram[y] > peak) peak = rowHistogram[y];
+    }
+    if (peak === 0) return 0;
+
+    // Search for valley in the middle 60% of bounding box height
+    const innerStart = bbMinY + Math.floor(span * 0.2);
+    const innerEnd = bbMinY + Math.floor(span * 0.8);
+
+    let valleyMin = peak;
+    for (let y = innerStart; y <= innerEnd; y++) {
+      if (rowHistogram[y] < valleyMin) valleyMin = rowHistogram[y];
     }
 
-    const prev = this._tiltHistory[this._tiltHistory.length - 1];
+    return (peak - valleyMin) / peak;
+  }
 
-    // Calculate motion deltas
-    const topDeltaY = currentCenters.topCenterY - prev.topCenterY;
-    const bottomDeltaY = currentCenters.bottomCenterY - prev.bottomCenterY;
+  // ─── Temporal helpers ─────────────────────────────────────────────────────
 
-    // Tilt signal: difference between top and bottom motion
-    // Positive = top moving down more than bottom (tilting)
-    const tiltSignal = topDeltaY - bottomDeltaY;
+  /**
+   * Least-squares slope of bottomRatio over history + current frame.
+   */
+  private _calculateBottomRatioTrend(currentBottomRatio: number): number {
+    if (this._tiltHistory.length < 2) return 0;
 
-    return tiltSignal;
+    const values: number[] = this._tiltHistory.map(h => h.bottomRatio);
+    values.push(currentBottomRatio);
+
+    const n = values.length;
+    let sumI = 0,
+      sumY = 0,
+      sumIY = 0,
+      sumI2 = 0;
+    for (let i = 0; i < n; i++) {
+      sumI += i;
+      sumY += values[i];
+      sumIY += i * values[i];
+      sumI2 += i * i;
+    }
+
+    const denom = n * sumI2 - sumI * sumI;
+    if (denom === 0) return 0;
+    return (n * sumIY - sumI * sumY) / denom;
+  }
+
+  private _calculateTrendConsistency(currentTrend: number): number {
+    if (this._tiltHistory.length < 2) return 0;
+
+    const ratios = this._tiltHistory.map(h => h.bottomRatio);
+    const trendSign = currentTrend >= 0 ? 1 : -1;
+    let agree = 0;
+
+    for (let i = 1; i < ratios.length; i++) {
+      if ((ratios[i] - ratios[i - 1]) * trendSign > 0) agree++;
+    }
+
+    return agree / (ratios.length - 1);
+  }
+
+  private _calculateMotionMagnitude(currentBottomRatio: number): number {
+    if (this._tiltHistory.length < 2) return 0;
+    return Math.abs(currentBottomRatio - this._tiltHistory[0].bottomRatio);
+  }
+
+  private _calculateGradientStability(currentTrend: number): number {
+    if (this._tiltHistory.length < 2) return 0;
+
+    const ratios = this._tiltHistory.slice(-3).map(h => h.bottomRatio);
+    const deltas: number[] = [];
+    for (let i = 1; i < ratios.length; i++) {
+      deltas.push(ratios[i] - ratios[i - 1]);
+    }
+    deltas.push(currentTrend);
+
+    const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    const variance =
+      deltas.reduce((s, v) => s + (v - mean) ** 2, 0) / deltas.length;
+
+    return Math.max(0, 1 - variance * 500);
+  }
+
+  // ─── Score computation ────────────────────────────────────────────────────
+
+  /**
+   * Translation detector: returns true when the diff pattern looks like two
+   * parallel strips (leading + trailing edge of a translating object).
+   *
+   * Two-tier check:
+   *   Tier 1 (preferred): vertical histogram valley.  Works for any speed
+   *   when the object displacement produces ≥4 rows of bounding-box span.
+   *   Tier 2 (fallback):  fillRatio < 0.25.  Catches slow translations where
+   *   displacement is tiny (<4px) so valley detection has insufficient span.
+   */
+  private _isTranslation(
+    valleyDepth: number,
+    fillRatio: number,
+    bbHeight: number
+  ): boolean {
+    if (bbHeight >= 4) {
+      return valleyDepth > 0.52;
+    }
+    return fillRatio < 0.25;
   }
 
   /**
-   * Calculate tilt consistency across recent frames
-   * Measures how consistently the tilt signal has the same sign
+   * Rotation score. Translation is rejected by _isTranslation() before
+   * this is called. Scoring drives on bottomRatioTrend (spout sweeping down)
+   * and temporal consistency — the only reliable pour signals.
+   *
+   * Weights:
+   *   trendScore      60 % — main pour signal
+   *   consistScore    25 % — how monotonically the trend holds
+   *   magnitudeBonus  15 % — total accumulated shift
    */
-  private _calculateTiltConsistency(): number {
-    if (this._tiltHistory.length < 2) {
-      return 0;
-    }
+  private _calculateRotationScore(
+    bottomRatioTrend: number,
+    isTranslation: boolean,
+    trendConsistency: number,
+    motionMagnitude: number
+  ): number {
+    if (isTranslation) return 0;
+    if (bottomRatioTrend <= 0) return 0;
 
-    const recentSignals = this._tiltHistory.slice(-3).map(h => h.tiltSignal);
+    const trendScore = Math.min(1, bottomRatioTrend / 0.025);
+    const consistScore = trendConsistency;
+    const magnitudeBonus = Math.min(0.15, motionMagnitude * 3);
 
-    // Count positive and negative signals
-    const positiveCount = recentSignals.filter(s => s > 0).length;
-    const negativeCount = recentSignals.filter(s => s < 0).length;
-
-    // Consistency = max(positive, negative) / total
-    const maxCount = Math.max(positiveCount, negativeCount);
-    return maxCount / recentSignals.length;
+    return Math.min(1, trendScore * 0.6 + consistScore * 0.25 + magnitudeBonus);
   }
 
   /**
-   * Calculate motion magnitude for minimum threshold
+   * Hard gate for the pour decision.
+   *
+   * Conditions:
+   *   1. NOT a detected translation pattern.
+   *   2. bottomRatioTrend > 0   — diff centroid shifting toward bottom half.
+   *   3. trendConsistency > 0.3 — trend is monotonic, not noise.
+   *   4. totalMotionPixels ≥ 15 — minimum signal.
+   *   5. ≥2 history entries     — minimum temporal context.
+   *
+   * No asymmetry gate — a kettle held centrally has symmetric diff even
+   * during a genuine pour, so asymmetry cannot be a hard requirement.
    */
-  private _calculateMotionMagnitude(): number {
-    if (this._tiltHistory.length < 2) {
-      return 0;
-    }
-
-    const prev = this._tiltHistory[this._tiltHistory.length - 1];
-    const curr = this._tiltHistory[this._tiltHistory.length - 1];
-
-    // Total motion = |topDelta| + |bottomDelta|
-    // Use last two frames to estimate
-    if (this._tiltHistory.length >= 2) {
-      const lastIdx = this._tiltHistory.length - 1;
-      const prevIdx = this._tiltHistory.length - 2;
-
-      const topDelta = Math.abs(
-        this._tiltHistory[lastIdx].topCenterY -
-          this._tiltHistory[prevIdx].topCenterY
-      );
-      const bottomDelta = Math.abs(
-        this._tiltHistory[lastIdx].bottomCenterY -
-          this._tiltHistory[prevIdx].bottomCenterY
-      );
-
-      return topDelta + bottomDelta;
-    }
-
-    return 0;
+  private _isKettleTilt(
+    isTranslation: boolean,
+    bottomRatioTrend: number,
+    trendConsistency: number,
+    totalMotionPixels: number
+  ): boolean {
+    if (totalMotionPixels < 15) return false;
+    if (this._tiltHistory.length < 2) return false;
+    if (isTranslation) return false;
+    if (bottomRatioTrend <= 0) return false;
+    return trendConsistency > 0.2;
   }
 
-  /**
-   * Update tilt history buffer
-   */
-  private _updateTiltHistory(centers: RegionCenters, tiltSignal: number): void {
+  // ─── History ──────────────────────────────────────────────────────────────
+
+  private _updateTiltHistory(
+    centers: RegionCenters,
+    totalMotionPixels: number
+  ): void {
+    const fillRatio = 0; // not used in history but kept for compat
     this._tiltHistory.push({
-      topCenterY: centers.topCenterY,
-      bottomCenterY: centers.bottomCenterY,
-      tiltSignal,
+      bottomRatio: centers.bottomRatio,
+      fillRatio,
       timestamp: Date.now(),
+      totalMotionPixels,
     });
-
     if (this._tiltHistory.length > this._historySize) {
       this._tiltHistory.shift();
     }
   }
 
-  /**
-   * Calculate rotation score based on tilt signal and consistency
-   */
-  private _calculateRotationScore(
-    tiltSignal: number,
-    tiltConsistency: number,
-    motionMagnitude: number
-  ): number {
-    // Minimum motion threshold
-    if (motionMagnitude < 0.005) {
-      return 0;
+  // ─── Accumulator ──────────────────────────────────────────────────────────
+
+  private _ensureAccumulator(width: number, height: number): void {
+    if (
+      this._accumulator === null ||
+      width !== this._lastWidth ||
+      height !== this._lastHeight
+    ) {
+      this._accumulator = new MotionAccumulator(width, height, 12);
+      this._lastWidth = width;
+      this._lastHeight = height;
     }
-
-    // Factor 1: Tilt signal strength (most important)
-    // Scale: typical tilt produces 0.01-0.05 signal
-    const signalScore = Math.min(1, Math.abs(tiltSignal) / 0.03);
-
-    // Factor 2: Consistency bonus
-    // Requires consistent signal across frames
-    const consistencyBonus = tiltConsistency * 0.3;
-
-    // Factor 3: Sufficient motion magnitude
-    // Ensures we're not detecting noise
-    const magnitudeScore = Math.min(1, motionMagnitude / 0.02);
-
-    // Combined score
-    const score = signalScore * 0.6 + consistencyBonus + magnitudeScore * 0.1;
-
-    // Only positive tilt signals count (downward tilt)
-    return tiltSignal > 0 ? Math.min(1, score) : 0;
   }
 
-  /**
-   * Determine if current motion matches kettle tilt characteristics
-   */
-  private _isKettleTilt(
-    tiltSignal: number,
-    tiltConsistency: number,
-    rotationScore: number,
-    motionMagnitude: number
-  ): boolean {
-    // Must have positive tilt signal (top moving down more)
-    if (tiltSignal <= 0.025) {
-      return false;
-    }
+  // ─── Public API ───────────────────────────────────────────────────────────
 
-    // Must have sufficient consistency
-    if (tiltConsistency < 0.6) {
-      return false;
-    }
-
-    // Must have good rotation score
-    if (rotationScore < 0.6) {
-      return false;
-    }
-
-    // Must have sufficient motion
-    if (motionMagnitude < 0.02) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Create empty analysis when no motion detected
-   */
   private _createEmptyAnalysis(): MotionAnalysis {
     return {
       hasMotion: false,
@@ -456,31 +737,34 @@ export default class FrameDiffDetector {
       bottomPixelCount: 0,
       tiltSignal: 0,
       tiltConsistency: 0,
+      translationScore: 0,
+      commonModeDisplacement: 0,
+      rotationEvidence: 0,
+      velocityRatio: 0,
+      gradientStability: 0,
     };
   }
 
-  /**
-   * Check if motion matches pouring characteristics
-   */
   isPouringMotion(motionAnalysis: MotionAnalysis): boolean {
-    // Primary: Kettle tilt with high confidence
     const isKettleTilt =
-      motionAnalysis.isKettleTilt && motionAnalysis.kettleTiltConfidence >= 0.3;
+      motionAnalysis.isKettleTilt &&
+      motionAnalysis.kettleTiltConfidence >= 0.25 &&
+      motionAnalysis.translationScore < 0.65;
 
-    // Secondary: Strong tilt signal with consistency
-    const hasStrongTilt =
-      motionAnalysis.tiltSignal > 0.04 &&
-      motionAnalysis.tiltConsistency >= 0.7 &&
-      motionAnalysis.motionScore >= 0.6;
+    const hasStrongSignature =
+      motionAnalysis.motionScore >= 0.35 &&
+      motionAnalysis.translationScore < 0.55;
 
-    return isKettleTilt || hasStrongTilt;
+    const hasStrongRotationEvidence =
+      motionAnalysis.rotationEvidence > 0.5 &&
+      motionAnalysis.translationScore < 0.55;
+
+    return isKettleTilt || hasStrongSignature || hasStrongRotationEvidence;
   }
 
-  /**
-   * Reset detector state
-   */
   reset(): void {
-    this._previousROI = null;
     this._tiltHistory = [];
+    this._smoothedTrend = 0;
+    this._accumulator?.reset();
   }
 }

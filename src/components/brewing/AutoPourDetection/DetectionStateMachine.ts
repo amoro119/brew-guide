@@ -72,7 +72,7 @@ export default class DetectionStateMachine {
     let transitionReason = '';
 
     // Update detection window
-    const isDetection = event.isKettleTilt && event.motionScore >= 0.35;
+    const isDetection = event.isKettleTilt && event.motionScore <= 0.7;
     this._updateDetectionWindow(isDetection);
 
     // Calculate stability score from window
@@ -155,10 +155,10 @@ export default class DetectionStateMachine {
           this._updateStateEntryTime(currentTime);
           transitionReason = 'threshold_met_stable';
         } else if (this._softCounter <= 0) {
-          // Return to monitoring on complete loss
-          this._state = 'monitoring';
+          // Return to idle on complete loss (was incorrectly staying in monitoring)
+          this._state = 'idle';
           this._consecutiveCount = 0;
-          transitionReason = 'tilt_lost';
+          transitionReason = 'tilt_lost_return_idle';
         }
         break;
 
