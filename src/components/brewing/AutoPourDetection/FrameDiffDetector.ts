@@ -282,10 +282,6 @@ export default class FrameDiffDetector {
       centroidY,
     } = primary;
 
-    if (totalMotionPixels === 0) {
-      return this._createEmptyAnalysis();
-    }
-
     const fillRatio = totalMotionPixels / Math.max(1, bbArea);
 
     const valleyDepth = this._computeValleyDepth(
@@ -445,27 +441,6 @@ export default class FrameDiffDetector {
           rowHistogram[y]++;
         }
       }
-    }
-
-    if (totalMotionPixels === 0) {
-      return {
-        totalMotionPixels: 0,
-        topPixels: 0,
-        bottomPixels: 0,
-        rightPixels: 0,
-        bottomRatio: 0,
-        rightRatio: 0.5,
-        bbMinX: 0,
-        bbMaxX: 0,
-        bbMinY: 0,
-        bbMaxY: 0,
-        bbWidth: 0,
-        bbHeight: 0,
-        bbArea: 0,
-        centroidX: 0.5,
-        centroidY: 0.5,
-        rowHistogram,
-      };
     }
 
     const bbWidth = bbMaxX - bbMinX + 1;
@@ -688,7 +663,7 @@ export default class FrameDiffDetector {
   ): boolean {
     // 1. 严格的像素过滤：过小（噪点）或过大（整体平移）直接拒绝
     // 倒水稳定期通常在 4000-10000 之间，这里设定 15000 为绝对上限
-    if (totalMotionPixels < 100 || totalMotionPixels > 15000) return false;
+    if (totalMotionPixels < 100 || totalMotionPixels > 20000) return false;
 
     // 2. 核心方向规则：根据需求，tiltSignal > 0 时表示未倾倒水壶（拒绝）。
     // 这意味着只有当 tiltSignal <= 0 时，才有可能判定为倒水。
@@ -699,7 +674,7 @@ export default class FrameDiffDetector {
 
     // 3. 【绝对核心】趋势一致性必须极高
     // 日志证明：平移最高仅为 0.57，而倒水在 0.75 - 1.0 之间。
-    if (trendConsistency < 0.55) return false;
+    if (trendConsistency < 0.55  ) return false;
 
     return true;
   }

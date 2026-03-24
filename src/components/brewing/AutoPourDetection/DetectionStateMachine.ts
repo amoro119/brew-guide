@@ -108,11 +108,21 @@ export default class DetectionStateMachine {
             this._softCounterMax
           );
         } else {
-          // Allow occasional misses
-          this._softCounter = Math.max(
-            0,
-            this._softCounter - (1 - this._config.preparingTolerance!)
-          );
+          // 【核心修改】：区分“动作暂停”和“干扰动作”
+          if (event.type === 'no_motion') {
+            // 如果画面完全静止（代表倒水时手在悬停），我们给予极高的宽容度。
+            // 每次只扣除 0.15 分，这意味着允许水壶连续保持绝对静止 5-6 帧都不会断掉状态！
+            this._softCounter = Math.max(
+              0,
+              this._softCounter - 0.1
+            );
+          } else {
+            // 如果画面在运动，但被 Layer 1 判定为“不是倒水”（比如平移、收回水壶等干扰动作），正常重度扣分
+            this._softCounter = Math.max(
+              0,
+              this._softCounter - (1 - this._config.preparingTolerance!)
+            );
+          }
         }
 
         this._consecutiveCount = this._softCounter;
