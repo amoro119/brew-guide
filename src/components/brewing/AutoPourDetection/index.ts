@@ -14,6 +14,7 @@ export { default as FrameDiffDetector } from './FrameDiffDetector';
 export { default as DetectionStateMachine } from './DetectionStateMachine';
 export { default as PourDetector } from './PourDetector';
 export { default as UndoController } from './UndoController';
+export { default as DebugRecorder } from './DebugRecorder';
 
 // Components
 export { default as CameraActiveIndicator } from './components/CameraActiveIndicator';

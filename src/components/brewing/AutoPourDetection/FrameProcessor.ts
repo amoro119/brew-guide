@@ -15,6 +15,9 @@ export default class FrameProcessor {
   private _captureHandle: number | null = null;
   private _frameCallback: ((frame: VideoFrame) => void) | null = null;
   private _useVideoFrameCallback = false;
+  
+  // 【新增】：用于记录上一次实际处理帧的高精度时间戳
+  private _lastCaptureTime = 0;
 
   /**
    * Initialize the processor with a video element
@@ -36,21 +39,41 @@ export default class FrameProcessor {
   startCapture(frameRate: number): void {
     if (!this._videoEl) return;
 
+    // 【新增】：计算两帧之间需要等待的最小时间间隔（毫秒）
+    const intervalMs = 1000 / frameRate;
+
     if (this._useVideoFrameCallback) {
+      // 初始化时间戳，确保启动后能顺利开始判断
+      this._lastCaptureTime = performance.now();
+
       // Use requestVideoFrameCallback for efficient frame capture
-      const captureLoop = () => {
+      // 【修改】：接收 requestVideoFrameCallback 自动传入的当前高精度时间 `now`
+      const captureLoop = (now: number) => {
         if (!this._videoEl) return;
-        this.captureAndCallback();
+        
+        // 【核心节流逻辑】：只有当逝去的时间大于或等于我们设定的间隔时，才抓取并回调
+        if (now - this._lastCaptureTime >= intervalMs) {
+          this.captureAndCallback();
+          this._lastCaptureTime = now;
+        }
+        
+        // 无论是否抓取，都继续请求下一帧，维持循环运转
         this._captureHandle = (
           this._videoEl as unknown as {
-            requestVideoFrameCallback: (callback: () => void) => number;
+            requestVideoFrameCallback: (callback: (now: number) => void) => number;
           }
         ).requestVideoFrameCallback(captureLoop);
       };
-      captureLoop();
+      
+      // 启动第一次循环
+      this._captureHandle = (
+        this._videoEl as unknown as {
+          requestVideoFrameCallback: (callback: (now: number) => void) => number;
+        }
+      ).requestVideoFrameCallback(captureLoop);
+      
     } else {
-      // Fallback to setInterval
-      const intervalMs = 1000 / frameRate;
+      // Fallback to setInterval (这里原本就使用了 intervalMs，逻辑是正确的)
       this._captureHandle = window.setInterval(() => {
         this.captureAndCallback();
       }, intervalMs);

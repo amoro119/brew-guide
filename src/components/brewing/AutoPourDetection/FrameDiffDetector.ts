@@ -317,13 +317,24 @@ export default class FrameDiffDetector {
       this._trendAlpha * bottomRatioTrend +
       (1 - this._trendAlpha) * this._smoothedTrend;
 
-    const isTranslation = this._isTranslation(valleyDepth, fillRatio, bbHeight);
+    const isTranslation = this._isTranslation(valleyDepth, fillRatio, bbHeight,asymmetry);
 
     const rotationScore = this._calculateRotationScore(
       this._smoothedTrend,
       isTranslation,
       trendConsistency,
-      motionMagnitude
+      motionMagnitude,
+      asymmetry,
+      bottomRatio
+    );
+
+    // Detect pour pattern for better pour recognition
+    const isPourPattern = this._detectPourPattern(
+      asymmetry,
+      valleyDepth,
+      bottomRatio,
+      trendConsistency,
+      totalMotionPixels
     );
 
     const translationScore = isTranslation
@@ -331,10 +342,10 @@ export default class FrameDiffDetector {
       : Math.max(0, valleyDepth * 0.4);
 
     const isKettleTilt = this._isKettleTilt(
-      isTranslation,
-      this._smoothedTrend,
-      trendConsistency,
-      totalMotionPixels
+      rotationScore,         // 传入当前的旋转得分
+      trendConsistency,      // 传入趋势一致性
+      this._smoothedTrend,   // 传入倾斜信号 (tiltSignal)，用于判断方向
+      totalMotionPixels      // 传入运动像素总数
     );
 
     const gradientStability =
@@ -611,38 +622,73 @@ export default class FrameDiffDetector {
   private _isTranslation(
     valleyDepth: number,
     fillRatio: number,
-    bbHeight: number
+    bbHeight: number,
+    asymmetry: number
   ): boolean {
-    if (bbHeight >= 4) {
-      return valleyDepth > 0.52;
+    // 【新增】如果画面高度不对称（通常是因为水嘴在一侧倒水），则降低其判定为纯平移的概率
+    if (asymmetry > 0.4) {
+      return false;
+    }
+    if (bbHeight >= 6) {
+      return valleyDepth > 0.80;
     }
     return fillRatio < 0.25;
   }
 
-  /**
-   * Rotation score. Translation is rejected by _isTranslation() before
-   * this is called. Scoring drives on bottomRatioTrend (spout sweeping down)
-   * and temporal consistency — the only reliable pour signals.
-   *
-   * Weights:
-   *   trendScore      60 % — main pour signal
-   *   consistScore    25 % — how monotonically the trend holds
-   *   magnitudeBonus  15 % — total accumulated shift
-   */
   private _calculateRotationScore(
     bottomRatioTrend: number,
     isTranslation: boolean,
     trendConsistency: number,
-    motionMagnitude: number
+    motionMagnitude: number,
+    asymmetry: number,
+    bottomRatio: number
   ): number {
-    if (isTranslation) return 0;
-    if (bottomRatioTrend <= 0) return 0;
 
-    const trendScore = Math.min(1, bottomRatioTrend / 0.025);
+    const trendScore = Math.min(1, Math.max(0, bottomRatioTrend) / 0.025);
+    const asymmetryScore = Math.min(1, asymmetry / 0.4);
+    const bottomDominanceScore = Math.min(
+      1,
+      Math.max(0, (bottomRatio - 0.5) * 2)
+    );
     const consistScore = trendConsistency;
-    const magnitudeBonus = Math.min(0.15, motionMagnitude * 3);
+    const magnitudeBonus = Math.min(0.05, motionMagnitude * 1);
 
-    return Math.min(1, trendScore * 0.6 + consistScore * 0.25 + magnitudeBonus);
+    // Relaxed weights: less dependency on trend direction
+    return Math.min(
+      1,
+      trendScore * 0.25 +
+        asymmetryScore * 0.25 +
+        bottomDominanceScore * 0.25 +
+        consistScore * 0.15 +
+        magnitudeBonus
+    );
+  }
+
+  /**
+   * Detect pour pattern: recognizes kettle pouring motion based on
+   * spatial distribution characteristics unique to pouring.
+   *
+   * Pour characteristics:
+   *   - High asymmetry (spout concentrates motion on one side)
+   *   - Moderate valley depth (not pure translation)
+   *   - Bottom-heavy pixel distribution
+   *   - Consistent temporal trend
+   *   - Sufficient motion magnitude
+   */
+  private _detectPourPattern(
+    asymmetry: number,
+    valleyDepth: number,
+    bottomRatio: number,
+    trendConsistency: number,
+    totalMotionPixels: number
+  ): boolean {
+    return (
+      asymmetry > 0.15 &&
+      valleyDepth < 0.6 &&
+      bottomRatio > 0.6 &&
+      trendConsistency > 0.3 &&
+      totalMotionPixels > 1000
+    );
   }
 
   /**
@@ -659,16 +705,27 @@ export default class FrameDiffDetector {
    * during a genuine pour, so asymmetry cannot be a hard requirement.
    */
   private _isKettleTilt(
-    isTranslation: boolean,
-    bottomRatioTrend: number,
+    rotationScore: number,
     trendConsistency: number,
+    tiltSignal: number,
     totalMotionPixels: number
   ): boolean {
-    if (totalMotionPixels < 15) return false;
+    // 1. 严格的像素过滤：过小（噪点）或过大（整体平移）直接拒绝
+    // 倒水稳定期通常在 4000-10000 之间，这里设定 15000 为绝对上限
+    if (totalMotionPixels < 100 || totalMotionPixels > 15000) return false;
+
+    // 2. 核心方向规则：根据需求，tiltSignal > 0 时表示未倾倒水壶（拒绝）。
+    // 这意味着只有当 tiltSignal <= 0 时，才有可能判定为倒水。
+    if (tiltSignal > 0) return false;
+
+    // 3. 历史数据要求：需要至少 2 帧历史记录来建立上下文，否则拒绝。
     if (this._tiltHistory.length < 2) return false;
-    if (isTranslation) return false;
-    if (bottomRatioTrend <= 0) return false;
-    return trendConsistency > 0.2;
+
+    // 3. 【绝对核心】趋势一致性必须极高
+    // 日志证明：平移最高仅为 0.57，而倒水在 0.75 - 1.0 之间。
+    if (trendConsistency < 0.55) return false;
+
+    return true;
   }
 
   // ─── History ──────────────────────────────────────────────────────────────
@@ -746,20 +803,53 @@ export default class FrameDiffDetector {
   }
 
   isPouringMotion(motionAnalysis: MotionAnalysis): boolean {
+    const translationScore = motionAnalysis.translationScore ?? 0;
+    const rotationEvidence = motionAnalysis.rotationEvidence ?? 0;
+    const rotationScore = motionAnalysis.rotationScore ?? 0;
+    const asymmetry = motionAnalysis.asymmetryScore ?? 0;
+    const valleyDepth = motionAnalysis.velocityRatio ?? 0;
+    const bottomRatio = motionAnalysis.bottomCenterY ?? 0.5;
+    const trendConsistency = motionAnalysis.tiltConsistency ?? 0;
+    const totalMotionPixels = motionAnalysis.totalMotionPixels ?? 0;
+
+    // Primary: isKettleTilt is the main signal, relax confidence threshold
     const isKettleTilt =
       motionAnalysis.isKettleTilt &&
-      motionAnalysis.kettleTiltConfidence >= 0.25 &&
-      motionAnalysis.translationScore < 0.65;
+      motionAnalysis.kettleTiltConfidence >= 0.15 &&
+      translationScore < 0.75;
 
+    // Secondary: strong motion signature
     const hasStrongSignature =
-      motionAnalysis.motionScore >= 0.35 &&
-      motionAnalysis.translationScore < 0.55;
+      motionAnalysis.motionScore >= 0.2 && translationScore < 0.7;
 
+    // Tertiary: rotation evidence
     const hasStrongRotationEvidence =
-      motionAnalysis.rotationEvidence > 0.5 &&
-      motionAnalysis.translationScore < 0.55;
+      rotationEvidence > 0.3 && translationScore < 0.7;
 
-    return isKettleTilt || hasStrongSignature || hasStrongRotationEvidence;
+    // Relaxed pour pattern detection
+    const hasPourPattern =
+      asymmetry > 0.15 &&
+      valleyDepth < 0.6 &&
+      bottomRatio > 0.6 &&
+      trendConsistency > 0.3 &&
+      totalMotionPixels > 1000 &&
+      translationScore < 0.75;
+
+    // Very relaxed criteria for moderate rotation
+    const hasModerateRotationWithPourCharacteristics =
+      rotationScore >= 0.12 &&
+      rotationScore < 0.4 &&
+      asymmetry > 0.1 &&
+      bottomRatio > 0.55 &&
+      translationScore < 0.7;
+
+    return (
+      isKettleTilt ||
+      hasStrongSignature ||
+      hasStrongRotationEvidence ||
+      hasPourPattern ||
+      hasModerateRotationWithPourCharacteristics
+    );
   }
 
   reset(): void {

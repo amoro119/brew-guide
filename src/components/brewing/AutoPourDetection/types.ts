@@ -236,6 +236,12 @@ export interface MotionAnalysis {
 
   /** Tilt consistency across frames (0-1, higher = more consistent) */
   tiltConsistency: number;
+
+  translationScore?: number;
+  velocityRatio?: number;
+  commonModeDisplacement?: number;
+  rotationEvidence?: number;
+  gradientStability?: number;
 }
 
 /**

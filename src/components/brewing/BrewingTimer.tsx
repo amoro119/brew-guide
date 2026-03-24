@@ -43,6 +43,7 @@ import {
   CameraManager,
   PourDetector,
   UndoController,
+  DebugRecorder,
 } from '@/components/brewing/AutoPourDetection';
 import CameraActiveIndicator from '@/components/brewing/AutoPourDetection/components/CameraActiveIndicator';
 import DetectionStateIndicator from '@/components/brewing/AutoPourDetection/components/DetectionStateIndicator';
@@ -151,6 +152,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
   const cameraManagerRef = useRef<CameraManager | null>(null);
   const pourDetectorRef = useRef<PourDetector | null>(null);
   const undoControllerRef = useRef<UndoController | null>(null);
+  const debugRecorderRef = useRef<DebugRecorder | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const frameProcessorRef = useRef<{
     startCapture: (frameRate: number) => void;
@@ -839,12 +841,80 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
     startMainTimer();
   }, [clearTimerAndStates, startMainTimer]);
 
+  const handleDebugExport = useCallback(() => {
+    const recorder = debugRecorderRef.current;
+    if (!recorder) return;
+
+    try {
+      const report = recorder.exportToStructuredText();
+      const blob = new Blob([report.rawText], {
+        type: 'text/plain;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-report-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast({
+        type: 'success',
+        title: '调试报告已导出',
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Failed to export debug report:', error);
+      showToast({
+        type: 'error',
+        title: '导出失败',
+        duration: 2000,
+      });
+    }
+  }, []);
+
+  const handleDebugCopyLog = useCallback(async (): Promise<string> => {
+    const recorder = debugRecorderRef.current;
+    if (!recorder) {
+      return '无调试数据';
+    }
+
+    try {
+      const report = recorder.exportToStructuredText();
+      showToast({
+        type: 'success',
+        title: '日志已复制到剪贴板',
+        duration: 2000,
+      });
+      return report.rawText;
+    } catch (error) {
+      console.error('Failed to copy debug log:', error);
+      showToast({
+        type: 'error',
+        title: '复制失败',
+        duration: 2000,
+      });
+      return '复制失败';
+    }
+  }, []);
+
   const stopCamera = useCallback(() => {
+    const recorder = debugRecorderRef.current;
+    const hasRecording = recorder?.isRecording() && recorder.getSession();
+
     frameProcessorRef.current?.stopCapture();
     cameraManagerRef.current?.stopVideoStream();
     pourDetectorRef.current?.stopDetection();
+    debugRecorderRef.current?.stopRecording();
     setIsCameraActive(false);
-  }, []);
+
+    if (hasRecording) {
+      setTimeout(() => {
+        handleDebugExport();
+      }, 100);
+    }
+  }, [handleDebugExport]);
 
   const handleUndo = useCallback(() => {
     undoControllerRef.current?.undo();
@@ -936,7 +1006,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       const DETECTION_PARAMS = {
         // 视频流配置
         videoResolution: { width: 320, height: 240 },
-        frameRate: 30,
+        frameRate: 4,
 
         // 检测算法参数
         frameDiffThreshold: 30,
@@ -944,7 +1014,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
         maxMotionRatio: 0.8,
 
         // 状态机参数
-        requiredConsecutiveDetections: 1,
+        requiredConsecutiveDetections: 4,
         stateTimeout: 5000,
         cooldownDuration: 2000,
       };
@@ -992,8 +1062,31 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       });
 
       fp.initialize(videoEl);
+
+      const recorder = new DebugRecorder();
+      recorder.startRecording(detectionConfig);
+      debugRecorderRef.current = recorder;
+
+      let previousState = 'idle' as StateMachineState;
       fp.onFrameReady(frame => {
         const result = pd.processFrame(frame);
+
+        const stateTransition =
+          result.currentState !== previousState
+            ? {
+                previousState,
+                transitionReason: result.stateMachineDebug
+                  ? `state_change_${previousState}_to_${result.currentState}`
+                  : '',
+              }
+            : null;
+        previousState = result.currentState;
+
+        recorder.recordFrame({
+          detectionResult: result,
+          stateTransition,
+        });
+
         if (autoSettings.showDebugOverlay) {
           setDebugState({
             state: result.currentState,
@@ -1043,15 +1136,28 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       }
     };
 
+    const handleDebugExportEvent = () => {
+      handleDebugExport();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('brewing:reset', handleBrewingReset);
+    window.addEventListener('debug:export', handleDebugExportEvent);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('brewing:reset', handleBrewingReset);
+      window.removeEventListener('debug:export', handleDebugExportEvent);
       stopCamera();
     };
-  }, [initAutoPourDetection, stopCamera, isRunning, hasStartedOnce]);
+  }, [
+    initAutoPourDetection,
+    stopCamera,
+    isRunning,
+    hasStartedOnce,
+    handleDebugExport,
+    handleDebugCopyLog,
+  ]);
 
   useEffect(() => {
     if (isRunning) {
@@ -1456,6 +1562,9 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
               stateMachineDebug={debugState.stateMachineDebug}
               visible={true}
               position="top-right"
+              hasRecording={debugRecorderRef.current?.isRecording() ?? false}
+              onExport={handleDebugExport}
+              onCopyLog={handleDebugCopyLog}
             />
           </div>
         )}
