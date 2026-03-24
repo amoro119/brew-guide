@@ -31,6 +31,9 @@ export default class PourDetector {
   private _lastFrameTime = 0;
   private _hasTriggered = false;
 
+  // 用于冻结并保存最后一帧的结果
+  private _lastResult: DetectionResult | null = null;
+
   constructor(config: DetectionConfig) {
     this._config = config;
     this._frameDiff = new FrameDiffDetector();
@@ -93,7 +96,8 @@ export default class PourDetector {
     };
 
     if (!this._isActive) {
-      return defaultResult;
+      // 如果处于非活跃状态（被冻结），永远返回最后一次记录的真实数据
+      return this._lastResult || defaultResult;
     }
 
     this._frameCount++;
@@ -237,7 +241,7 @@ export default class PourDetector {
       this._hasTriggered = true;
       this._onPourDetected();
       // Optionally stop detection after trigger
-      // this._isActive = false;
+      this._isActive = false;
     }
 
     // Store frame for next comparison
@@ -245,7 +249,8 @@ export default class PourDetector {
 
     const totalTime = performance.now() - startTime;
 
-    return {
+    // 将要返回的数据先存入 _lastResult 中
+    this._lastResult = {
       hasMotion: motionAnalysis.hasMotion,
       motionScore: motionAnalysis.motionScore,
       isDownward: motionAnalysis.isDownward,
@@ -258,6 +263,8 @@ export default class PourDetector {
       motionAnalysis: motionAnalysis,
       stateMachineDebug: stateResult.debugInfo,
     };
+
+    return this._lastResult;
   }
 
   /**

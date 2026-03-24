@@ -91,7 +91,7 @@ export default function DebugOverlay({
 
           <div className="flex justify-between">
             <span className="text-neutral-400">连续:</span>
-            <span>{consecutiveCount}</span>
+            <span>{formatNumber(consecutiveCount, 2)}</span>
           </div>
 
           {motionAnalysis && (
@@ -212,7 +212,7 @@ export default function DebugOverlay({
                   <div className="flex justify-between">
                     <span className="text-neutral-400">软计数:</span>
                     <span>
-                      {formatNumber(stateMachineDebug.softCounter, 1)}
+                      {formatNumber(stateMachineDebug.softCounter, 2)}
                     </span>
                   </div>
                 </>

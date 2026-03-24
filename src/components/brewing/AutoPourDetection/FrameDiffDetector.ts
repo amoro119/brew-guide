@@ -667,7 +667,7 @@ export default class FrameDiffDetector {
 
     // 2. 核心方向规则：根据需求，tiltSignal > 0 时表示未倾倒水壶（拒绝）。
     // 这意味着只有当 tiltSignal <= 0 时，才有可能判定为倒水。
-    if (tiltSignal > 0) return false;
+    if (tiltSignal > 0.40) return false;
 
     // 3. 历史数据要求：需要至少 2 帧历史记录来建立上下文，否则拒绝。
     if (this._tiltHistory.length < 2) return false;
@@ -754,53 +754,8 @@ export default class FrameDiffDetector {
   }
 
   isPouringMotion(motionAnalysis: MotionAnalysis): boolean {
-    const translationScore = motionAnalysis.translationScore ?? 0;
-    const rotationEvidence = motionAnalysis.rotationEvidence ?? 0;
-    const rotationScore = motionAnalysis.rotationScore ?? 0;
-    const asymmetry = motionAnalysis.asymmetryScore ?? 0;
-    const valleyDepth = motionAnalysis.velocityRatio ?? 0;
-    const bottomRatio = motionAnalysis.bottomCenterY ?? 0.5;
-    const trendConsistency = motionAnalysis.tiltConsistency ?? 0;
-    const totalMotionPixels = motionAnalysis.totalMotionPixels ?? 0;
-
-    // Primary: isKettleTilt is the main signal, relax confidence threshold
-    const isKettleTilt =
-      motionAnalysis.isKettleTilt &&
-      motionAnalysis.kettleTiltConfidence >= 0.15 &&
-      translationScore < 0.75;
-
-    // Secondary: strong motion signature
-    const hasStrongSignature =
-      motionAnalysis.motionScore >= 0.2 && translationScore < 0.7;
-
-    // Tertiary: rotation evidence
-    const hasStrongRotationEvidence =
-      rotationEvidence > 0.3 && translationScore < 0.7;
-
-    // Relaxed pour pattern detection
-    const hasPourPattern =
-      asymmetry > 0.15 &&
-      valleyDepth < 0.6 &&
-      bottomRatio > 0.6 &&
-      trendConsistency > 0.3 &&
-      totalMotionPixels > 1000 &&
-      translationScore < 0.75;
-
-    // Very relaxed criteria for moderate rotation
-    const hasModerateRotationWithPourCharacteristics =
-      rotationScore >= 0.12 &&
-      rotationScore < 0.4 &&
-      asymmetry > 0.1 &&
-      bottomRatio > 0.55 &&
-      translationScore < 0.7;
-
-    return (
-      isKettleTilt ||
-      hasStrongSignature ||
-      hasStrongRotationEvidence ||
-      hasPourPattern ||
-      hasModerateRotationWithPourCharacteristics
-    );
+    //废弃
+    return motionAnalysis.isKettleTilt;
   }
 
   reset(): void {
