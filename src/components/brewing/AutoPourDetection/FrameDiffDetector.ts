@@ -664,6 +664,19 @@ export default class FrameDiffDetector {
     // 倒水稳定期通常在 4000-10000 之间，这里设定 15000 为绝对上限
     if (totalMotionPixels < 100 || totalMotionPixels > 20000) return false;
 
+    const absTilt = Math.abs(tiltSignal);
+
+    if (totalMotionPixels > 12000) {
+      // 当运动面积非常大时（极大概率是平移）
+      // 除非能提供极强的倾斜信号（> 0.01），否则对一致性的要求大幅提高
+      if (absTilt < 0.01 && trendConsistency < 0.7) {
+        return false; 
+      }
+    }
+
+    // 3. 基础防线：常规面积下的微弱信号过滤
+    if (absTilt < 0.005 && trendConsistency < 0.75) return false;
+
     // 2. 核心方向规则：根据需求，tiltSignal > 0 时表示未倾倒水壶（拒绝）。
     // 这意味着只有当 tiltSignal <= 0 时，才有可能判定为倒水。
     if (tiltSignal > 0.4) return false;

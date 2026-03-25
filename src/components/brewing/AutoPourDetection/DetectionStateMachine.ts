@@ -111,7 +111,7 @@ export default class DetectionStateMachine {
             this._softCounter = Math.max(0, this._softCounter - 0.1);
           } else {
             // 如果画面在运动，但被 Layer 1 判定为"不是倒水"（比如平移、收回水壶等干扰动作），正常重度扣分
-            this._softCounter = Math.max(0, this._softCounter - 0.5);
+            this._softCounter = Math.max(0, this._softCounter - 1);
           }
         }
 
