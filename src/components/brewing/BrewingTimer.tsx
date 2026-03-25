@@ -961,7 +961,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
         }
       );
       setShowUndoButton(true);
-      if (autoPourSettings.autoStopCamera) stopCamera();
+      stopCamera();
     } else if (autoPourSettings.mode === 'remind-only') {
       showToast({
         type: 'info',
@@ -971,7 +971,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       });
       setHighlightPlayButton(true);
       setTimeout(() => setHighlightPlayButton(false), 3000);
-      if (autoPourSettings.autoStopCamera) stopCamera();
+      stopCamera();
     }
   }, [
     isRunning,

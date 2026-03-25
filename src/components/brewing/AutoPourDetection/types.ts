@@ -43,9 +43,6 @@ export interface AutoPourDetectionSettings {
   /** Whether to show debug overlay (frame diff, motion regions) */
   showDebugOverlay: boolean;
 
-  /** Whether to auto-stop camera after successful detection */
-  autoStopCamera: boolean;
-
   // UX config
   /** Whether to show toast notifications */
   showToastNotification: boolean;

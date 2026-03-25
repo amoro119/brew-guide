@@ -215,7 +215,6 @@ export const defaultSettings: AppSettings = {
     cameraFacingMode: 'user',
     showCameraPreview: false,
     showDebugOverlay: false,
-    autoStopCamera: true,
     showToastNotification: true,
   },
 };

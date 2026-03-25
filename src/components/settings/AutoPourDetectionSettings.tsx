@@ -23,10 +23,6 @@ export default function AutoPourDetectionSettings() {
     });
   };
 
-  const handleToggleAutoStopCamera = (autoStopCamera: boolean) => {
-    updateAutoPourDetectionSettings({ autoStopCamera });
-  };
-
   const handleToggleDebugOverlay = (showDebugOverlay: boolean) => {
     updateAutoPourDetectionSettings({ showDebugOverlay });
   };
@@ -86,13 +82,6 @@ export default function AutoPourDetectionSettings() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <SettingRow label="检测后自动关闭摄像头">
-              <SettingToggle
-                checked={autoPourSettings?.autoStopCamera ?? true}
-                onChange={handleToggleAutoStopCamera}
-              />
-            </SettingRow>
-
             <SettingRow label="显示调试信息">
               <SettingToggle
                 checked={autoPourSettings?.showDebugOverlay ?? false}
