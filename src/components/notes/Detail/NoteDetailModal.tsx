@@ -29,6 +29,7 @@ import RatingRadarDrawer from './RatingRadarDrawer';
 import {
   buildCoffeeBeanLookup,
   buildEquipmentNameMap,
+  normalizeBrewingNoteParams,
   resolveNoteBean,
   resolveNoteBeanDisplayName,
   resolveNoteEquipmentName,
@@ -66,7 +67,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
   isOpen,
   note: initialNote,
   onClose,
-  equipmentName: _equipmentName = '未知器具',
+  equipmentName: _equipmentName = '',
   beanUnitPrice: _beanUnitPrice = 0,
   beanInfo: initialBeanInfo = null,
   onEdit,
@@ -112,12 +113,36 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
     [note, coffeeBeanLookup, initialBeanInfo]
   );
   const equipmentName = useMemo(
-    () =>
-      note
-        ? resolveNoteEquipmentName(note, equipmentNames)
-        : '未知器具',
+    () => (note ? resolveNoteEquipmentName(note, equipmentNames) : ''),
     [note, equipmentNames]
   );
+  const normalizedParams = useMemo(
+    () => normalizeBrewingNoteParams(note?.params),
+    [note?.params]
+  );
+  const methodName = note?.method?.trim() || '';
+  const schemeParts = [equipmentName, methodName].filter(Boolean);
+  const paramParts = useMemo(() => {
+    if (!normalizedParams || !note) {
+      return [];
+    }
+
+    if (note.equipment?.toLowerCase().includes('espresso') || note.equipment?.includes('意式')) {
+      return [
+        normalizedParams.coffee,
+        normalizedParams.grindSize,
+        note.totalTime ? `${note.totalTime}s` : '',
+        normalizedParams.water,
+      ].filter(Boolean);
+    }
+
+    return [
+      normalizedParams.coffee,
+      normalizedParams.ratio,
+      normalizedParams.grindSize,
+      normalizedParams.temp,
+    ].filter(Boolean);
+  }, [normalizedParams, note]);
 
   const [imageError, setImageError] = useState(false);
   const [beanImageError, setBeanImageError] = useState(false); // 咖啡豆图片加载错误状态
@@ -864,54 +889,42 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               )}
 
               {/* 方案 */}
-              <InfoRow label="方案">
-                <div className="space-x-1 text-xs font-medium text-neutral-800 dark:text-neutral-100">
-                  <span>{equipmentName}</span>
-                  <span className="text-neutral-400 dark:text-neutral-600">
-                    ·
-                  </span>
-                  <span>{note.method || '未命名'}</span>
-                </div>
-              </InfoRow>
+              {schemeParts.length > 0 && (
+                <InfoRow label="方案">
+                  <div className="space-x-1 text-xs font-medium text-neutral-800 dark:text-neutral-100">
+                    {schemeParts.map((part, index) => (
+                      <React.Fragment key={`${part}-${index}`}>
+                        <span>{part}</span>
+                        {index < schemeParts.length - 1 && (
+                          <span className="text-neutral-400 dark:text-neutral-600">
+                            ·
+                          </span>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </InfoRow>
+              )}
 
               {/* 参数信息 */}
-              {note.params &&
-                (() => {
-                  // 意式参数：粉量 · 研磨度 · 时间 · 液重
-                  // 手冲参数：粉量 · 粉水比 · 研磨度 · 水温
-                  const params = isEspresso
-                    ? [
-                        note.params.coffee,
-                        note.params.grindSize || '-',
-                        note.totalTime ? `${note.totalTime}s` : '-',
-                        note.params.water,
-                      ]
-                    : [
-                        note.params.coffee,
-                        note.params.ratio,
-                        note.params.grindSize || '-',
-                        note.params.temp || '-',
-                      ];
-
-                  return (
-                    <InfoRow label="参数">
-                      <div className="flex flex-col">
-                        <div className="space-x-1 text-xs font-medium text-neutral-800 dark:text-neutral-100">
-                          {params.map((param, index, arr) => (
-                            <React.Fragment key={index}>
-                              <span>{param}</span>
-                              {index < arr.length - 1 && (
-                                <span className="text-neutral-400 dark:text-neutral-600">
-                                  ·
-                                </span>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </div>
-                    </InfoRow>
-                  );
-                })()}
+              {paramParts.length > 0 && (
+                <InfoRow label="参数">
+                  <div className="flex flex-col">
+                    <div className="space-x-1 text-xs font-medium text-neutral-800 dark:text-neutral-100">
+                      {paramParts.map((param, index) => (
+                        <React.Fragment key={`${param}-${index}`}>
+                          <span>{param}</span>
+                          {index < paramParts.length - 1 && (
+                            <span className="text-neutral-400 dark:text-neutral-600">
+                              ·
+                            </span>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </InfoRow>
+              )}
 
               {/* 风味评分 - 5个及以上维度时可点击展开雷达图 */}
               {hasTasteRatings && (

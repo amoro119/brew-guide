@@ -1,8 +1,18 @@
-import { Stage } from '@/lib/core/config';
+import type {
+  Stage,
+  MethodParams as BrewingMethodParams,
+} from '@/lib/core/config';
 
 export interface TasteRatings {
   [key: string]: number;
 }
+
+export type BrewingNoteParams = Partial<
+  Pick<
+    BrewingMethodParams,
+    'coffee' | 'water' | 'ratio' | 'grindSize' | 'temp'
+  >
+>;
 
 // 拼配成分接口定义
 export interface BlendComponent {
@@ -103,13 +113,7 @@ export interface BrewingNoteData {
   updatedAt?: number; // 最后修改时间（用于同步，向后兼容）
   equipment?: string;
   method?: string;
-  params?: {
-    coffee: string;
-    water: string;
-    ratio: string;
-    grindSize: string;
-    temp: string;
-  };
+  params?: BrewingNoteParams;
   stages?: Stage[];
   totalTime?: number;
   coffeeBeanInfo: {

@@ -19,6 +19,10 @@ import {
   useMultiStepModalHistory,
   modalHistory,
 } from '@/lib/hooks/useModalHistory';
+import {
+  normalizeBrewingNoteParams,
+  normalizeBrewingNoteSelection,
+} from '@/lib/notes/noteDisplay';
 
 interface BrewingNoteFormModalProps {
   showForm: boolean;
@@ -42,16 +46,17 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
 }) => {
   // 使用优化的咖啡豆数据Hook
   const { beans: coffeeBeans } = useCoffeeBeanData();
-
-  // 🎯 直接使用 Zustand store 作为单一数据源
-  const selectedEquipment = useEquipmentStore(state => state.selectedEquipment);
-  const setSelectedEquipment = useEquipmentStore(
+  const persistedEquipment = useEquipmentStore(state => state.selectedEquipment);
+  const setPersistedEquipment = useEquipmentStore(
     state => state.setSelectedEquipment
   );
 
   // 咖啡豆状态
   const [selectedCoffeeBean, setSelectedCoffeeBean] =
     useState<CoffeeBean | null>(initialNote?.coffeeBean || null);
+  const [draftEquipmentId, setDraftEquipmentId] = useState<string>(
+    initialNote?.equipment || persistedEquipment || ''
+  );
 
   // 自定义器具列表
   const [customEquipments, setCustomEquipments] = useState<CustomEquipment[]>(
@@ -88,6 +93,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     onClose: () => {
       // 关闭时重置状态
       setSelectedCoffeeBean(null);
+      setDraftEquipmentId('');
       setSelectedMethod('');
       setModifiedParams(null); // 重置修改的参数
       onClose();
@@ -104,11 +110,35 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     handleMethodTypeChange: _handleMethodTypeChange,
     setSelectedMethod,
   } = useMethodManagement({
-    selectedEquipment,
+    selectedEquipment: draftEquipmentId,
     initialMethod: initialNote?.method,
     customEquipments,
     settings,
   });
+
+  const getInitialDraftEquipmentId = useCallback(
+    () => initialNote?.equipment || useEquipmentStore.getState().selectedEquipment || '',
+    [initialNote?.equipment]
+  );
+
+  useEffect(() => {
+    if (!showForm) {
+      return;
+    }
+
+    setCurrentStep(0);
+    setSelectedCoffeeBean(initialNote?.coffeeBean || null);
+    setDraftEquipmentId(getInitialDraftEquipmentId());
+    setSelectedMethod(initialNote?.method || '');
+    setModifiedParams(null);
+  }, [
+    showForm,
+    initialNote?.coffeeBean,
+    initialNote?.equipment,
+    initialNote?.method,
+    getInitialDraftEquipmentId,
+    setSelectedMethod,
+  ]);
 
   // 处理关闭 - 使用新的历史栈系统
   const handleClose = useCallback(() => {
@@ -172,12 +202,17 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     }
   }, [showForm]);
 
-  // 处理器具选择 - 直接使用 Zustand store
+  // 处理器具选择
   const handleEquipmentSelect = useCallback(
     (equipmentId: string) => {
-      setSelectedEquipment(equipmentId);
+      if (equipmentId !== draftEquipmentId) {
+        setSelectedMethod('');
+        setModifiedParams(null);
+      }
+      setDraftEquipmentId(equipmentId);
+      setPersistedEquipment(equipmentId);
     },
-    [setSelectedEquipment]
+    [draftEquipmentId, setPersistedEquipment, setSelectedMethod]
   );
 
   // 处理咖啡豆选择 - 使用函数式更新避免依赖currentStep
@@ -265,16 +300,12 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     // 如果有用户修改后的参数，优先使用
     if (modifiedParams) {
       return {
-        coffee: modifiedParams.coffee || '15g',
-        water: modifiedParams.water || '225g',
-        ratio: modifiedParams.ratio || '1:15',
-        grindSize: modifiedParams.grindSize || '中细',
-        temp: modifiedParams.temp || '92°C',
+        ...normalizeBrewingNoteParams(modifiedParams),
         stages: modifiedParams.stages || [], // 返回 stages
       };
     }
 
-    if (selectedEquipment && selectedMethod) {
+    if (draftEquipmentId && selectedMethod) {
       // 合并所有方案列表以确保查找全面
       const allMethods = [...commonMethodsOnly, ...customMethods];
 
@@ -285,21 +316,14 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
 
       if (methodObj) {
         return {
-          coffee: methodObj.params.coffee,
-          water: methodObj.params.water,
-          ratio: methodObj.params.ratio,
-          grindSize: methodObj.params.grindSize,
-          temp: methodObj.params.temp,
+          ...normalizeBrewingNoteParams(methodObj.params),
           stages: methodObj.params.stages || [], // 返回 stages
         };
       }
     }
+
     return {
-      coffee: '15g',
-      water: '225g',
-      ratio: '1:15',
-      grindSize: '中细',
-      temp: '92°C',
+      ...normalizeBrewingNoteParams(initialNote?.params),
       stages: [], // 默认空 stages
     };
   };
@@ -308,6 +332,10 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   const getDefaultNote = (): Partial<BrewingNoteData> => {
     const params = getMethodParams();
     const isNewNote = !initialNote?.id;
+    const normalizedSelection = normalizeBrewingNoteSelection({
+      equipment: draftEquipmentId,
+      method: selectedMethod,
+    });
 
     // 计算总时间 - 优先使用 modifiedParams 中的 stages
     let totalTime = initialNote?.totalTime || 0;
@@ -332,8 +360,8 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     }
 
     return {
-      equipment: selectedEquipment,
-      method: selectedMethod || '', // 如果没有选择方案，使用空字符串
+      equipment: normalizedSelection.equipment,
+      method: normalizedSelection.method,
       coffeeBean: selectedCoffeeBean,
       coffeeBeanInfo: selectedCoffeeBean
         ? {
@@ -348,8 +376,8 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
             roastDate: initialNote?.coffeeBeanInfo?.roastDate || '',
             roaster: initialNote?.coffeeBeanInfo?.roaster,
           },
-      params: params, // 始终使用最新的 params（包含用户修改）
-      totalTime: totalTime,
+      params: normalizeBrewingNoteParams(params), // 始终使用最新的 params（包含用户修改）
+      totalTime: totalTime || undefined,
       rating: initialNote?.rating ?? 0,
       taste: initialNote?.taste || {
         acidity: 0,
@@ -392,13 +420,18 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
       }
     }
 
+    const normalizedSelection = normalizeBrewingNoteSelection({
+      equipment: draftEquipmentId,
+      method: methodName,
+    });
+
     // 创建完整笔记
     const completeNote: BrewingNoteData = {
       ...note,
-      equipment: selectedEquipment,
-      method: methodName,
+      equipment: normalizedSelection.equipment,
+      method: normalizedSelection.method,
       coffeeBean: undefined,
-      params: note.params,
+      params: normalizeBrewingNoteParams(note.params),
     };
 
     // 处理咖啡豆关联
@@ -419,6 +452,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     // 避免触发 popstate 事件导致表单返回上一步
     // 重置状态
     setSelectedCoffeeBean(null);
+    setDraftEquipmentId('');
     setSelectedMethod('');
     onClose();
 
@@ -455,15 +489,15 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
         <div>
           {/* 器具分类栏 */}
           <EquipmentCategoryBar
-            selectedEquipment={selectedEquipment}
+            selectedEquipment={draftEquipmentId}
             customEquipments={customEquipments}
             onEquipmentSelect={handleEquipmentSelect}
             settings={settings}
           />
           {/* 方案选择 */}
-          {selectedEquipment && (
+          {draftEquipmentId && (
             <MethodSelector
-              selectedEquipment={selectedEquipment}
+              selectedEquipment={draftEquipmentId}
               selectedMethod={selectedMethod}
               customMethods={customMethods}
               commonMethods={commonMethodsOnly}
@@ -480,7 +514,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
           )}
         </div>
       ),
-      isValid: !!selectedEquipment, // 只要选择了设备就有效，方案选择是可选的
+      isValid: true,
     },
     {
       id: 'note-form',

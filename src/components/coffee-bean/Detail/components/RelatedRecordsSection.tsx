@@ -495,7 +495,7 @@ const BrewingRecordItem: React.FC<{
                           <span>{note.params.coffee}</span>
                           <span className="shrink-0">·</span>
                           <span>{note.params.grindSize || '-'}</span>
-                          {note.totalTime > 0 && (
+                          {(note.totalTime || 0) > 0 && (
                             <>
                               <span className="shrink-0">·</span>
                               <span>{note.totalTime}s</span>

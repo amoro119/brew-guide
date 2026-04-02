@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/lib/stores/settingsStore';
 import { openImageViewer } from '@/lib/ui/imageViewer';
 import {
   getBeanUnitPrice,
+  normalizeBrewingNoteParams,
   resolveNoteBean,
   resolveNoteBeanDisplayName,
   resolveNoteEquipmentName,
@@ -45,8 +46,7 @@ const NoteItemStandard: React.FC<NoteItemProps> = ({
     : [];
   const hasTasteRatings = validTasteRatings.length > 0;
   const hasNotes = Boolean(note.notes);
-  const equipmentName =
-    resolveNoteEquipmentName(note, equipmentNames);
+  const equipmentName = resolveNoteEquipmentName(note, equipmentNames);
 
   const beanInfo =
     resolveNoteBean(note, coffeeBeanLookup) ||
@@ -64,6 +64,7 @@ const NoteItemStandard: React.FC<NoteItemProps> = ({
     beanInfo
   );
   const beanUnitPrice = getBeanUnitPrice(beanInfo);
+  const normalizedParams = normalizeBrewingNoteParams(note.params);
 
   // 判断是否为意式咖啡笔记
   const isEspresso = React.useMemo(() => {
@@ -77,6 +78,55 @@ const NoteItemStandard: React.FC<NoteItemProps> = ({
     }
     return false;
   }, [note.equipment]);
+
+  const titleText = React.useMemo(() => {
+    const methodName = note.method?.trim() || '';
+
+    if (methodName) {
+      if (beanName) return `${beanName} · ${methodName}`;
+      if (equipmentName) return `${equipmentName} · ${methodName}`;
+      return methodName;
+    }
+
+    if (beanName && equipmentName && beanName !== equipmentName) {
+      return `${beanName} · ${equipmentName}`;
+    }
+
+    if (beanName) return beanName;
+    if (equipmentName) return equipmentName;
+
+    const notePreview = note.notes?.trim();
+    return notePreview || '未命名记录';
+  }, [beanName, equipmentName, note.method, note.notes]);
+
+  const paramTexts = React.useMemo(() => {
+    if (!normalizedParams) {
+      return [];
+    }
+
+    const coffeeText = normalizedParams.coffee
+      ? `${normalizedParams.coffee}${
+          beanName && beanUnitPrice > 0
+            ? ` (${beanUnitPrice.toFixed(2)}元/克)`
+            : ''
+        }`
+      : '';
+
+    if (isEspresso) {
+      return [
+        coffeeText,
+        normalizedParams.grindSize,
+        note.totalTime ? `${note.totalTime}s` : '',
+        normalizedParams.water,
+      ].filter(Boolean);
+    }
+
+    const combinedTexture = [normalizedParams.grindSize, normalizedParams.temp]
+      .filter(Boolean)
+      .join(' · ');
+
+    return [coffeeText, normalizedParams.ratio, combinedTexture].filter(Boolean);
+  }, [beanName, beanUnitPrice, isEspresso, normalizedParams, note.totalTime]);
 
   // 处理笔记点击事件
   const handleNoteClick = () => {
@@ -147,105 +197,28 @@ const NoteItemStandard: React.FC<NoteItemProps> = ({
             <div className="flex items-start justify-between">
               <div className="min-w-0 flex-1 overflow-visible">
                 <div className="text-xs font-medium wrap-break-word text-neutral-800 dark:text-neutral-100">
-                  {/* 根据是否有方案来决定显示内容 */}
-                  {note.method && note.method.trim() !== '' ? (
-                    // 有方案时的显示逻辑
-                    beanName ? (
-                      <>
-                        {beanName}
-                        <span className="mx-1">·</span>
-                        <span>{note.method}</span>
-                      </>
-                    ) : (
-                      <>
-                        {equipmentName}
-                        <span className="mx-1">·</span>
-                        <span>{note.method}</span>
-                      </>
-                    )
-                  ) : // 没有方案时的显示逻辑：合并咖啡豆和器具信息
-                  beanName ? (
-                    beanName === equipmentName ? (
-                      // 如果咖啡豆名称和器具名称相同，只显示一个
-                      beanName
-                    ) : (
-                      // 显示咖啡豆和器具，用分割符连接
-                      <>
-                        {beanName}
-                        <span className="mx-1">·</span>
-                        <span>{equipmentName}</span>
-                      </>
-                    )
-                  ) : (
-                    // 只有器具信息
-                    equipmentName
-                  )}
+                  {titleText}
                 </div>
 
                 {/* 参数信息 - 只要有参数就显示，不依赖于是否有方案 */}
-                {note.params && (
+                {paramTexts.length > 0 && (
                   <div className="mt-1.5 space-x-1 text-xs leading-relaxed font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
                     {/* 如果有方案且有咖啡豆名称，显示器具名称 */}
-                    {beanName && note.method && note.method.trim() !== '' && (
+                    {beanName &&
+                      equipmentName &&
+                      note.method &&
+                      note.method.trim() !== '' && (
                       <>
                         <span>{equipmentName}</span>
                         <span>·</span>
                       </>
                     )}
-
-                    {isEspresso ? (
-                      // 意式参数：粉量 · 研磨度 · 时间 · 液重
-                      <>
-                        <span>
-                          {note.params.coffee}
-                          {beanName && beanUnitPrice > 0 && (
-                            <span className="ml-1">
-                              ({beanUnitPrice.toFixed(2)}元/克)
-                            </span>
-                          )}
-                        </span>
-                        <span className="shrink-0">·</span>
-                        <span>{note.params.grindSize || '-'}</span>
-                        {note.totalTime > 0 && (
-                          <>
-                            <span className="shrink-0">·</span>
-                            <span>{note.totalTime}s</span>
-                          </>
-                        )}
-                        <span className="shrink-0">·</span>
-                        <span>{note.params.water}</span>
-                      </>
-                    ) : (
-                      // 手冲参数：粉量 · 粉水比 · 研磨度 · 温度
-                      <>
-                        <span>
-                          {note.params.coffee}
-                          {beanName && beanUnitPrice > 0 && (
-                            <span className="ml-1">
-                              ({beanUnitPrice.toFixed(2)}元/克)
-                            </span>
-                          )}
-                        </span>
-                        <span>·</span>
-                        <span>{note.params.ratio}</span>
-
-                        {/* 合并显示研磨度和水温 */}
-                        {(note.params.grindSize || note.params.temp) && (
-                          <>
-                            <span>·</span>
-                            {note.params.grindSize && note.params.temp ? (
-                              <span>
-                                {note.params.grindSize} · {note.params.temp}
-                              </span>
-                            ) : (
-                              <span>
-                                {note.params.grindSize || note.params.temp}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </>
-                    )}
+                    {paramTexts.map((text, index) => (
+                      <React.Fragment key={`${text}-${index}`}>
+                        <span>{text}</span>
+                        {index < paramTexts.length - 1 && <span>·</span>}
+                      </React.Fragment>
+                    ))}
                   </div>
                 )}
               </div>
