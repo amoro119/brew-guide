@@ -65,6 +65,10 @@ export interface Method {
   timestamp?: number;
 }
 
+export type BrewingNoteParams = Partial<
+  Pick<MethodParams, 'coffee' | 'water' | 'ratio' | 'grindSize' | 'temp'>
+>;
+
 export interface BrewingMethods {
   [key: string]: Method[];
 }
@@ -130,15 +134,9 @@ export interface BrewingNote {
   id: string;
   timestamp: number; // 创建时间（不变）
   updatedAt?: number; // 最后修改时间（用于同步）
-  equipment: string;
-  method: string;
-  params: {
-    coffee: string;
-    water: string;
-    ratio: string;
-    grindSize: string;
-    temp: string;
-  };
+  equipment?: string;
+  method?: string;
+  params?: BrewingNoteParams;
   coffeeBeanInfo?: {
     name: string;
     roastLevel: string;
@@ -152,7 +150,7 @@ export interface BrewingNote {
     [key: string]: number;
   };
   notes: string;
-  totalTime: number;
+  totalTime?: number;
   source?:
     | 'quick-decrement'
     | 'capacity-adjustment'

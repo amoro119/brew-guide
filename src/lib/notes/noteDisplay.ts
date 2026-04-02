@@ -8,6 +8,9 @@ import {
 
 export type CoffeeBeanLookup = ReadonlyMap<string, CoffeeBean>;
 
+const normalizeOptionalText = (value?: string | null): string =>
+  value?.trim() ?? '';
+
 const extractNumericValue = (value?: string): number | null => {
   if (!value) return null;
 
@@ -92,7 +95,7 @@ export const resolveNoteBeanDisplayName = (
 export const resolveEquipmentName = (
   equipmentId: string | null | undefined,
   equipmentNames: Record<string, string>,
-  fallbackLabel: string = '未知器具'
+  fallbackLabel: string = ''
 ): string => {
   if (!equipmentId || equipmentId.trim() === '') {
     return fallbackLabel;
@@ -107,6 +110,46 @@ export const resolveNoteEquipmentName = (
   fallbackLabel?: string
 ): string =>
   resolveEquipmentName(note.equipment, equipmentNames, fallbackLabel);
+
+export const normalizeBrewingNoteParams = (
+  params?: BrewingNote['params'] | null
+): BrewingNote['params'] | undefined => {
+  if (!params) {
+    return undefined;
+  }
+
+  const normalized = {
+    coffee: normalizeOptionalText(params.coffee),
+    water: normalizeOptionalText(params.water),
+    ratio: normalizeOptionalText(params.ratio),
+    grindSize: normalizeOptionalText(params.grindSize),
+    temp: normalizeOptionalText(params.temp),
+  };
+
+  return Object.values(normalized).some(Boolean) ? normalized : undefined;
+};
+
+export const hasBrewingNoteParams = (
+  params?: BrewingNote['params'] | null
+): boolean => !!normalizeBrewingNoteParams(params);
+
+export const normalizeBrewingNoteSelection = (
+  selection: Pick<BrewingNote, 'equipment' | 'method'>
+): Pick<BrewingNote, 'equipment' | 'method'> => {
+  const method = normalizeOptionalText(selection.method) || undefined;
+
+  if (!method) {
+    return {
+      equipment: undefined,
+      method: undefined,
+    };
+  }
+
+  return {
+    equipment: normalizeOptionalText(selection.equipment) || undefined,
+    method,
+  };
+};
 
 export const getBeanUnitPrice = (
   bean?: Pick<CoffeeBean, 'price' | 'capacity'> | null

@@ -36,6 +36,10 @@ import {
   getEquipmentNameById,
   getEquipmentIdByName,
 } from '@/lib/utils/equipmentUtils';
+import {
+  normalizeBrewingNoteParams,
+  normalizeBrewingNoteSelection,
+} from '@/lib/notes/noteDisplay';
 import { SettingsOptions } from '@/components/settings/Settings';
 import { FlavorDimension, DEFAULT_FLAVOR_DIMENSIONS } from '@/lib/core/db';
 import {
@@ -133,6 +137,14 @@ interface FormData {
   taste: TasteRatings;
   notes: string;
 }
+
+const EMPTY_METHOD_PARAMS = {
+  coffee: '',
+  water: '',
+  ratio: '',
+  grindSize: '',
+  temp: '',
+};
 
 interface BrewingNoteFormProps {
   id?: string;
@@ -293,11 +305,8 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
   // 添加方案参数状态 - 分离数值和单位
   const [methodParams, setMethodParams] = useState({
-    coffee: initialData?.params?.coffee || '',
-    water: initialData?.params?.water || '',
-    ratio: initialData?.params?.ratio || '',
-    grindSize: initialData?.params?.grindSize || '',
-    temp: initialData?.params?.temp || '',
+    ...EMPTY_METHOD_PARAMS,
+    ...normalizeBrewingNoteParams(initialData?.params),
   });
 
   // 分离的数值状态（用于输入框显示）
@@ -323,6 +332,36 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   );
   const [selectedMethod, setSelectedMethod] = useState(
     initialData.method || ''
+  );
+
+  const applyMethodParams = useCallback(
+    (params?: Partial<Method['params']>, totalTimeOverride?: string) => {
+      const normalizedParams = {
+        ...EMPTY_METHOD_PARAMS,
+        ...normalizeBrewingNoteParams(params),
+      };
+
+      setMethodParams(normalizedParams);
+      setNumericValues({
+        coffee: extractNumericValue(normalizedParams.coffee),
+        water: extractNumericValue(normalizedParams.water),
+        temp: extractNumericValue(normalizedParams.temp),
+        ratio: extractNumericValue(normalizedParams.ratio.split(':')[1] || ''),
+      });
+
+      if (typeof totalTimeOverride === 'string') {
+        setTotalTimeStr(totalTimeOverride);
+        return;
+      }
+
+      const totalTime =
+        params?.stages?.reduce(
+          (acc, stage) => acc + (stage.duration || 0),
+          0
+        ) || 0;
+      setTotalTimeStr(totalTime > 0 ? String(totalTime) : '');
+    },
+    []
   );
 
   // 判断是否是意式器具
@@ -556,35 +595,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   useEffect(() => {
     const handleMethodParamsChange = (e: CustomEvent) => {
       if (e.detail?.params) {
-        const params = e.detail.params;
-        setMethodParams(prev => ({
-          coffee: params.coffee || prev.coffee,
-          water: params.water || prev.water,
-          ratio: params.ratio || prev.ratio,
-          grindSize: params.grindSize || prev.grindSize,
-          temp: params.temp || prev.temp,
-        }));
-
-        // 同步更新 numericValues 以确保输入框显示正确
-        setNumericValues(prev => ({
-          coffee: extractNumericValue(params.coffee || prev.coffee),
-          water: extractNumericValue(params.water || prev.water),
-          temp: extractNumericValue(params.temp || prev.temp),
-          ratio: extractNumericValue(
-            (params.ratio || prev.ratio).split(':')[1]
-          ),
-        }));
-
-        // 同步时间
-        if (params.stages && params.stages.length > 0) {
-          const totalTime = params.stages.reduce(
-            (acc: number, stage: any) => acc + (stage.duration || 0),
-            0
-          );
-          if (totalTime > 0) {
-            setTotalTimeStr(String(totalTime));
-          }
-        }
+        applyMethodParams(e.detail.params);
       }
     };
 
@@ -696,30 +707,12 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         handleUpdateNoteParams as EventListener
       );
     };
-  }, [methodParams]);
+  }, [applyMethodParams, methodParams]);
 
   // 更新方案参数的通用函数
   const updateMethodParams = useCallback((params: Method['params']) => {
-    setMethodParams(params);
-    setNumericValues({
-      coffee: extractNumericValue(params.coffee || ''),
-      water: extractNumericValue(params.water || ''),
-      temp: extractNumericValue(params.temp || ''),
-      ratio: extractNumericValue((params.ratio || '').split(':')[1] || ''),
-    });
-
-    // 如果方案包含阶段信息，尝试提取总时间
-    if (params.stages && params.stages.length > 0) {
-      // 计算所有阶段的时间总和
-      const totalTime = params.stages.reduce(
-        (acc, stage) => acc + (stage.duration || 0),
-        0
-      );
-      if (totalTime > 0) {
-        setTotalTimeStr(String(totalTime));
-      }
-    }
-  }, []);
+    applyMethodParams(params);
+  }, [applyMethodParams]);
 
   // 简化的数据更新逻辑
   const prevInitialDataRef = useRef<typeof initialData>(initialData);
@@ -782,23 +775,15 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     }
 
     // 检查参数变化
-    if (
-      JSON.stringify(prev.params) !== JSON.stringify(current.params) &&
-      current.params
-    ) {
-      setMethodParams(current.params);
-      setNumericValues({
-        coffee: extractNumericValue(current.params.coffee || ''),
-        water: extractNumericValue(current.params.water || ''),
-        temp: extractNumericValue(current.params.temp || ''),
-        ratio: extractNumericValue(
-          (current.params.ratio || '').split(':')[1] || ''
-        ),
-      });
+    if (JSON.stringify(prev.params) !== JSON.stringify(current.params)) {
+      applyMethodParams(
+        current.params,
+        current.totalTime ? String(current.totalTime) : ''
+      );
     }
 
     prevInitialDataRef.current = current;
-  }, [initialData, selectedCoffeeBean?.id, flavorDimensions]);
+  }, [applyMethodParams, initialData, selectedCoffeeBean?.id, flavorDimensions]);
 
   // 判断是否是添加模式（提前声明，供 updateRating 使用）
   const isAdding = !id || isCopy;
@@ -973,6 +958,9 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         } else {
           // 没有选择方案，清空方案
           setSelectedMethod('');
+          if (selectedMethod) {
+            applyMethodParams(undefined, '');
+          }
         }
 
         // 关闭抽屉
@@ -983,7 +971,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         }
       }
     },
-    [updateMethodParams]
+    [applyMethodParams, selectedMethod, updateMethodParams]
   );
 
   // 获取当前器具和方案名称 - 使用useMemo优化
@@ -992,19 +980,26 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     const customEquips = availableEquipments.filter(
       eq => 'isCustom' in eq && eq.isCustom
     ) as CustomEquipment[];
-    return getEquipmentNameById(selectedEquipment, customEquips) || '未知器具';
+    if (!selectedEquipment) return '';
+    return getEquipmentNameById(selectedEquipment, customEquips) || '';
   }, [selectedEquipment, availableEquipments]);
 
   const currentMethodName = useMemo(() => {
-    // 如果 selectedMethod 是空字符串，返回"无方案"而不是"未知方案"
     if (!selectedMethod || selectedMethod.trim() === '') {
-      return '无方案';
+      return '';
     }
     const method = availableMethods.find(
       m => m.name === selectedMethod || m.id === selectedMethod
     );
-    return method?.name || selectedMethod || '未知方案';
+    return method?.name || selectedMethod || '';
   }, [availableMethods, selectedMethod]);
+
+  const equipmentMethodValue = useMemo(
+    () =>
+      [currentEquipmentName, currentMethodName].filter(Boolean).join(' · ') ||
+      '可选',
+    [currentEquipmentName, currentMethodName]
+  );
 
   // 根据设置和现有数据决定是否显示评分区域
   // 规则：
@@ -1330,8 +1325,16 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       // 规范化器具ID（将名称转换为ID）
       const { normalizeEquipmentId } = await import('@/components/notes/utils');
       const normalizedEquipmentId = await normalizeEquipmentId(
-        selectedEquipment || initialData.equipment || ''
+        selectedEquipment
       );
+      const normalizedSelection = normalizeBrewingNoteSelection({
+        equipment: normalizedEquipmentId,
+        method: selectedMethod,
+      });
+      const finalEquipment = normalizedSelection.equipment;
+      const finalMethod = normalizedSelection.method;
+      const finalParams = normalizeBrewingNoteParams(methodParams);
+      const finalTotalTime = parseFloat(totalTimeStr);
 
       // 处理风味评分数据
       // 如果满足以下任一条件，不保存风味评分：
@@ -1367,17 +1370,10 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         timestamp: timestamp.getTime(),
         ...formData,
         taste: finalTaste, // 使用处理后的风味评分
-        equipment: normalizedEquipmentId,
-        method: selectedMethod || initialData.method,
-        params: {
-          // 使用当前的方案参数
-          coffee: methodParams.coffee,
-          water: methodParams.water,
-          ratio: methodParams.ratio,
-          grindSize: methodParams.grindSize,
-          temp: methodParams.temp,
-        },
-        totalTime: parseFloat(totalTimeStr) || initialData.totalTime || 0,
+        ...(finalEquipment && { equipment: finalEquipment }),
+        ...(finalMethod && { method: finalMethod }),
+        ...(finalParams && { params: finalParams }),
+        ...(finalTotalTime > 0 && { totalTime: finalTotalTime }),
         // 使用最终确定的咖啡豆ID（可能是新建的或已有的）
         beanId: finalBeanId,
         ...(preservedSource && { source: preservedSource }),
@@ -1393,11 +1389,10 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       };
 
       // 容量调整记录：同步 changeRecord 与显示的调整量
-      if (
-        isCapacityAdjustmentEdit &&
-        preservedChangeRecord?.capacityAdjustment &&
-        noteData.params
-      ) {
+      if (isCapacityAdjustmentEdit && preservedChangeRecord?.capacityAdjustment) {
+        if (!noteData.params) {
+          noteData.params = {};
+        }
         const rawAmount = parseFloat(capacityAdjustmentAmount);
         const amount = isNaN(rawAmount) ? 0 : rawAmount;
         const signedChange = (isCapacityAdjustmentIncrease ? 1 : -1) * amount;
@@ -1427,9 +1422,15 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         noteData.params.coffee = `${parseFloat(quickDecrementAmount) || 0}g`;
       }
 
+      if (isQuickDecrementEdit && isQuickMode && !noteData.params) {
+        noteData.params = {
+          coffee: `${parseFloat(quickDecrementAmount) || 0}g`,
+        };
+      }
+
       try {
         // 同步磨豆机刻度到设置
-        if (methodParams.grindSize) {
+        if (methodParams.grindSize && finalEquipment && finalMethod) {
           const { syncGrinderToSettings } = await import('@/lib/grinder');
           // 获取咖啡豆名称
           const coffeeBeanName = selectedCoffeeBean
@@ -1440,8 +1441,8 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
           await syncGrinderToSettings(
             methodParams.grindSize,
-            normalizedEquipmentId,
-            selectedMethod || initialData.method,
+            finalEquipment,
+            finalMethod,
             coffeeBeanName
           );
         }
@@ -1869,7 +1870,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
             (initialData?.id || selectedEquipment) && (
               <FeatureListItem
                 label="器具方案"
-                value={`${currentEquipmentName} · ${currentMethodName}`}
+                value={equipmentMethodValue}
                 onClick={() => setShowEquipmentMethodDrawer(true)}
                 preview={getMethodParamsPreview()}
               />

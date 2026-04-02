@@ -93,6 +93,10 @@ import {
   IMAGE_VIEWER_OPEN_EVENT,
   type ImageViewerPayload,
 } from '@/lib/ui/imageViewer';
+import {
+  normalizeBrewingNoteParams,
+  normalizeBrewingNoteSelection,
+} from '@/lib/notes/noteDisplay';
 
 // 为Window对象声明类型扩展
 declare global {
@@ -2629,6 +2633,31 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     setShowNoteFormModal(true);
   };
 
+  const buildPersistedBrewingNote = useCallback(
+    (note: BrewingNoteData, overrides?: Partial<BrewingNote>): BrewingNote => {
+      const relation = normalizeBrewingNoteSelection({
+        equipment: overrides?.equipment ?? note.equipment,
+        method: overrides?.method ?? note.method,
+      });
+      const params = normalizeBrewingNoteParams(overrides?.params ?? note.params);
+      const totalTime =
+        typeof (overrides?.totalTime ?? note.totalTime) === 'number' &&
+        (overrides?.totalTime ?? note.totalTime)! > 0
+          ? (overrides?.totalTime ?? note.totalTime)
+          : undefined;
+
+      return {
+        ...note,
+        ...overrides,
+        equipment: relation.equipment,
+        method: relation.method,
+        params,
+        totalTime,
+      } as BrewingNote;
+    },
+    []
+  );
+
   const handleSaveBrewingNote = async (note: BrewingNoteData) => {
     try {
       // 使用 Zustand store 保存笔记
@@ -2643,20 +2672,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       const isExistingNote =
         !!note.id && currentNotes.some(n => n.id === note.id);
 
-      const noteToSave = {
-        ...note,
+      const noteToSave = buildPersistedBrewingNote(note, {
         id: newNoteId,
         timestamp,
-        equipment: note.equipment || '',
-        method: note.method || '',
-        params: note.params || {
-          coffee: '',
-          water: '',
-          ratio: '',
-          grindSize: '',
-          temp: '',
-        },
-      } as BrewingNote;
+      });
 
       if (isExistingNote) {
         // 更新现有笔记
@@ -2689,20 +2708,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       const isNewNote = isBrewingNoteCopy || !note.id;
 
       // 构建保存数据
-      const noteToSave = {
-        ...note,
+      const noteToSave = buildPersistedBrewingNote(note, {
         id: isNewNote ? Date.now().toString() : note.id,
         timestamp: isNewNote ? Date.now() : note.timestamp || Date.now(),
-        equipment: note.equipment || '',
-        method: note.method || '',
-        params: note.params || {
-          coffee: '',
-          water: '',
-          ratio: '',
-          grindSize: '',
-          temp: '',
-        },
-      } as BrewingNote;
+      });
 
       if (isNewNote) {
         // 添加新笔记

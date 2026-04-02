@@ -66,8 +66,8 @@ const getCommonMethodsForEquipment = (
 export interface EquipmentMethodSelection {
   equipmentId: string;
   equipmentName: string;
-  methodId: string;
-  methodName: string;
+  methodId?: string;
+  methodName?: string;
   method?: Method;
 }
 
@@ -251,7 +251,7 @@ const EquipmentMethodPickerDrawer: React.FC<
 
   // 确认选择
   const handleConfirm = useCallback(() => {
-    if (!tempEquipmentId || !tempMethodId) return;
+    if (!tempEquipmentId) return;
 
     triggerHaptic();
     const selectedEquipment = availableEquipments.find(
@@ -262,8 +262,8 @@ const EquipmentMethodPickerDrawer: React.FC<
     onSelect({
       equipmentId: tempEquipmentId,
       equipmentName: selectedEquipment?.name || tempEquipmentId,
-      methodId: tempMethodId,
-      methodName: lastSelectedMethod?.name || tempMethodId,
+      methodId: tempMethodId || undefined,
+      methodName: lastSelectedMethod?.name || tempMethodId || undefined,
       method: lastSelectedMethod,
     });
 
@@ -333,7 +333,7 @@ const EquipmentMethodPickerDrawer: React.FC<
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={!tempEquipmentId || !tempMethodId}
+              disabled={!tempEquipmentId}
               className="flex-1 rounded-full bg-neutral-900 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
             >
               确定

@@ -14,6 +14,7 @@ import { TempFileManager } from '@/lib/utils/tempFileManager';
 import { showToast } from '@/components/common/feedback/LightToast';
 import { formatNoteBeanDisplayName } from '@/lib/utils/beanVarietyUtils';
 import { Loader2 } from 'lucide-react';
+import { normalizeBrewingNoteParams } from '@/lib/notes/noteDisplay';
 
 interface ArtisticShareDrawerProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('text');
   const [bean, setBean] = useState<CoffeeBean | null>(null);
-  const [equipmentName, setEquipmentName] = useState(note.equipment);
+  const [equipmentName, setEquipmentName] = useState(note.equipment || '');
   const [isEspresso, setIsEspresso] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -247,34 +248,35 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
 
     // Params
     const cleanValue = (val: string) => val.replace(/[a-zA-Z°]+$/, '').trim();
+    const normalizedParams = normalizeBrewingNoteParams(note.params);
     const params = [];
 
-    if (isEspresso) {
+    if (isEspresso && normalizedParams) {
       // 意式：粉量、研磨度、萃取时间、液重
-      if (note.params?.coffee && note.params.coffee !== '0')
-        params.push(`粉量 ${cleanValue(note.params.coffee)}g`);
+      if (normalizedParams.coffee && normalizedParams.coffee !== '0')
+        params.push(`粉量 ${cleanValue(normalizedParams.coffee)}g`);
 
-      if (note.params?.grindSize)
-        params.push(`研磨度 ${note.params.grindSize}`);
+      if (normalizedParams.grindSize)
+        params.push(`研磨度 ${normalizedParams.grindSize}`);
 
       if (note.totalTime && note.totalTime > 0)
         params.push(`时间 ${note.totalTime}s`);
 
-      if (note.params?.water && note.params.water !== '0')
-        params.push(`液重 ${cleanValue(note.params.water)}g`);
-    } else {
+      if (normalizedParams.water && normalizedParams.water !== '0')
+        params.push(`液重 ${cleanValue(normalizedParams.water)}g`);
+    } else if (normalizedParams) {
       // 手冲：粉量、粉水比、研磨度、水温
-      if (note.params?.coffee && note.params.coffee !== '0')
-        params.push(`粉量 ${cleanValue(note.params.coffee)}g`);
+      if (normalizedParams.coffee && normalizedParams.coffee !== '0')
+        params.push(`粉量 ${cleanValue(normalizedParams.coffee)}g`);
 
-      if (note.params?.ratio && note.params.ratio !== '1:0')
-        params.push(`粉水比 ${note.params.ratio}`);
+      if (normalizedParams.ratio && normalizedParams.ratio !== '1:0')
+        params.push(`粉水比 ${normalizedParams.ratio}`);
 
-      if (note.params?.grindSize)
-        params.push(`研磨度 ${note.params.grindSize}`);
+      if (normalizedParams.grindSize)
+        params.push(`研磨度 ${normalizedParams.grindSize}`);
 
-      if (note.params?.temp && note.params.temp !== '0')
-        params.push(`水温 ${cleanValue(note.params.temp)}°C`);
+      if (normalizedParams.temp && normalizedParams.temp !== '0')
+        params.push(`水温 ${cleanValue(normalizedParams.temp)}°C`);
     }
 
     if (params.length > 0) {
