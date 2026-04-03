@@ -210,18 +210,22 @@ export function useMultiStepModalHistory(
 
       const prevStep = prevStepRef.current;
 
-      // 步骤增加时，推入新历史
-      // 这会处理：1) 初始打开时的第一步；2) 后续步骤增加
+      // 步骤增加时，逐步补齐历史栈。
+      // 这会处理：
+      // 1) 初始打开时直接恢复到更深的步骤（如草稿恢复到第 3 步）
+      // 2) 后续正常逐步前进
       if (step > prevStep) {
-        modalHistory.pushStep(
-          id,
-          step,
-          newStep => onStepChangeRef.current(newStep),
-          () => {
-            closedByPopstateRef.current = true;
-            onCloseRef.current();
-          }
-        );
+        for (let nextStep = prevStep + 1; nextStep <= step; nextStep += 1) {
+          modalHistory.pushStep(
+            id,
+            nextStep,
+            newStep => onStepChangeRef.current(newStep),
+            () => {
+              closedByPopstateRef.current = true;
+              onCloseRef.current();
+            }
+          );
+        }
       }
 
       prevStepRef.current = step;

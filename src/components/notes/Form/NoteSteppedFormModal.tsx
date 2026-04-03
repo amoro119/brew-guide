@@ -84,20 +84,22 @@ const NoteSteppedFormModal = forwardRef<
 
     // 当 showForm 变化时重置步骤
     useEffect(() => {
-      if (showForm) {
+      if (showForm && currentStep === undefined) {
         setCurrentStepIndex(initialStep);
       }
-    }, [showForm, initialStep, setCurrentStepIndex]);
+    }, [currentStep, showForm, initialStep, setCurrentStepIndex]);
 
     // 处理退出动画完成后的清理
     const handleExitComplete = useCallback(() => {
       if (!preserveState) {
-        setCurrentStepIndex(initialStep);
+        if (currentStep === undefined) {
+          setCurrentStepIndex(initialStep);
+        }
         setIsSearching(false);
         setSearchQuery('');
         setHighlightedBeanId(null);
       }
-    }, [preserveState, initialStep, setCurrentStepIndex]);
+    }, [currentStep, preserveState, initialStep, setCurrentStepIndex]);
 
     useImperativeHandle(
       ref,
@@ -182,27 +184,21 @@ const NoteSteppedFormModal = forwardRef<
     };
 
     // 为咖啡豆选择器添加搜索参数
-    const contentWithSearchProps = React.useMemo(() => {
-      if (!isCoffeeBeanStep) return currentStepContent?.content;
-      return React.cloneElement(
-        currentStepContent.content as React.ReactElement<{
-          searchQuery?: string;
-          highlightedBeanId?: string | null;
-          scrollParentRef?: HTMLElement;
-        }>,
-        {
-          searchQuery,
-          highlightedBeanId,
-          scrollParentRef: scrollContainer || undefined,
-        }
-      );
-    }, [
-      currentStepContent?.content,
-      isCoffeeBeanStep,
-      searchQuery,
-      highlightedBeanId,
-      scrollContainer,
-    ]);
+    const contentWithSearchProps =
+      isCoffeeBeanStep && currentStepContent?.content
+        ? React.cloneElement(
+            currentStepContent.content as React.ReactElement<{
+              searchQuery?: string;
+              highlightedBeanId?: string | null;
+              scrollParentRef?: HTMLElement;
+            }>,
+            {
+              searchQuery,
+              highlightedBeanId,
+              scrollParentRef: scrollContainer || undefined,
+            }
+          )
+        : currentStepContent?.content;
 
     const isLastStep = currentStepIndex === steps.length - 1;
     const isValid = currentStepContent?.isValid !== false;
@@ -268,7 +264,6 @@ const NoteSteppedFormModal = forwardRef<
                     placeholder="搜索咖啡豆名称..."
                     className="w-48 rounded-full border-none bg-neutral-100 px-5 py-[14px] text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-hidden dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-500"
                     autoComplete="off"
-                    autoFocus
                     onKeyDown={e => e.key === 'Escape' && handleCloseSearch()}
                   />
                   <button

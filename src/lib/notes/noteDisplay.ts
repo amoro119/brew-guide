@@ -21,9 +21,8 @@ const extractNumericValue = (value?: string): number | null => {
   return Number.isNaN(parsedValue) ? null : parsedValue;
 };
 
-export const buildCoffeeBeanLookup = (
-  beans: CoffeeBean[]
-): CoffeeBeanLookup => new Map(beans.map(bean => [bean.id, bean]));
+export const buildCoffeeBeanLookup = (beans: CoffeeBean[]): CoffeeBeanLookup =>
+  new Map(beans.map(bean => [bean.id, bean]));
 
 export const buildEquipmentNameMap = (
   customEquipments: CustomEquipment[]
@@ -136,7 +135,8 @@ export const hasBrewingNoteParams = (
 export const normalizeBrewingNoteSelection = (
   selection: Pick<BrewingNote, 'equipment' | 'method'>
 ): Pick<BrewingNote, 'equipment' | 'method'> => {
-  const method = normalizeOptionalText(selection.method) || undefined;
+  const draftSelection = normalizeBrewingNoteDraftSelection(selection);
+  const method = draftSelection.method;
 
   if (!method) {
     return {
@@ -146,7 +146,19 @@ export const normalizeBrewingNoteSelection = (
   }
 
   return {
-    equipment: normalizeOptionalText(selection.equipment) || undefined,
+    equipment: draftSelection.equipment,
+    method,
+  };
+};
+
+export const normalizeBrewingNoteDraftSelection = (
+  selection: Pick<BrewingNote, 'equipment' | 'method'>
+): Pick<BrewingNote, 'equipment' | 'method'> => {
+  const method = normalizeOptionalText(selection.method) || undefined;
+  const equipment = normalizeOptionalText(selection.equipment) || undefined;
+
+  return {
+    equipment,
     method,
   };
 };
