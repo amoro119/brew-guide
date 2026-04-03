@@ -1,18 +1,30 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import BrewingNoteForm from './BrewingNoteForm';
 import { MethodSelector, CoffeeBeanSelector } from '@/components/notes/Form';
 import EquipmentCategoryBar from './EquipmentCategoryBar';
 import { useMethodManagement } from '@/components/notes/Form/hooks/useMethodManagement';
-import type { BrewingNoteData, CoffeeBean } from '@/types/app';
+import type {
+  BrewingNoteData,
+  CoffeeBean,
+  SelectableCoffeeBean,
+} from '@/types/app';
 import { SettingsOptions } from '@/components/settings/Settings';
+import ActionDrawer from '@/components/common/ui/ActionDrawer';
 
 import NoteSteppedFormModal, { Step } from './NoteSteppedFormModal';
 import { type Method, type CustomEquipment } from '@/lib/core/config';
 import { loadCustomEquipments } from '@/lib/stores/customEquipmentStore';
 import { useEquipmentStore } from '@/lib/stores/equipmentStore';
-// 导入随机选择器组件
 import CoffeeBeanRandomPicker from '@/components/coffee-bean/RandomPicker/CoffeeBeanRandomPicker';
 import { useCoffeeBeanData } from './hooks/useCoffeeBeanData';
 import {
@@ -21,8 +33,18 @@ import {
 } from '@/lib/hooks/useModalHistory';
 import {
   normalizeBrewingNoteParams,
+  normalizeBrewingNoteDraftSelection,
   normalizeBrewingNoteSelection,
 } from '@/lib/notes/noteDisplay';
+import {
+  clearBrewingNoteDraftSession,
+  createBrewingNoteDraftSession,
+  hasBrewingNoteDraftRecordContent,
+  loadBrewingNoteDraftSession,
+  saveBrewingNoteDraftSession,
+  type BrewingNoteDraftData,
+  type BrewingNoteDraftSession,
+} from './brewingNoteDraft';
 
 interface BrewingNoteFormModalProps {
   showForm: boolean;
@@ -33,8 +55,70 @@ interface BrewingNoteFormModalProps {
   onSave: (note: BrewingNoteData) => void;
   onClose: () => void;
   onSaveSuccess?: () => void;
-  settings?: SettingsOptions; // 添加可选的设置参数
+  settings?: SettingsOptions;
 }
+
+const EMPTY_COFFEE_BEAN_INFO = {
+  name: '',
+  roastLevel: '中度烘焙',
+  roastDate: '',
+  roaster: undefined,
+};
+
+const buildCoffeeBeanInfo = (
+  coffeeBean: SelectableCoffeeBean | null | undefined,
+  fallback?: BrewingNoteDraftData['coffeeBeanInfo']
+) => {
+  if (coffeeBean) {
+    const bean = coffeeBean as CoffeeBean;
+    return {
+      name: coffeeBean.name || '',
+      roastLevel: bean.roastLevel || '中度烘焙',
+      roastDate: bean.roastDate || '',
+      roaster: bean.roaster,
+    };
+  }
+
+  return {
+    ...EMPTY_COFFEE_BEAN_INFO,
+    ...fallback,
+  };
+};
+
+const normalizeDraftNote = (
+  note: BrewingNoteDraftData
+): BrewingNoteDraftData => {
+  const normalizedSelection = normalizeBrewingNoteDraftSelection({
+    equipment: note.equipment || '',
+    method: note.method || '',
+  });
+  const images =
+    Array.isArray(note.images) && note.images.length > 0
+      ? note.images
+      : typeof note.image === 'string' && note.image
+        ? [note.image]
+        : [];
+
+  return {
+    ...note,
+    equipment: normalizedSelection.equipment,
+    method: normalizedSelection.method,
+    coffeeBean: note.coffeeBean || null,
+    coffeeBeanInfo: buildCoffeeBeanInfo(note.coffeeBean, note.coffeeBeanInfo),
+    image: images[0] || '',
+    images,
+    params: normalizeBrewingNoteParams(note.params),
+    rating: note.rating ?? 0,
+    taste: note.taste || {
+      acidity: 0,
+      sweetness: 0,
+      bitterness: 0,
+      body: 0,
+    },
+    notes: note.notes || '',
+    timestamp: note.timestamp ?? Date.now(),
+  };
+};
 
 const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   showForm,
@@ -44,156 +128,180 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   onSaveSuccess,
   settings,
 }) => {
-  // 使用优化的咖啡豆数据Hook
   const { beans: coffeeBeans } = useCoffeeBeanData();
-  const persistedEquipment = useEquipmentStore(state => state.selectedEquipment);
+  const persistedEquipment = useEquipmentStore(
+    state => state.selectedEquipment
+  );
   const setPersistedEquipment = useEquipmentStore(
     state => state.setSelectedEquipment
   );
-
-  // 咖啡豆状态
-  const [selectedCoffeeBean, setSelectedCoffeeBean] =
-    useState<CoffeeBean | null>(initialNote?.coffeeBean || null);
-  const [draftEquipmentId, setDraftEquipmentId] = useState<string>(
-    initialNote?.equipment || persistedEquipment || ''
-  );
-
-  // 自定义器具列表
   const [customEquipments, setCustomEquipments] = useState<CustomEquipment[]>(
     []
   );
-
-  // 步骤控制
-  const [currentStep, setCurrentStep] = useState<number>(0);
-
-  // 随机选择器状态
   const [isRandomPickerOpen, setIsRandomPickerOpen] = useState(false);
   const [isLongPressRandom, setIsLongPressRandom] = useState(false);
-
-  // 用户修改后的方案参数
-  const [modifiedParams, setModifiedParams] = useState<{
-    coffee?: string;
-    water?: string;
-    ratio?: string;
-    grindSize?: string;
-    temp?: string;
-    stages?: Method['params']['stages']; // 添加 stages 支持
-  } | null>(null);
-
-  // 使用新的多步骤历史栈管理
-  // 步骤从 1 开始，但内部 currentStep 从 0 开始，所以需要 +1
-  useMultiStepModalHistory({
-    id: 'note-stepped-form',
-    isOpen: showForm,
-    step: currentStep + 1, // 内部是0开始，历史栈是1开始
-    onStepChange: step => {
-      // 历史栈返回时更新步骤
-      setCurrentStep(step - 1); // 历史栈是1开始，内部是0开始
-    },
-    onClose: () => {
-      // 关闭时重置状态
-      setSelectedCoffeeBean(null);
-      setDraftEquipmentId('');
-      setSelectedMethod('');
-      setModifiedParams(null); // 重置修改的参数
-      onClose();
-    },
-  });
-
-  // 使用方法管理Hook
-  const {
-    methodType: _methodType,
-    selectedMethod,
-    availableMethods: _availableMethods,
-    customMethods,
-    commonMethodsOnly,
-    handleMethodTypeChange: _handleMethodTypeChange,
-    setSelectedMethod,
-  } = useMethodManagement({
-    selectedEquipment: draftEquipmentId,
-    initialMethod: initialNote?.method,
-    customEquipments,
-    settings,
-  });
+  const [isExitDrawerOpen, setIsExitDrawerOpen] = useState(false);
 
   const getInitialDraftEquipmentId = useCallback(
-    () => initialNote?.equipment || useEquipmentStore.getState().selectedEquipment || '',
+    () =>
+      initialNote?.equipment ||
+      useEquipmentStore.getState().selectedEquipment ||
+      '',
     [initialNote?.equipment]
   );
+
+  const buildBaseSession = useCallback(
+    () =>
+      createBrewingNoteDraftSession({
+        initialNote: initialNote
+          ? {
+              ...initialNote,
+              coffeeBean: initialNote.coffeeBean || null,
+            }
+          : undefined,
+        persistedEquipment: getInitialDraftEquipmentId(),
+      }),
+    [getInitialDraftEquipmentId, initialNote]
+  );
+
+  const [baselineSession, setBaselineSession] =
+    useState<BrewingNoteDraftSession>(buildBaseSession);
+  const [draftSession, setDraftSession] =
+    useState<BrewingNoteDraftSession>(buildBaseSession);
+  const historyCloseRequestRef = useRef<() => void>(() => {});
+  const latestDraftSessionRef = useRef(draftSession);
+  const latestHasDraftRecordContentRef = useRef(false);
+  const latestIsCreateModeRef = useRef(!initialNote?.id);
+  const shouldAutoPersistRef = useRef(true);
+
+  const setDraftStep = useCallback((value: React.SetStateAction<number>) => {
+    setDraftSession(prev => ({
+      ...prev,
+      step: typeof value === 'function' ? value(prev.step) : value,
+      updatedAt: Date.now(),
+    }));
+  }, []);
+
+  const updateDraftNote = useCallback(
+    (
+      updater:
+        | BrewingNoteDraftData
+        | ((prev: BrewingNoteDraftData) => BrewingNoteDraftData)
+    ) => {
+      setDraftSession(prev => {
+        const nextNote =
+          typeof updater === 'function' ? updater(prev.note) : updater;
+
+        return {
+          ...prev,
+          note: normalizeDraftNote(nextNote),
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    []
+  );
+
+  const selectedCoffeeBean = draftSession.note.coffeeBean || null;
+  const selectedEquipment = draftSession.note.equipment || '';
+  const selectedMethodId = draftSession.note.method || '';
+  const currentStep = draftSession.step;
+  const maxStepIndex = coffeeBeans.length > 0 ? 2 : 1;
+  const boundedCurrentStep = Math.min(currentStep, maxStepIndex);
+  const hasDraftRecordContent = useMemo(
+    () => hasBrewingNoteDraftRecordContent(draftSession, baselineSession),
+    [baselineSession, draftSession]
+  );
+  const isCreateMode = !initialNote?.id;
+
+  useEffect(() => {
+    latestDraftSessionRef.current = draftSession;
+    latestHasDraftRecordContentRef.current = hasDraftRecordContent;
+    latestIsCreateModeRef.current = isCreateMode;
+  }, [draftSession, hasDraftRecordContent, isCreateMode]);
+
+  useEffect(() => {
+    if (showForm) {
+      shouldAutoPersistRef.current = true;
+    }
+  }, [showForm]);
+
+  const { customMethods, commonMethodsOnly, setSelectedMethod } =
+    useMethodManagement({
+      selectedEquipment,
+      initialMethod: selectedMethodId,
+      customEquipments,
+      settings,
+    });
 
   useEffect(() => {
     if (!showForm) {
       return;
     }
 
-    setCurrentStep(0);
-    setSelectedCoffeeBean(initialNote?.coffeeBean || null);
-    setDraftEquipmentId(getInitialDraftEquipmentId());
-    setSelectedMethod(initialNote?.method || '');
-    setModifiedParams(null);
-  }, [
-    showForm,
-    initialNote?.coffeeBean,
-    initialNote?.equipment,
-    initialNote?.method,
-    getInitialDraftEquipmentId,
-    setSelectedMethod,
-  ]);
+    const baseSession = buildBaseSession();
+    setBaselineSession(baseSession);
 
-  // 处理关闭 - 使用新的历史栈系统
-  const handleClose = useCallback(() => {
-    modalHistory.back();
-  }, []);
-
-  // 处理初始笔记的咖啡豆匹配
-  useEffect(() => {
-    if (!showForm || !initialNote || coffeeBeans.length === 0) return;
-
-    // 当有初始coffeeBean对象时
-    if (initialNote.coffeeBean) {
-      setSelectedCoffeeBean(initialNote.coffeeBean);
-
-      // 如果有咖啡豆，自动跳到下一步
-      if (!initialNote.id) {
-        // 只在创建新笔记时自动跳步
-        setCurrentStep(1);
-      }
-      return;
-    }
-
-    // 当有beanId时，尝试从Bean列表中找到对应的豆子
-    if (initialNote.beanId) {
-      const foundBean = coffeeBeans.find(
-        bean => bean.id === initialNote.beanId
-      );
-      if (foundBean) {
-        setSelectedCoffeeBean(foundBean);
-        // 如果有咖啡豆，自动跳到下一步
-        if (!initialNote.id) {
-          // 只在创建新笔记时自动跳步
-          setCurrentStep(1);
-        }
+    if (!initialNote?.id) {
+      const savedDraft = loadBrewingNoteDraftSession();
+      if (savedDraft) {
+        setDraftSession({
+          ...savedDraft,
+          note: normalizeDraftNote(savedDraft.note),
+        });
         return;
       }
     }
 
-    // 当有咖啡豆信息但没有完整对象时，通过名称匹配
-    if (initialNote.coffeeBeanInfo?.name) {
-      const foundBean = coffeeBeans.find(
-        bean => bean.name === initialNote.coffeeBeanInfo?.name
+    setDraftSession(baseSession);
+  }, [buildBaseSession, initialNote?.id, showForm]);
+
+  useEffect(() => {
+    if (!showForm) {
+      setIsExitDrawerOpen(false);
+    }
+  }, [showForm]);
+
+  useEffect(() => {
+    if (!showForm || coffeeBeans.length === 0 || selectedCoffeeBean) {
+      return;
+    }
+
+    if (draftSession.note.beanId) {
+      const foundById = coffeeBeans.find(
+        bean => bean.id === draftSession.note.beanId
       );
-      if (foundBean) {
-        setSelectedCoffeeBean(foundBean);
-        // 如果有咖啡豆，自动跳到下一步
-        if (!initialNote.id) {
-          // 只在创建新笔记时自动跳步
-          setCurrentStep(1);
-        }
+      if (foundById) {
+        updateDraftNote(prev => ({
+          ...prev,
+          coffeeBean: foundById,
+          coffeeBeanInfo: buildCoffeeBeanInfo(foundById, prev.coffeeBeanInfo),
+        }));
+        return;
       }
     }
-  }, [showForm, initialNote, coffeeBeans]);
 
-  // 加载自定义器具列表
+    if (draftSession.note.coffeeBeanInfo?.name) {
+      const foundByName = coffeeBeans.find(
+        bean => bean.name === draftSession.note.coffeeBeanInfo?.name
+      );
+      if (foundByName) {
+        updateDraftNote(prev => ({
+          ...prev,
+          coffeeBean: foundByName,
+          coffeeBeanInfo: buildCoffeeBeanInfo(foundByName, prev.coffeeBeanInfo),
+        }));
+      }
+    }
+  }, [
+    coffeeBeans,
+    draftSession.note.beanId,
+    draftSession.note.coffeeBeanInfo,
+    selectedCoffeeBean,
+    showForm,
+    updateDraftNote,
+  ]);
+
   useEffect(() => {
     if (showForm) {
       loadCustomEquipments()
@@ -202,65 +310,151 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     }
   }, [showForm]);
 
-  // 处理器具选择
-  const handleEquipmentSelect = useCallback(
-    (equipmentId: string) => {
-      if (equipmentId !== draftEquipmentId) {
-        setSelectedMethod('');
-        setModifiedParams(null);
+  const closeModal = useCallback(
+    ({ preserveSavedDraft = false }: { preserveSavedDraft?: boolean } = {}) => {
+      shouldAutoPersistRef.current = false;
+
+      if (!preserveSavedDraft) {
+        clearBrewingNoteDraftSession();
       }
-      setDraftEquipmentId(equipmentId);
-      setPersistedEquipment(equipmentId);
+
+      setIsExitDrawerOpen(false);
+      onClose();
     },
-    [draftEquipmentId, setPersistedEquipment, setSelectedMethod]
+    [onClose]
   );
 
-  // 处理咖啡豆选择 - 使用函数式更新避免依赖currentStep
-  const handleCoffeeBeanSelect = useCallback((bean: CoffeeBean | null) => {
-    setSelectedCoffeeBean(bean);
-    // 选择咖啡豆后自动前进到下一步
-    setCurrentStep(prev => prev + 1);
-  }, []);
+  const handleHistoryCloseRequest = useCallback(() => {
+    if (hasDraftRecordContent) {
+      modalHistory.pushStep(
+        'note-stepped-form',
+        boundedCurrentStep + 1,
+        step => setDraftStep(() => step - 1),
+        () => historyCloseRequestRef.current()
+      );
+      setIsExitDrawerOpen(true);
+      return;
+    }
 
-  // 打开随机选择器
+    closeModal();
+  }, [boundedCurrentStep, closeModal, hasDraftRecordContent, setDraftStep]);
+
+  useEffect(() => {
+    historyCloseRequestRef.current = handleHistoryCloseRequest;
+  }, [handleHistoryCloseRequest]);
+
+  useMultiStepModalHistory({
+    id: 'note-stepped-form',
+    isOpen: showForm,
+    step: boundedCurrentStep + 1,
+    onStepChange: step => {
+      setDraftStep(() => step - 1);
+    },
+    onClose: handleHistoryCloseRequest,
+  });
+
+  const handleCloseRequest = useCallback(() => {
+    if (boundedCurrentStep > 0) {
+      modalHistory.back();
+      return;
+    }
+
+    if (hasDraftRecordContent) {
+      setIsExitDrawerOpen(true);
+      return;
+    }
+
+    closeModal();
+  }, [boundedCurrentStep, closeModal, hasDraftRecordContent]);
+
+  const handleEquipmentSelect = useCallback(
+    (equipmentId: string) => {
+      updateDraftNote(prev => {
+        const shouldResetMethod = equipmentId !== (prev.equipment || '');
+
+        return {
+          ...prev,
+          equipment: equipmentId,
+          method: shouldResetMethod ? '' : prev.method,
+          params: shouldResetMethod
+            ? normalizeBrewingNoteParams(undefined)
+            : prev.params,
+          totalTime: shouldResetMethod ? undefined : prev.totalTime,
+        };
+      });
+
+      setPersistedEquipment(equipmentId);
+      if (equipmentId !== selectedEquipment) {
+        setSelectedMethod('');
+      }
+    },
+    [
+      selectedEquipment,
+      setPersistedEquipment,
+      setSelectedMethod,
+      updateDraftNote,
+    ]
+  );
+
+  const handleCoffeeBeanSelect = useCallback(
+    (bean: CoffeeBean | null) => {
+      updateDraftNote(prev => ({
+        ...prev,
+        coffeeBean: bean,
+        beanId: bean?.id,
+        coffeeBeanInfo: buildCoffeeBeanInfo(bean, prev.coffeeBeanInfo),
+      }));
+      setDraftStep(prev => prev + 1);
+    },
+    [setDraftStep, updateDraftNote]
+  );
+
   const handleOpenRandomPicker = (isLongPress: boolean = false) => {
     setIsLongPressRandom(isLongPress);
     setIsRandomPickerOpen(true);
   };
 
-  // 处理随机选择咖啡豆 - 使用useCallback和函数式更新
-  const handleRandomBeanSelect = useCallback((bean: CoffeeBean) => {
-    setSelectedCoffeeBean(bean);
-    // 选择随机咖啡豆后自动前进到下一步
-    // 注意：picker 已经在调用 onSelect 之前关闭并清理了历史栈
-    setCurrentStep(prev => prev + 1);
-  }, []);
+  const handleRandomBeanSelect = useCallback(
+    (bean: CoffeeBean) => {
+      updateDraftNote(prev => ({
+        ...prev,
+        coffeeBean: bean,
+        beanId: bean.id,
+        coffeeBeanInfo: buildCoffeeBeanInfo(bean, prev.coffeeBeanInfo),
+      }));
+      setDraftStep(prev => prev + 1);
+    },
+    [setDraftStep, updateDraftNote]
+  );
 
-  // 处理方法参数变化 - 保存修改后的参数
-  const _handleMethodParamsChange = useCallback(
+  const handleMethodParamsChange = useCallback(
     (method: Method) => {
       const methodIdentifier = method.id || method.name;
+      const nextParams = {
+        ...normalizeBrewingNoteParams(method.params),
+        stages: method.params.stages || [],
+      };
+      const totalTime =
+        method.params.stages?.reduce(
+          (acc, stage) => acc + (stage.duration || 0),
+          0
+        ) || undefined;
+
       setSelectedMethod(methodIdentifier);
+      updateDraftNote(prev => ({
+        ...prev,
+        method: methodIdentifier,
+        params: nextParams,
+        totalTime,
+      }));
 
-      // 保存用户修改后的参数
-      setModifiedParams({
-        coffee: method.params.coffee,
-        water: method.params.water,
-        ratio: method.params.ratio,
-        grindSize: method.params.grindSize,
-        temp: method.params.temp,
-        stages: method.params.stages, // 保存 stages
-      });
-
-      // 延迟触发事件，避免在渲染期间触发
       setTimeout(() => {
-        // 触发 methodParamsChanged 事件给 BrewingNoteForm
-        const event = new CustomEvent('methodParamsChanged', {
-          detail: { params: method.params },
-        });
-        document.dispatchEvent(event);
+        document.dispatchEvent(
+          new CustomEvent('methodParamsChanged', {
+            detail: { params: method.params },
+          })
+        );
 
-        // 同时触发 brewing:updateNavbarDisplay 事件给 NavigationBar
         const params = method.params;
         if (params.coffee) {
           window.dispatchEvent(
@@ -292,105 +486,9 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
         }
       }, 0);
     },
-    [setSelectedMethod]
+    [setSelectedMethod, updateDraftNote]
   );
 
-  // 获取方案参数 - 优先使用用户修改后的参数
-  const getMethodParams = () => {
-    // 如果有用户修改后的参数，优先使用
-    if (modifiedParams) {
-      return {
-        ...normalizeBrewingNoteParams(modifiedParams),
-        stages: modifiedParams.stages || [], // 返回 stages
-      };
-    }
-
-    if (draftEquipmentId && selectedMethod) {
-      // 合并所有方案列表以确保查找全面
-      const allMethods = [...commonMethodsOnly, ...customMethods];
-
-      // 同时检查ID和名称匹配
-      const methodObj = allMethods.find(
-        m => m.id === selectedMethod || m.name === selectedMethod
-      );
-
-      if (methodObj) {
-        return {
-          ...normalizeBrewingNoteParams(methodObj.params),
-          stages: methodObj.params.stages || [], // 返回 stages
-        };
-      }
-    }
-
-    return {
-      ...normalizeBrewingNoteParams(initialNote?.params),
-      stages: [], // 默认空 stages
-    };
-  };
-
-  // 设置默认值 - 简化为函数调用，避免复杂的useMemo依赖
-  const getDefaultNote = (): Partial<BrewingNoteData> => {
-    const params = getMethodParams();
-    const isNewNote = !initialNote?.id;
-    const normalizedSelection = normalizeBrewingNoteSelection({
-      equipment: draftEquipmentId,
-      method: selectedMethod,
-    });
-
-    // 计算总时间 - 优先使用 modifiedParams 中的 stages
-    let totalTime = initialNote?.totalTime || 0;
-    if (params.stages && params.stages.length > 0) {
-      // 从 params.stages 计算总时间（包含用户修改）
-      totalTime = params.stages.reduce(
-        (acc, stage) => acc + (stage.duration || 0),
-        0
-      );
-    } else if (selectedMethod && !totalTime) {
-      // 如果没有 stages，从原始方法计算
-      const allMethods = [...commonMethodsOnly, ...customMethods];
-      const methodObj = allMethods.find(
-        m => m.id === selectedMethod || m.name === selectedMethod
-      );
-      if (methodObj && methodObj.params.stages) {
-        totalTime = methodObj.params.stages.reduce(
-          (acc, stage) => acc + (stage.duration || 0),
-          0
-        );
-      }
-    }
-
-    return {
-      equipment: normalizedSelection.equipment,
-      method: normalizedSelection.method,
-      coffeeBean: selectedCoffeeBean,
-      coffeeBeanInfo: selectedCoffeeBean
-        ? {
-            name: selectedCoffeeBean.name || '',
-            roastLevel: selectedCoffeeBean.roastLevel || '中度烘焙',
-            roastDate: selectedCoffeeBean.roastDate || '',
-            roaster: selectedCoffeeBean.roaster,
-          }
-        : {
-            name: initialNote?.coffeeBeanInfo?.name || '',
-            roastLevel: initialNote?.coffeeBeanInfo?.roastLevel || '中度烘焙',
-            roastDate: initialNote?.coffeeBeanInfo?.roastDate || '',
-            roaster: initialNote?.coffeeBeanInfo?.roaster,
-          },
-      params: normalizeBrewingNoteParams(params), // 始终使用最新的 params（包含用户修改）
-      totalTime: totalTime || undefined,
-      rating: initialNote?.rating ?? 0,
-      taste: initialNote?.taste || {
-        acidity: 0,
-        sweetness: 0,
-        bitterness: 0,
-        body: 0,
-      },
-      notes: initialNote?.notes || '',
-      ...(isNewNote ? {} : { id: initialNote?.id }),
-    };
-  };
-
-  // 处理步骤完成 - 使用useCallback优化并延迟事件触发
   const handleStepComplete = useCallback(() => {
     setTimeout(() => {
       const modalRoot = document.querySelector(
@@ -405,161 +503,302 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     }, 0);
   }, []);
 
-  // 处理保存笔记
-  const handleSaveNote = (note: BrewingNoteData) => {
-    // 获取方案名称
-    let methodName = selectedMethod || '';
+  const handleSaveNote = useCallback(
+    (note: BrewingNoteData) => {
+      shouldAutoPersistRef.current = false;
 
-    if (selectedMethod) {
-      const allMethods = [...commonMethodsOnly, ...customMethods];
-      const methodObj = allMethods.find(
-        m => m.id === selectedMethod || m.name === selectedMethod
-      );
-      if (methodObj) {
-        methodName = methodObj.name;
+      let methodName = selectedMethodId || '';
+
+      if (selectedMethodId) {
+        const allMethods = [...commonMethodsOnly, ...customMethods];
+        const methodObj = allMethods.find(
+          m => m.id === selectedMethodId || m.name === selectedMethodId
+        );
+        if (methodObj) {
+          methodName = methodObj.name;
+        }
       }
+
+      const normalizedSelection = normalizeBrewingNoteSelection({
+        equipment: selectedEquipment,
+        method: methodName,
+      });
+
+      const completeNote: BrewingNoteData = {
+        ...note,
+        equipment: normalizedSelection.equipment,
+        method: normalizedSelection.method,
+        coffeeBean: undefined,
+        params: normalizeBrewingNoteParams(note.params),
+      };
+
+      if (
+        selectedCoffeeBean &&
+        'id' in selectedCoffeeBean &&
+        selectedCoffeeBean.id
+      ) {
+        completeNote.beanId = selectedCoffeeBean.id;
+        completeNote.coffeeBeanInfo = buildCoffeeBeanInfo(
+          selectedCoffeeBean,
+          completeNote.coffeeBeanInfo
+        );
+      }
+
+      clearBrewingNoteDraftSession();
+      onSave(completeNote);
+      onClose();
+    },
+    [
+      commonMethodsOnly,
+      customMethods,
+      onClose,
+      onSave,
+      selectedCoffeeBean,
+      selectedEquipment,
+      selectedMethodId,
+    ]
+  );
+
+  const handleDraftChange = useCallback(
+    (nextDraft: BrewingNoteDraftData) => {
+      updateDraftNote(prev => ({
+        ...prev,
+        ...nextDraft,
+      }));
+    },
+    [updateDraftNote]
+  );
+
+  const handleSaveDraft = useCallback(() => {
+    if (!hasDraftRecordContent) {
+      closeModal();
+      return;
     }
 
-    const normalizedSelection = normalizeBrewingNoteSelection({
-      equipment: draftEquipmentId,
-      method: methodName,
+    saveBrewingNoteDraftSession({
+      ...draftSession,
+      step: maxStepIndex,
     });
+    closeModal({ preserveSavedDraft: true });
+  }, [closeModal, draftSession, hasDraftRecordContent, maxStepIndex]);
 
-    // 创建完整笔记
-    const completeNote: BrewingNoteData = {
-      ...note,
-      equipment: normalizedSelection.equipment,
-      method: normalizedSelection.method,
-      coffeeBean: undefined,
-      params: normalizeBrewingNoteParams(note.params),
+  const persistDraftSnapshot = useCallback(() => {
+    if (
+      !shouldAutoPersistRef.current ||
+      !latestIsCreateModeRef.current ||
+      !latestHasDraftRecordContentRef.current
+    ) {
+      return;
+    }
+
+    saveBrewingNoteDraftSession({
+      ...latestDraftSessionRef.current,
+      step: maxStepIndex,
+    });
+  }, [maxStepIndex]);
+
+  useEffect(() => {
+    if (!showForm) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      persistDraftSnapshot();
     };
 
-    // 处理咖啡豆关联
-    if (selectedCoffeeBean?.id) {
-      completeNote['beanId'] = selectedCoffeeBean.id;
-      completeNote.coffeeBeanInfo = {
-        name: selectedCoffeeBean.name || '',
-        roastLevel: selectedCoffeeBean.roastLevel || '中度烘焙',
-        roastDate: selectedCoffeeBean.roastDate || '',
-        roaster: selectedCoffeeBean.roaster,
-      };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        persistDraftSnapshot();
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    let removeAppStateListener: (() => void) | undefined;
+    let isDisposed = false;
+
+    if (Capacitor.isNativePlatform()) {
+      CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) {
+          persistDraftSnapshot();
+        }
+      }).then(listener => {
+        if (isDisposed) {
+          listener.remove();
+          return;
+        }
+
+        removeAppStateListener = () => {
+          listener.remove();
+        };
+      });
     }
 
-    // 保存笔记
-    onSave(completeNote);
+    return () => {
+      isDisposed = true;
+      persistDraftSnapshot();
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      removeAppStateListener?.();
+    };
+  }, [persistDraftSnapshot, showForm]);
 
-    // 保存成功后直接关闭，不通过历史栈返回
-    // 避免触发 popstate 事件导致表单返回上一步
-    // 重置状态
-    setSelectedCoffeeBean(null);
-    setDraftEquipmentId('');
-    setSelectedMethod('');
-    onClose();
-
-    // 如果提供了保存成功回调，则调用它
-    if (onSaveSuccess) {
-      onSaveSuccess();
-    }
-  };
-
-  // 定义步骤
-  const steps: Step[] = [
-    // 只有当有咖啡豆时才添加咖啡豆选择步骤
-    ...(coffeeBeans.length > 0
-      ? [
-          {
-            id: 'coffeeBean',
-            label: '选择咖啡豆',
-            content: (
-              <CoffeeBeanSelector
-                coffeeBeans={coffeeBeans}
-                selectedCoffeeBean={selectedCoffeeBean}
-                onSelect={handleCoffeeBeanSelect}
-                showStatusDots={settings?.showStatusDots}
-              />
-            ),
-            isValid: true, // 咖啡豆选择为可选
-          },
-        ]
-      : []),
-    {
-      id: 'method',
-      label: '选择方案',
-      content: (
-        <div>
-          {/* 器具分类栏 */}
-          <EquipmentCategoryBar
-            selectedEquipment={draftEquipmentId}
-            customEquipments={customEquipments}
-            onEquipmentSelect={handleEquipmentSelect}
-            settings={settings}
-          />
-          {/* 方案选择 */}
-          {draftEquipmentId && (
-            <MethodSelector
-              selectedEquipment={draftEquipmentId}
-              selectedMethod={selectedMethod}
-              customMethods={customMethods}
-              commonMethods={commonMethodsOnly}
-              onMethodSelect={(methodId: string) => {
-                // 选择新方案时重置修改的参数
-                setModifiedParams(null);
-                setSelectedMethod(methodId);
-              }}
-              onParamsChange={_handleMethodParamsChange}
-              grinderDefaultSyncEnabled={
-                settings?.grinderDefaultSync?.manualNote ?? true
-              }
+  const steps: Step[] = useMemo(
+    () => [
+      ...(coffeeBeans.length > 0
+        ? [
+            {
+              id: 'coffeeBean',
+              label: '选择咖啡豆',
+              content: (
+                <CoffeeBeanSelector
+                  coffeeBeans={coffeeBeans}
+                  selectedCoffeeBean={
+                    selectedCoffeeBean && 'roastLevel' in selectedCoffeeBean
+                      ? (selectedCoffeeBean as CoffeeBean)
+                      : null
+                  }
+                  onSelect={handleCoffeeBeanSelect}
+                  showStatusDots={settings?.showStatusDots}
+                />
+              ),
+              isValid: true,
+            },
+          ]
+        : []),
+      {
+        id: 'method',
+        label: '选择方案',
+        content: (
+          <div>
+            <EquipmentCategoryBar
+              selectedEquipment={selectedEquipment}
+              customEquipments={customEquipments}
+              onEquipmentSelect={handleEquipmentSelect}
+              settings={settings}
             />
-          )}
-        </div>
-      ),
-      isValid: true,
-    },
-    {
-      id: 'note-form',
-      label: '冲煮笔记',
-      content: (
-        <BrewingNoteForm
-          id={initialNote?.id}
-          onClose={() => {}} // 不提供关闭功能，由模态框控制
-          onSave={handleSaveNote}
-          initialData={getDefaultNote()}
-          inBrewPage={true}
-          showSaveButton={false}
-          onSaveSuccess={onSaveSuccess}
-          settings={settings}
-        />
-      ),
-      isValid: true,
-    },
-  ];
+            {selectedEquipment && (
+              <MethodSelector
+                selectedEquipment={selectedEquipment}
+                selectedMethod={selectedMethodId}
+                customMethods={customMethods}
+                commonMethods={commonMethodsOnly}
+                onMethodSelect={(methodId: string) => {
+                  setSelectedMethod(methodId);
+                  updateDraftNote(prev => ({
+                    ...prev,
+                    method: methodId,
+                    params: normalizeBrewingNoteParams(undefined),
+                    totalTime: undefined,
+                  }));
+                }}
+                onParamsChange={handleMethodParamsChange}
+                grinderDefaultSyncEnabled={
+                  settings?.grinderDefaultSync?.manualNote ?? true
+                }
+              />
+            )}
+          </div>
+        ),
+        isValid: true,
+      },
+      {
+        id: 'note-form',
+        label: '冲煮笔记',
+        content: (
+          <BrewingNoteForm
+            id={initialNote?.id}
+            onClose={() => {}}
+            onSave={handleSaveNote}
+            initialData={draftSession.note}
+            inBrewPage={true}
+            showSaveButton={false}
+            onSaveSuccess={onSaveSuccess}
+            settings={settings}
+            onDraftChange={handleDraftChange}
+            syncInitialDataChanges={false}
+          />
+        ),
+        isValid: true,
+      },
+    ],
+    [
+      coffeeBeans,
+      commonMethodsOnly,
+      customEquipments,
+      customMethods,
+      draftSession.note,
+      handleCoffeeBeanSelect,
+      handleDraftChange,
+      handleEquipmentSelect,
+      handleMethodParamsChange,
+      handleSaveNote,
+      initialNote?.id,
+      onSaveSuccess,
+      selectedCoffeeBean,
+      selectedEquipment,
+      selectedMethodId,
+      setSelectedMethod,
+      settings,
+      updateDraftNote,
+    ]
+  );
 
   return (
     <>
       <NoteSteppedFormModal
         showForm={showForm}
-        onClose={handleClose}
+        onClose={handleCloseRequest}
         onComplete={handleStepComplete}
         steps={steps}
         initialStep={0}
         preserveState={true}
-        currentStep={currentStep}
-        setCurrentStep={setCurrentStep}
+        currentStep={boundedCurrentStep}
+        setCurrentStep={setDraftStep}
         onRandomBean={handleOpenRandomPicker}
       />
 
-      {/* 随机选择器 */}
       <CoffeeBeanRandomPicker
         beans={coffeeBeans}
         isOpen={isRandomPickerOpen}
         onClose={() => {
           setIsRandomPickerOpen(false);
-          setIsLongPressRandom(false); // 重置长按状态
+          setIsLongPressRandom(false);
         }}
         onSelect={handleRandomBeanSelect}
         isLongPress={isLongPressRandom}
       />
+
+      <ActionDrawer
+        isOpen={isExitDrawerOpen}
+        onClose={() => setIsExitDrawerOpen(false)}
+        historyId="note-draft-exit-drawer"
+      >
+        <ActionDrawer.Content>
+          <p className="text-neutral-500 dark:text-neutral-400">
+            当前内容尚未完成，你可以先
+            <span className="text-neutral-800 dark:text-neutral-200">
+              保存为草稿
+            </span>
+            ，稍后继续；也可以直接离开。
+          </p>
+        </ActionDrawer.Content>
+        <ActionDrawer.Actions>
+          <ActionDrawer.SecondaryButton
+            onClick={() => closeModal()}
+            className="text-neutral-500 dark:text-neutral-400"
+          >
+            离开
+          </ActionDrawer.SecondaryButton>
+          <ActionDrawer.PrimaryButton
+            onClick={handleSaveDraft}
+            className="bg-neutral-200 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-100"
+          >
+            保存草稿
+          </ActionDrawer.PrimaryButton>
+        </ActionDrawer.Actions>
+      </ActionDrawer>
     </>
   );
 };

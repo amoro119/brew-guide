@@ -66,6 +66,7 @@ import EquipmentMethodPickerDrawer, {
 import RatingDrawer from './RatingDrawer';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import type { BrewingNoteDraftData } from './brewingNoteDraft';
 
 // 动画类型到器具ID的映射
 const ANIMATION_TYPE_MAPPING: Record<string, string> = {
@@ -151,7 +152,7 @@ interface BrewingNoteFormProps {
   onClose: () => void;
   onSave: (data: BrewingNoteData) => void;
   initialData: Partial<BrewingNoteData> & {
-    coffeeBean?: CoffeeBean | null;
+    coffeeBean?: SelectableCoffeeBean | null;
   };
   inBrewPage?: boolean;
   showSaveButton?: boolean;
@@ -163,6 +164,8 @@ interface BrewingNoteFormProps {
   // 快捷记录模式相关
   isQuickMode?: boolean;
   onQuickModeChange?: (isQuick: boolean) => void;
+  onDraftChange?: (draft: BrewingNoteDraftData) => void;
+  syncInitialDataChanges?: boolean;
 }
 
 // 工具函数
@@ -190,10 +193,18 @@ const getInitialCoffeeBeanInfo = (
   initialData: BrewingNoteFormProps['initialData']
 ) => {
   const beanInfo = initialData.coffeeBean || initialData.coffeeBeanInfo;
+  const roastLevel =
+    beanInfo && 'roastLevel' in beanInfo
+      ? beanInfo.roastLevel
+      : initialData.coffeeBeanInfo?.roastLevel;
+  const roaster =
+    beanInfo && 'roaster' in beanInfo
+      ? beanInfo.roaster
+      : initialData.coffeeBeanInfo?.roaster;
   return {
     name: beanInfo?.name || '',
-    roastLevel: normalizeRoastLevel(beanInfo?.roastLevel),
-    roaster: (beanInfo as any)?.roaster,
+    roastLevel: normalizeRoastLevel(roastLevel),
+    roaster,
   };
 };
 
@@ -220,6 +231,8 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   isCopy = false, // 默认不是复制操作
   isQuickMode: externalIsQuickMode,
   onQuickModeChange,
+  onDraftChange,
+  syncInitialDataChanges = true,
 }) => {
   // 获取烘焙商显示设置
   const roasterFieldEnabled = useSettingsStore(
@@ -272,6 +285,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     taste: initialData?.taste || {},
     notes: initialData?.notes || '',
   });
+  const initialTasteSeed = syncInitialDataChanges ? initialData.taste : null;
 
   // 添加时间戳状态管理
   const [timestamp, setTimestamp] = useState<Date>(
@@ -478,14 +492,14 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         setFlavorDimensions(dimensions);
 
         // 如果是新笔记或者现有笔记缺少风味数据，初始化风味评分
-        if (!initialData.taste || Object.keys(initialData.taste).length === 0) {
+        if (!initialTasteSeed || Object.keys(initialTasteSeed).length === 0) {
           const emptyTaste = createEmptyTasteRatings(dimensions);
           setFormData(prev => ({ ...prev, taste: emptyTaste }));
           setDisplayDimensions(dimensions);
         } else {
           // 迁移现有的风味评分数据以确保兼容性
           const migratedTaste = migrateTasteRatings(
-            initialData.taste,
+            initialTasteSeed,
             dimensions
           );
           setFormData(prev => ({ ...prev, taste: migratedTaste }));
@@ -493,7 +507,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
           // 创建包含历史维度的显示维度列表
           const displayDims = createDisplayDimensions(
             dimensions,
-            initialData.taste
+            initialTasteSeed
           );
           setDisplayDimensions(displayDims);
         }
@@ -503,7 +517,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     };
 
     loadFlavorDimensions();
-  }, [initialData.taste]);
+  }, [initialTasteSeed]);
 
   // 监听评分维度变化
   useEffect(() => {
@@ -710,14 +724,22 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   }, [applyMethodParams, methodParams]);
 
   // 更新方案参数的通用函数
-  const updateMethodParams = useCallback((params: Method['params']) => {
-    applyMethodParams(params);
-  }, [applyMethodParams]);
+  const updateMethodParams = useCallback(
+    (params: Method['params']) => {
+      applyMethodParams(params);
+    },
+    [applyMethodParams]
+  );
 
   // 简化的数据更新逻辑
   const prevInitialDataRef = useRef<typeof initialData>(initialData);
 
   useEffect(() => {
+    if (!syncInitialDataChanges) {
+      prevInitialDataRef.current = initialData;
+      return;
+    }
+
     const prev = prevInitialDataRef.current;
     const current = initialData;
 
@@ -735,6 +757,18 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
     if (beanChanged) {
       const beanInfo = current.coffeeBean || current.coffeeBeanInfo;
+      const roastLevel =
+        beanInfo && 'roastLevel' in beanInfo
+          ? beanInfo.roastLevel
+          : current.coffeeBeanInfo?.roastLevel;
+      const roastDate =
+        beanInfo && 'roastDate' in beanInfo
+          ? beanInfo.roastDate
+          : current.coffeeBeanInfo?.roastDate;
+      const roaster =
+        beanInfo && 'roaster' in beanInfo
+          ? beanInfo.roaster
+          : current.coffeeBeanInfo?.roaster;
 
       // 同步更新selectedCoffeeBean状态
       if (
@@ -748,9 +782,9 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         ...prev,
         coffeeBeanInfo: {
           name: beanInfo?.name || '',
-          roastLevel: normalizeRoastLevel(beanInfo?.roastLevel),
-          roastDate: beanInfo?.roastDate || '',
-          roaster: beanInfo?.roaster,
+          roastLevel: normalizeRoastLevel(roastLevel),
+          roastDate: roastDate || '',
+          roaster,
         },
       }));
     }
@@ -783,7 +817,13 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     }
 
     prevInitialDataRef.current = current;
-  }, [applyMethodParams, initialData, selectedCoffeeBean?.id, flavorDimensions]);
+  }, [
+    applyMethodParams,
+    initialData,
+    selectedCoffeeBean?.id,
+    flavorDimensions,
+    syncInitialDataChanges,
+  ]);
 
   // 判断是否是添加模式（提前声明，供 updateRating 使用）
   const isAdding = !id || isCopy;
@@ -1324,9 +1364,8 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
       // 规范化器具ID（将名称转换为ID）
       const { normalizeEquipmentId } = await import('@/components/notes/utils');
-      const normalizedEquipmentId = await normalizeEquipmentId(
-        selectedEquipment
-      );
+      const normalizedEquipmentId =
+        await normalizeEquipmentId(selectedEquipment);
       const normalizedSelection = normalizeBrewingNoteSelection({
         equipment: normalizedEquipmentId,
         method: selectedMethod,
@@ -1389,7 +1428,10 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       };
 
       // 容量调整记录：同步 changeRecord 与显示的调整量
-      if (isCapacityAdjustmentEdit && preservedChangeRecord?.capacityAdjustment) {
+      if (
+        isCapacityAdjustmentEdit &&
+        preservedChangeRecord?.capacityAdjustment
+      ) {
         if (!noteData.params) {
           noteData.params = {};
         }
@@ -1673,6 +1715,67 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     flavorRatingsOnlySyncedRef.current = false;
     setFormData(prev => ({ ...prev, taste: newTaste }));
   }, []);
+
+  const lastEmittedDraftRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!onDraftChange) {
+      return;
+    }
+
+    const parsedTotalTime = parseFloat(totalTimeStr);
+    const totalTime =
+      !Number.isNaN(parsedTotalTime) && parsedTotalTime > 0
+        ? parsedTotalTime
+        : undefined;
+    const images = formData.images || [];
+    const image = images[0] || '';
+    const beanId =
+      selectedCoffeeBean && !isPendingCoffeeBean(selectedCoffeeBean)
+        ? selectedCoffeeBean.id
+        : undefined;
+
+    const nextDraft = {
+      id,
+      timestamp: timestamp.getTime(),
+      coffeeBean: selectedCoffeeBean,
+      beanId,
+      coffeeBeanInfo: formData.coffeeBeanInfo,
+      image,
+      images,
+      rating: formData.rating,
+      taste: formData.taste,
+      notes: formData.notes,
+      equipment: selectedEquipment,
+      method: selectedMethod,
+      params: methodParams,
+      totalTime,
+      source: initialData.source,
+      changeRecord: initialData.changeRecord,
+      quickDecrementAmount: initialData.quickDecrementAmount,
+    };
+    const nextDraftSignature = JSON.stringify(nextDraft);
+
+    if (lastEmittedDraftRef.current === nextDraftSignature) {
+      return;
+    }
+
+    lastEmittedDraftRef.current = nextDraftSignature;
+    onDraftChange(nextDraft);
+  }, [
+    formData,
+    id,
+    initialData.changeRecord,
+    initialData.quickDecrementAmount,
+    initialData.source,
+    methodParams,
+    onDraftChange,
+    selectedCoffeeBean,
+    selectedEquipment,
+    selectedMethod,
+    timestamp,
+    totalTimeStr,
+  ]);
 
   return (
     <form
