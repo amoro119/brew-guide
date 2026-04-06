@@ -193,6 +193,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   const latestHasDraftRecordContentRef = useRef(false);
   const latestIsCreateModeRef = useRef(!initialNote?.id);
   const shouldAutoPersistRef = useRef(true);
+  const didAutoAdvancePrefilledStepRef = useRef(false);
 
   const setDraftStep = useCallback((value: React.SetStateAction<number>) => {
     setDraftSession(prev => ({
@@ -243,6 +244,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   useEffect(() => {
     if (showForm) {
       shouldAutoPersistRef.current = true;
+      didAutoAdvancePrefilledStepRef.current = false;
     }
   }, [showForm]);
 
@@ -282,11 +284,13 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
       draftSource !== 'prefilled' ||
       !hasPrefilledCoffeeBean ||
       coffeeBeans.length === 0 ||
-      draftSession.step > 0
+      draftSession.step > 0 ||
+      didAutoAdvancePrefilledStepRef.current
     ) {
       return;
     }
 
+    didAutoAdvancePrefilledStepRef.current = true;
     setDraftStep(1);
   }, [
     coffeeBeans.length,
@@ -300,6 +304,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   useEffect(() => {
     if (!showForm) {
       setIsExitDrawerOpen(false);
+      didAutoAdvancePrefilledStepRef.current = false;
     }
   }, [showForm]);
 
