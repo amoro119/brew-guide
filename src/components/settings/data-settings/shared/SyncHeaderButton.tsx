@@ -7,6 +7,7 @@
 'use client';
 
 import React from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { ConnectionStatus } from '@/lib/sync/types';
 
 interface SyncHeaderButtonProps {
@@ -46,19 +47,9 @@ export const SyncHeaderButton: React.FC<SyncHeaderButtonProps> = ({
         <span className="text-xs text-neutral-500 dark:text-neutral-400">
           {statusText}
         </span>
-        <svg
+        <ChevronDown
           className={`h-4 w-4 text-neutral-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+        />
       </div>
     </button>
   );
