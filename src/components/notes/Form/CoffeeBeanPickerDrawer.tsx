@@ -47,22 +47,9 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
   const [showRandomPicker, setShowRandomPicker] = useState(false);
   const [isLongPressRandom, setIsLongPressRandom] = useState(false);
 
-  // 滚动容器状态
-  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
-    null
-  );
-
   // refs
   const searchInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // callback ref: DOM 挂载时更新 state，触发重新渲染
-  const contentScrollRefCallback = useCallback(
-    (node: HTMLDivElement | null) => {
-      setScrollContainer(node);
-    },
-    []
-  );
 
   // 从 Store 获取咖啡豆数据
   const allBeans = useCoffeeBeanStore(state => state.beans);
@@ -250,10 +237,7 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
           </div>
 
           {/* 咖啡豆列表 */}
-          <div
-            className="min-h-0 flex-1 overflow-y-auto pb-4"
-            ref={contentScrollRefCallback}
-          >
+          <div className="min-h-0 flex-1 overflow-hidden pb-4">
             <CoffeeBeanSelector
               coffeeBeans={allBeans}
               selectedCoffeeBean={
@@ -266,7 +250,6 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
               searchQuery={searchQuery}
               showStatusDots={showStatusDots}
               showSkipOption={false}
-              scrollParentRef={scrollContainer || undefined}
             />
           </div>
         </div>

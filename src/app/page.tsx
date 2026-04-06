@@ -127,6 +127,38 @@ interface ExtendedCoffeeBean extends CoffeeBean {
   blendComponents?: BlendComponent[];
 }
 
+const EMPTY_NOTE_TASTE = {
+  acidity: 0,
+  sweetness: 0,
+  bitterness: 0,
+  body: 0,
+};
+
+const createBlankBrewingNoteDraft = (): Partial<BrewingNoteData> => ({
+  coffeeBeanInfo: {
+    name: '',
+    roastLevel: '中度烘焙',
+    roastDate: '',
+  },
+  taste: { ...EMPTY_NOTE_TASTE },
+  rating: 0,
+  notes: '',
+});
+
+const createBrewingNoteDraftFromBean = (
+  bean: CoffeeBean
+): Partial<BrewingNoteData> => ({
+  ...createBlankBrewingNoteDraft(),
+  coffeeBean: bean,
+  beanId: bean.id,
+  coffeeBeanInfo: {
+    name: bean.name,
+    roastLevel: bean.roastLevel || '中度烘焙',
+    roastDate: bean.roastDate || '',
+    roaster: bean.roaster,
+  },
+});
+
 // 动态导入客户端组件
 const BrewingTimer = dynamic(
   () => import('@/components/brewing/BrewingTimer'),
@@ -2608,28 +2640,29 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   });
 
   const [showNoteFormModal, setShowNoteFormModal] = useState(false);
+  const [noteFormDraftSource, setNoteFormDraftSource] = useState<
+    'blank' | 'prefilled'
+  >('blank');
   const [currentEditingNote, setCurrentEditingNote] = useState<
     Partial<BrewingNoteData>
   >({});
 
   const handleAddNote = () => {
-    setCurrentEditingNote({
-      coffeeBeanInfo: {
-        name: '',
-        roastLevel: '中度烘焙',
-        roastDate: '',
-      },
-      taste: {
-        acidity: 0,
-        sweetness: 0,
-        bitterness: 0,
-        body: 0,
-      },
-      rating: 0,
-      notes: '',
-    });
+    setNoteFormDraftSource('blank');
+    setCurrentEditingNote(createBlankBrewingNoteDraft());
     setShowNoteFormModal(true);
   };
+
+  const handleCreateNoteFromBean = useCallback(
+    (bean: CoffeeBean) => {
+      saveMainTabPreference('笔记');
+      setActiveMainTab('笔记');
+      setNoteFormDraftSource('prefilled');
+      setCurrentEditingNote(createBrewingNoteDraftFromBean(bean));
+      setShowNoteFormModal(true);
+    },
+    [setActiveMainTab]
+  );
 
   const buildPersistedBrewingNote = useCallback(
     (note: BrewingNoteData, overrides?: Partial<BrewingNote>): BrewingNote => {
@@ -2684,6 +2717,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       }
 
       setShowNoteFormModal(false);
+      setNoteFormDraftSource('blank');
       setCurrentEditingNote({});
 
       // 事件触发已在 store 中自动完成
@@ -2934,87 +2968,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       window.removeEventListener('storage:changed', handleStorageChange);
     };
   }, [setCustomMethods]);
-
-  // 添加监听创建新笔记事件
-  useEffect(() => {
-    const handleAddNewBrewingNote = async () => {
-      try {
-        // 检查是否存在临时存储的咖啡豆
-        const tempBeanJson = localStorage.getItem('temp:selectedBean');
-        if (tempBeanJson) {
-          const tempBeanInfo = JSON.parse(tempBeanJson);
-
-          // 移除临时存储
-          localStorage.removeItem('temp:selectedBean');
-
-          // 如果有ID，尝试获取完整的咖啡豆信息
-          if (tempBeanInfo.id) {
-            const { getCoffeeBeanStore } =
-              await import('@/lib/stores/coffeeBeanStore');
-            const fullBean = getCoffeeBeanStore().getBeanById(tempBeanInfo.id);
-
-            if (fullBean) {
-              // 创建笔记并预选该咖啡豆
-              setCurrentEditingNote({
-                coffeeBean: fullBean,
-                beanId: tempBeanInfo.id, // 明确设置beanId，确保表单可以找到对应的咖啡豆
-                coffeeBeanInfo: {
-                  name: fullBean.name,
-                  roastLevel: fullBean.roastLevel || '中度烘焙',
-                  roastDate: fullBean.roastDate || '',
-                  roaster: fullBean.roaster,
-                },
-                taste: {
-                  acidity: 0,
-                  sweetness: 0,
-                  bitterness: 0,
-                  body: 0,
-                },
-                rating: 0,
-                notes: '',
-              });
-              setShowNoteFormModal(true);
-              return;
-            }
-          }
-
-          // 如果没有找到完整咖啡豆信息，使用临时信息
-          setCurrentEditingNote({
-            beanId: tempBeanInfo.id, // 如果有id也设置，尽管可能为undefined
-            coffeeBeanInfo: {
-              name: tempBeanInfo.name || '',
-              roastLevel: tempBeanInfo.roastLevel || '中度烘焙',
-              roastDate: tempBeanInfo.roastDate || '',
-              roaster: tempBeanInfo.roaster,
-            },
-            taste: {
-              acidity: 0,
-              sweetness: 0,
-              bitterness: 0,
-              body: 0,
-            },
-            rating: 0,
-            notes: '',
-          });
-          setShowNoteFormModal(true);
-          return;
-        }
-
-        // 如果没有临时咖啡豆信息，调用默认的添加笔记函数
-        handleAddNote();
-      } catch (error) {
-        console.error('处理新建笔记事件失败:', error);
-        // 出错时调用默认的添加笔记函数
-        handleAddNote();
-      }
-    };
-
-    window.addEventListener('addNewBrewingNote', handleAddNewBrewingNote);
-
-    return () => {
-      window.removeEventListener('addNewBrewingNote', handleAddNewBrewingNote);
-    };
-  }, []);
 
   // 添加导航栏替代头部相关状态
   const [alternativeHeaderContent, setAlternativeHeaderContent] =
@@ -3629,6 +3582,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                     setBeanDetailOpen(false);
                     setBeanDetailAddMode(false);
                   }}
+                  onCreateNoteFromBean={handleCreateNoteFromBean}
                   searchQuery={beanDetailSearchQuery}
                   mode={beanDetailAddMode ? 'add' : 'view'}
                   initialBeanState={beanDetailAddBeanState}
@@ -4136,10 +4090,12 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       <BrewingNoteFormModal
         key="note-form-modal"
         showForm={showNoteFormModal}
+        draftSource={noteFormDraftSource}
         initialNote={currentEditingNote}
         onSave={handleSaveBrewingNote}
         onClose={() => {
           setShowNoteFormModal(false);
+          setNoteFormDraftSource('blank');
           setCurrentEditingNote({});
         }}
         settings={settings}
@@ -4218,6 +4174,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
         beanDetailAddMode={beanDetailAddMode}
         setBeanDetailAddMode={setBeanDetailAddMode}
         beanDetailAddBeanState={beanDetailAddBeanState}
+        onCreateNoteFromBean={handleCreateNoteFromBean}
         // 咖啡豆导入
         showImportBeanForm={showImportBeanForm}
         setShowImportBeanForm={setShowImportBeanForm}

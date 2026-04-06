@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import type { CoffeeBean } from '@/types/app';
@@ -29,7 +29,6 @@ interface CoffeeBeanSelectorProps {
   onCreatePendingBean?: (name: string) => void;
   searchQuery?: string;
   highlightedBeanId?: string | null;
-  scrollParentRef?: HTMLElement;
   showStatusDots?: boolean;
   /** 是否显示顶部的"跳过咖啡豆选择 / 不使用咖啡豆"选项，默认 true */
   showSkipOption?: boolean;
@@ -37,8 +36,27 @@ interface CoffeeBeanSelectorProps {
 
 // 定义列表项类型
 type VirtuosoItem =
+  | { __type: 'skip' }
   | { __type: 'create'; name: string }
   | { __type: 'bean'; bean: CoffeeBean };
+
+const VirtuosoList = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ style, children, ...props }, ref) => (
+  <div
+    ref={ref}
+    style={style}
+    className="flex flex-col gap-y-3.5"
+    {...props}
+  >
+    {children}
+  </div>
+));
+
+VirtuosoList.displayName = 'CoffeeBeanSelectorVirtuosoList';
+
+const VirtuosoFooter = () => <div className="h-32" />;
 
 // 咖啡豆图片组件（支持烘焙商图标）
 const BeanImage: React.FC<{
@@ -113,11 +131,10 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
   onCreatePendingBean,
   searchQuery = '',
   highlightedBeanId = null,
-  scrollParentRef,
   showStatusDots = true,
   showSkipOption = true,
 }) => {
-  const beanItemsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const virtuosoRef = useRef<VirtuosoHandle | null>(null);
 
   // 获取烘焙商字段设置
   const roasterFieldEnabled = useSettingsStore(
@@ -144,27 +161,6 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
   const showTotalPrice = useSettingsStore(
     state => state.settings.showTotalPrice ?? false
   );
-
-  const setItemRef = React.useCallback(
-    (id: string) => (node: HTMLDivElement | null) => {
-      if (node) {
-        beanItemsRef.current.set(id, node);
-      } else {
-        beanItemsRef.current.delete(id);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (highlightedBeanId && beanItemsRef.current.has(highlightedBeanId)) {
-      const node = beanItemsRef.current.get(highlightedBeanId);
-      node?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [highlightedBeanId]);
 
   const availableBeans = useMemo(() => {
     const filtered = coffeeBeans.filter(bean => {
@@ -202,8 +198,42 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
       return [{ __type: 'create', name: trimmedQuery }];
     }
 
-    return filteredBeans.map(b => ({ __type: 'bean' as const, bean: b }));
-  }, [filteredBeans, searchQuery, onCreatePendingBean]);
+    const beanItems = filteredBeans.map(b => ({
+      __type: 'bean' as const,
+      bean: b,
+    }));
+
+    return showSkipOption ? [{ __type: 'skip' }, ...beanItems] : beanItems;
+  }, [filteredBeans, onCreatePendingBean, searchQuery, showSkipOption]);
+
+  const beanIndexById = useMemo(() => {
+    const indexMap = new Map<string, number>();
+
+    virtuosoData.forEach((item, index) => {
+      if (item.__type === 'bean') {
+        indexMap.set(item.bean.id, index);
+      }
+    });
+
+    return indexMap;
+  }, [virtuosoData]);
+
+  useEffect(() => {
+    if (!highlightedBeanId) {
+      return;
+    }
+
+    const targetIndex = beanIndexById.get(highlightedBeanId);
+    if (targetIndex === undefined) {
+      return;
+    }
+
+    virtuosoRef.current?.scrollToIndex({
+      index: targetIndex,
+      align: 'center',
+      behavior: 'smooth',
+    });
+  }, [beanIndexById, highlightedBeanId]);
 
   // 计算赏味期信息
   const getFlavorInfo = (bean: CoffeeBean) => {
@@ -368,7 +398,6 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
       <div
         className="group cursor-pointer transition-colors"
         onClick={() => onSelect(bean)}
-        ref={setItemRef(bean.id)}
         data-bean-item={bean.id}
       >
         <div className="flex gap-3">
@@ -492,72 +521,51 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="pb-32">
-          {(() => {
-            const VirtuosoList = React.forwardRef<
-              HTMLDivElement,
-              React.HTMLAttributes<HTMLDivElement>
-            >(({ style, children, ...props }, ref) => (
-              <div
-                ref={ref}
-                style={style}
-                className="flex flex-col gap-y-3.5"
-                {...props}
-              >
-                {children}
-              </div>
-            ));
-            VirtuosoList.displayName = 'CoffeeBeanSelectorVirtuosoList';
-
-            const VirtuosoHeader = () => {
-              if (!showSkipOption) return null;
-
+        <Virtuoso
+          ref={virtuosoRef}
+          className="h-full"
+          style={{ height: '100%' }}
+          data={virtuosoData}
+          increaseViewportBy={{ top: 160, bottom: 320 }}
+          components={{
+            List: VirtuosoList,
+            Footer: VirtuosoFooter,
+          }}
+          itemContent={(_index, item: VirtuosoItem) => {
+            if (item.__type === 'skip') {
               return (
-                <div className="pb-3.5">
-                  <div
-                    className="group cursor-pointer transition-colors"
-                    onClick={() => onSelect(null)}
-                  >
-                    <div className="flex gap-3">
-                      <div className="relative self-start">
-                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded border border-neutral-200/50 bg-neutral-100 dark:border-neutral-800/50 dark:bg-neutral-800/20">
-                          {/* 空内容，表示不选择 */}
-                        </div>
+                <div
+                  className="group cursor-pointer transition-colors"
+                  onClick={() => onSelect(null)}
+                >
+                  <div className="flex gap-3">
+                    <div className="relative self-start">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded border border-neutral-200/50 bg-neutral-100 dark:border-neutral-800/50 dark:bg-neutral-800/20">
+                        {/* 空内容，表示不选择 */}
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col justify-center gap-y-1">
-                        <div className="line-clamp-2 text-xs leading-tight font-medium text-neutral-800 dark:text-neutral-100">
-                          不使用咖啡豆
-                        </div>
-                        <div className="text-xs leading-relaxed font-medium text-neutral-600 dark:text-neutral-400">
-                          <span className="inline whitespace-nowrap">
-                            跳过咖啡豆选择
-                          </span>
-                        </div>
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-y-1">
+                      <div className="line-clamp-2 text-xs leading-tight font-medium text-neutral-800 dark:text-neutral-100">
+                        不使用咖啡豆
+                      </div>
+                      <div className="text-xs leading-relaxed font-medium text-neutral-600 dark:text-neutral-400">
+                        <span className="inline whitespace-nowrap">
+                          跳过咖啡豆选择
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               );
-            };
+            }
 
-            return (
-              <Virtuoso
-                data={virtuosoData}
-                customScrollParent={scrollParentRef}
-                components={{
-                  List: VirtuosoList,
-                  Header: VirtuosoHeader,
-                }}
-                itemContent={(_index, item: VirtuosoItem) => {
-                  if (item.__type === 'create') {
-                    return renderCreateItem(item.name);
-                  }
-                  return renderBeanItem(item.bean);
-                }}
-              />
-            );
-          })()}
-        </div>
+            if (item.__type === 'create') {
+              return renderCreateItem(item.name);
+            }
+
+            return renderBeanItem(item.bean);
+          }}
+        />
       )}
     </div>
   );

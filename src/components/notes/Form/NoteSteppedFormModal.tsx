@@ -67,18 +67,8 @@ const NoteSteppedFormModal = forwardRef<
     const [highlightedBeanId, setHighlightedBeanId] = useState<string | null>(
       null
     );
-    const [scrollContainer, setScrollContainer] =
-      useState<HTMLDivElement | null>(null);
     const { inputRef: searchInputRef, activateAndFocus } =
       useInputFocus<HTMLInputElement>(isSearching);
-
-    // callback ref: DOM 挂载时更新 state，触发重新渲染
-    const contentScrollRefCallback = useCallback(
-      (node: HTMLDivElement | null) => {
-        setScrollContainer(node);
-      },
-      []
-    );
 
     const allBeans = useCoffeeBeanStore(state => state.beans);
 
@@ -190,12 +180,10 @@ const NoteSteppedFormModal = forwardRef<
             currentStepContent.content as React.ReactElement<{
               searchQuery?: string;
               highlightedBeanId?: string | null;
-              scrollParentRef?: HTMLElement;
             }>,
             {
               searchQuery,
               highlightedBeanId,
-              scrollParentRef: scrollContainer || undefined,
             }
           )
         : currentStepContent?.content;
@@ -241,8 +229,7 @@ const NoteSteppedFormModal = forwardRef<
 
             {/* 步骤内容 */}
             <div
-              className="min-h-0 flex-1 overflow-y-auto pb-4"
-              ref={contentScrollRefCallback}
+              className={`min-h-0 flex-1 pb-4 ${isCoffeeBeanStep ? 'overflow-hidden' : 'overflow-y-auto'}`}
             >
               {currentStepContent && (
                 <div className="flex h-full flex-col">
