@@ -26,6 +26,7 @@ export interface BeanDetailModalProps {
   isOpen: boolean;
   bean: CoffeeBean | null;
   onClose: () => void;
+  onCreateNoteFromBean?: (bean: CoffeeBean) => void;
   searchQuery?: string;
   onEdit?: (bean: CoffeeBean) => void;
   onDelete?: (bean: CoffeeBean) => void;

@@ -43,6 +43,7 @@ export interface BrewingNoteDraftSession {
 interface CreateBrewingNoteDraftSessionOptions {
   initialNote?: BrewingNoteDraftData;
   persistedEquipment?: string;
+  initialStep?: number;
 }
 
 const normalizeCoffeeBeanInfo = (
@@ -79,6 +80,7 @@ const normalizeImages = (note?: BrewingNoteDraftData): string[] => {
 export const createBrewingNoteDraftSession = ({
   initialNote,
   persistedEquipment,
+  initialStep = 0,
 }: CreateBrewingNoteDraftSessionOptions = {}): BrewingNoteDraftSession => {
   const normalizedSelection = normalizeBrewingNoteDraftSelection({
     equipment: initialNote?.equipment || persistedEquipment || '',
@@ -89,7 +91,7 @@ export const createBrewingNoteDraftSession = ({
 
   return {
     version: CURRENT_VERSION,
-    step: 0,
+    step: initialStep,
     updatedAt: Date.now(),
     note: {
       ...initialNote,

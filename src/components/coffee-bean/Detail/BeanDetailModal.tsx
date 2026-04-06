@@ -62,6 +62,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   isOpen,
   bean: propBean,
   onClose,
+  onCreateNoteFromBean,
   searchQuery = '',
   onEdit,
   onDelete,
@@ -563,28 +564,13 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   };
 
   const handleGoToNotes = () => {
+    if (!bean) return;
+
     handleClose();
-    if (bean) {
-      localStorage.setItem(
-        'temp:selectedBean',
-        JSON.stringify({
-          id: bean.id,
-          name: bean.name,
-          roastLevel: bean.roastLevel || '',
-          roastDate: bean.roastDate || '',
-        })
-      );
-    }
+
     setTimeout(() => {
-      document.dispatchEvent(
-        new CustomEvent(BREWING_EVENTS.NAVIGATE_TO_MAIN_TAB, {
-          detail: { tab: '笔记' },
-        })
-      );
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('addNewBrewingNote'));
-      }, 300);
-    }, 300);
+      onCreateNoteFromBean?.(bean);
+    }, 360);
   };
 
   const handleGoToRoast = () => {

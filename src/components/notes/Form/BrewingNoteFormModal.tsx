@@ -49,6 +49,7 @@ import { findCoffeeBeanByIdentity } from '@/lib/utils/coffeeBeanUtils';
 
 interface BrewingNoteFormModalProps {
   showForm: boolean;
+  draftSource?: 'blank' | 'prefilled';
   initialNote?: Partial<BrewingNoteData> & {
     coffeeBean?: CoffeeBean | null;
     id?: string;
@@ -123,6 +124,7 @@ const normalizeDraftNote = (
 
 const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   showForm,
+  draftSource = 'blank',
   initialNote,
   onSave,
   onClose,
@@ -142,6 +144,11 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   const [isRandomPickerOpen, setIsRandomPickerOpen] = useState(false);
   const [isLongPressRandom, setIsLongPressRandom] = useState(false);
   const [isExitDrawerOpen, setIsExitDrawerOpen] = useState(false);
+  const hasPrefilledCoffeeBean = Boolean(
+    initialNote?.coffeeBean ||
+      initialNote?.beanId ||
+      initialNote?.coffeeBeanInfo?.name
+  );
 
   const getInitialDraftEquipmentId = useCallback(
     () =>
@@ -161,8 +168,20 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
             }
           : undefined,
         persistedEquipment: getInitialDraftEquipmentId(),
+        initialStep:
+          draftSource === 'prefilled' &&
+          hasPrefilledCoffeeBean &&
+          coffeeBeans.length > 0
+            ? 1
+            : 0,
       }),
-    [getInitialDraftEquipmentId, initialNote]
+    [
+      coffeeBeans.length,
+      draftSource,
+      getInitialDraftEquipmentId,
+      hasPrefilledCoffeeBean,
+      initialNote,
+    ]
   );
 
   const [baselineSession, setBaselineSession] =
@@ -243,7 +262,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     const baseSession = buildBaseSession();
     setBaselineSession(baseSession);
 
-    if (!initialNote?.id) {
+    if (draftSource === 'blank' && !initialNote?.id) {
       const savedDraft = loadBrewingNoteDraftSession();
       if (savedDraft) {
         setDraftSession({
@@ -255,7 +274,28 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
     }
 
     setDraftSession(baseSession);
-  }, [buildBaseSession, initialNote?.id, showForm]);
+  }, [buildBaseSession, draftSource, initialNote?.id, showForm]);
+
+  useEffect(() => {
+    if (
+      !showForm ||
+      draftSource !== 'prefilled' ||
+      !hasPrefilledCoffeeBean ||
+      coffeeBeans.length === 0 ||
+      draftSession.step > 0
+    ) {
+      return;
+    }
+
+    setDraftStep(1);
+  }, [
+    coffeeBeans.length,
+    draftSession.step,
+    draftSource,
+    hasPrefilledCoffeeBean,
+    setDraftStep,
+    showForm,
+  ]);
 
   useEffect(() => {
     if (!showForm) {

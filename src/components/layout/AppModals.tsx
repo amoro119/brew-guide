@@ -132,6 +132,7 @@ export interface AppModalsProps {
   beanDetailAddMode: boolean;
   setBeanDetailAddMode: (mode: boolean) => void;
   beanDetailAddBeanState: 'green' | 'roasted';
+  onCreateNoteFromBean: (bean: CoffeeBean) => void;
 
   // 咖啡豆导入
   showImportBeanForm: boolean;
@@ -315,6 +316,7 @@ const AppModals: React.FC<AppModalsProps> = ({
   beanDetailAddMode,
   setBeanDetailAddMode,
   beanDetailAddBeanState,
+  onCreateNoteFromBean,
 
   // 咖啡豆导入
   showImportBeanForm,
@@ -623,6 +625,7 @@ const AppModals: React.FC<AppModalsProps> = ({
             setBeanDetailOpen(false);
             setBeanDetailAddMode(false);
           }}
+          onCreateNoteFromBean={onCreateNoteFromBean}
           searchQuery={beanDetailSearchQuery}
           mode={beanDetailAddMode ? 'add' : 'view'}
           initialBeanState={beanDetailAddBeanState}
