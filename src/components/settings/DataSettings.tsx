@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
-import { ButtonGroup } from '../ui/ButtonGroup';
 import {
   BackupReminderSettings,
   BackupReminderUtils,
@@ -12,7 +11,7 @@ import {
   BackupReminderInterval,
 } from '@/lib/utils/backupReminderUtils';
 import hapticsUtils from '@/lib/ui/haptics';
-import { SettingPage } from './atomic';
+import { SettingPage, SettingSelector } from './atomic';
 import {
   S3SyncSection,
   WebDAVSyncSection,
@@ -499,9 +498,8 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     [handleChange, settings.hapticFeedback]
   );
 
-  const selectedManualSyncType = getSelectedManualSyncProvider(
-    resolvedSyncSettings
-  );
+  const selectedManualSyncType =
+    getSelectedManualSyncProvider(resolvedSyncSettings);
   const isManualSyncConnected =
     getConnectedManualSyncProvider(resolvedSyncSettings) !== 'none';
   const isManualPullToSyncEnabled = isPullToSyncEnabled(resolvedSyncSettings);
@@ -674,38 +672,40 @@ const DataSettings: React.FC<DataSettingsProps> = ({
           {syncType !== 'supabase' &&
             selectedManualSyncType === 'webdav' &&
             !webdavSettings.lastConnectionSuccess && (
-            <button
-              onClick={() => setShowWebDAVTutorial(true)}
-              className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-            >
-              <span>引导式配置（推荐新手）</span>
-              <ChevronRight className="h-4 w-4 text-neutral-400" />
-            </button>
-          )}
+              <button
+                onClick={() => setShowWebDAVTutorial(true)}
+                className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                <span>引导式配置（推荐新手）</span>
+                <ChevronRight className="h-4 w-4 text-neutral-400" />
+              </button>
+            )}
 
           {syncType !== 'supabase' &&
             supportsPullToSync &&
             isManualSyncConnected && (
-            <div className="flex items-center justify-between rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
-              <div>
-                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                  下拉上传
+              <div className="flex items-center justify-between rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
+                <div>
+                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    下拉上传
+                  </div>
+                  <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    在导航栏下拉可快速上传数据
+                  </div>
                 </div>
-                <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                  在导航栏下拉可快速上传数据
-                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={isManualPullToSyncEnabled}
+                    onChange={e =>
+                      handlePullToSyncSettingChange(e.target.checked)
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
+                </label>
               </div>
-              <label className="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  checked={isManualPullToSyncEnabled}
-                  onChange={e => handlePullToSyncSettingChange(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-              </label>
-            </div>
-          )}
+            )}
         </div>
       </div>
 
@@ -737,14 +737,14 @@ const DataSettings: React.FC<DataSettingsProps> = ({
 
             {selectedManualSyncType === 'webdav' &&
               !webdavSettings.lastConnectionSuccess && (
-              <button
-                onClick={() => setShowWebDAVTutorial(true)}
-                className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              >
-                <span>引导式配置（推荐新手）</span>
-                <ChevronRight className="h-4 w-4 text-neutral-400" />
-              </button>
-            )}
+                <button
+                  onClick={() => setShowWebDAVTutorial(true)}
+                  className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                >
+                  <span>引导式配置（推荐新手）</span>
+                  <ChevronRight className="h-4 w-4 text-neutral-400" />
+                </button>
+              )}
 
             {supportsPullToSync && isManualSyncConnected && (
               <div className="flex items-center justify-between rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
@@ -963,7 +963,7 @@ const DataSettings: React.FC<DataSettingsProps> = ({
                     </div>
                   )}
                 </div>
-                <ButtonGroup
+                <SettingSelector
                   value={backupReminderSettings.interval.toString()}
                   options={[
                     {
@@ -984,7 +984,9 @@ const DataSettings: React.FC<DataSettingsProps> = ({
                       parseInt(value) as BackupReminderInterval
                     )
                   }
+                  ariaLabel="备份提醒频率"
                   className="w-full"
+                  fullWidth
                 />
               </div>
             )}

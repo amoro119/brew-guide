@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ButtonGroup } from '@/components/ui/ButtonGroup';
+import { SettingSelector } from '@/components/settings/atomic';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 
 // 布局设置接口
@@ -123,13 +123,14 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
                 <span className="text-sm text-neutral-700 dark:text-neutral-300">
                   步骤时间显示
                 </span>
-                <ButtonGroup
+                <SettingSelector
                   value={localLayoutSettings?.stepDisplayMode || 'cumulative'}
                   options={[
                     { value: 'independent', label: '独立' },
                     { value: 'cumulative', label: '累计' },
                     { value: 'time', label: '时间' },
                   ]}
+                  ariaLabel="步骤时间显示"
                   onChange={value => {
                     const newSettings = {
                       ...localLayoutSettings,
@@ -246,13 +247,14 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
                 <span className="text-sm text-neutral-700 dark:text-neutral-300">
                   数据显示字体大小
                 </span>
-                <ButtonGroup
+                <SettingSelector
                   value={localLayoutSettings?.dataFontSize || '2xl'}
                   options={[
                     { value: '2xl', label: '标准' },
                     { value: '3xl', label: '大' },
                     { value: '4xl', label: '特大' },
                   ]}
+                  ariaLabel="数据显示字体大小"
                   onChange={value => {
                     const newSettings = {
                       ...localLayoutSettings,
