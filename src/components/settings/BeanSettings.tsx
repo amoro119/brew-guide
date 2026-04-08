@@ -3,12 +3,12 @@
 import React from 'react';
 import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
-import { ButtonGroup } from '../ui/ButtonGroup';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import {
   SettingPage,
   SettingSection,
   SettingRow,
+  SettingSelector,
   SettingToggle,
   SettingSlider,
 } from './atomic';
@@ -94,22 +94,21 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
 
       <SettingSection title="列表">
         <SettingRow label="日期模式">
-          <div className="flex h-0 items-center">
-            <ButtonGroup
-              value={settings.dateDisplayMode || 'date'}
-              options={[
-                { value: 'date', label: '日期' },
-                { value: 'flavorPeriod', label: '赏味期' },
-                { value: 'agingDays', label: '养豆天数' },
-              ]}
-              onChange={value =>
-                handleChange(
-                  'dateDisplayMode',
-                  value as 'date' | 'flavorPeriod' | 'agingDays'
-                )
-              }
-            />
-          </div>
+          <SettingSelector
+            value={settings.dateDisplayMode || 'date'}
+            options={[
+              { value: 'date', label: '日期' },
+              { value: 'flavorPeriod', label: '赏味期' },
+              { value: 'agingDays', label: '养豆天数' },
+            ]}
+            ariaLabel="日期模式"
+            onChange={value =>
+              handleChange(
+                'dateDisplayMode',
+                value as 'date' | 'flavorPeriod' | 'agingDays'
+              )
+            }
+          />
         </SettingRow>
 
         <SettingRow label="价格">
@@ -218,18 +217,17 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
         </SettingRow>
         {settings.roasterFieldEnabled !== false && (
           <SettingRow label="烘焙商分隔符" isSubSetting>
-            <div className="flex h-0 items-center">
-              <ButtonGroup
-                value={settings.roasterSeparator || ' '}
-                options={[
-                  { value: ' ', label: '空格' },
-                  { value: '/', label: '/' },
-                ]}
-                onChange={value => {
-                  handleChange('roasterSeparator', value as ' ' | '/');
-                }}
-              />
-            </div>
+            <SettingSelector
+              value={settings.roasterSeparator || ' '}
+              options={[
+                { value: ' ', label: '空格' },
+                { value: '/', label: '/' },
+              ]}
+              ariaLabel="烘焙商分隔符"
+              onChange={value => {
+                handleChange('roasterSeparator', value as ' ' | '/');
+              }}
+            />
           </SettingRow>
         )}
         <SettingRow label="庄园" isLast>

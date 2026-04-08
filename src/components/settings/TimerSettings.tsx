@@ -3,12 +3,12 @@
 import React from 'react';
 import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
-import { ButtonGroup } from '@/components/ui/ButtonGroup';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import {
   SettingPage,
   SettingSection,
   SettingRow,
+  SettingSelector,
   SettingToggle,
   SettingSlider,
 } from './atomic';
@@ -154,48 +154,43 @@ const TimerSettings: React.FC<TimerSettingsProps> = ({
           />
         </SettingRow>
         <SettingRow label="数据显示字体大小" isLast>
-          <div className="flex h-0 items-center">
-            <ButtonGroup
-              value={settings.layoutSettings?.dataFontSize || '2xl'}
-              options={[
-                { value: '2xl', label: '标准' },
-                { value: '3xl', label: '大' },
-                { value: '4xl', label: '特大' },
-              ]}
-              onChange={value => {
-                const newLayoutSettings = {
-                  ...settings.layoutSettings,
-                  dataFontSize: value as '2xl' | '3xl' | '4xl',
-                };
-                handleChange('layoutSettings', newLayoutSettings);
-              }}
-            />
-          </div>
+          <SettingSelector
+            value={settings.layoutSettings?.dataFontSize || '2xl'}
+            options={[
+              { value: '2xl', label: '标准' },
+              { value: '3xl', label: '大' },
+              { value: '4xl', label: '特大' },
+            ]}
+            ariaLabel="数据显示字体大小"
+            onChange={value => {
+              const newLayoutSettings = {
+                ...settings.layoutSettings,
+                dataFontSize: value as '2xl' | '3xl' | '4xl',
+              };
+              handleChange('layoutSettings', newLayoutSettings);
+            }}
+          />
         </SettingRow>
       </SettingSection>
 
       <SettingSection title="列表">
         <SettingRow label="步骤时间显示" isLast>
-          <div className="flex h-0 items-center">
-            <ButtonGroup
-              value={settings.layoutSettings?.stepDisplayMode || 'cumulative'}
-              options={[
-                { value: 'independent', label: '独立' },
-                { value: 'cumulative', label: '累计' },
-                { value: 'time', label: '时间' },
-              ]}
-              onChange={value => {
-                const newLayoutSettings = {
-                  ...settings.layoutSettings,
-                  stepDisplayMode: value as
-                    | 'independent'
-                    | 'cumulative'
-                    | 'time',
-                };
-                handleChange('layoutSettings', newLayoutSettings);
-              }}
-            />
-          </div>
+          <SettingSelector
+            value={settings.layoutSettings?.stepDisplayMode || 'cumulative'}
+            options={[
+              { value: 'independent', label: '独立' },
+              { value: 'cumulative', label: '累计' },
+              { value: 'time', label: '时间' },
+            ]}
+            ariaLabel="步骤时间显示"
+            onChange={value => {
+              const newLayoutSettings = {
+                ...settings.layoutSettings,
+                stepDisplayMode: value as 'independent' | 'cumulative' | 'time',
+              };
+              handleChange('layoutSettings', newLayoutSettings);
+            }}
+          />
         </SettingRow>
       </SettingSection>
     </SettingPage>

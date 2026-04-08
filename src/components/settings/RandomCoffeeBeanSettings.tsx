@@ -4,12 +4,12 @@ import React from 'react';
 
 import { SettingsOptions, defaultSettings } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
-import { ButtonGroup } from '@/components/ui/ButtonGroup';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import {
   SettingPage,
   SettingSection,
   SettingRow,
+  SettingSelector,
   SettingToggle,
 } from './atomic';
 
@@ -142,18 +142,17 @@ const RandomCoffeeBeanSettings: React.FC<RandomCoffeeBeanSettingsProps> = ({
             }豆`}
             isLast
           >
-            <div className="flex h-0 items-center">
-              <ButtonGroup
-                value={randomSettings.defaultRandomType}
-                options={[
-                  { value: 'espresso', label: '意式' },
-                  { value: 'filter', label: '手冲' },
-                ]}
-                onChange={val =>
-                  handleDefaultRandomTypeChange(val as 'espresso' | 'filter')
-                }
-              />
-            </div>
+            <SettingSelector
+              value={randomSettings.defaultRandomType}
+              options={[
+                { value: 'espresso', label: '意式' },
+                { value: 'filter', label: '手冲' },
+              ]}
+              ariaLabel="长按随机类型"
+              onChange={val =>
+                handleDefaultRandomTypeChange(val as 'espresso' | 'filter')
+              }
+            />
           </SettingRow>
         )}
       </SettingSection>

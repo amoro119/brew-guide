@@ -5,13 +5,13 @@ import { SettingsOptions } from './Settings';
 import { useTheme } from 'next-themes';
 import fontZoomUtils from '@/lib/utils/fontZoomUtils';
 import hapticsUtils from '@/lib/ui/haptics';
-import { ButtonGroup } from '@/components/ui/ButtonGroup';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import {
   SettingPage,
   SettingSection,
   SettingRow,
+  SettingSelector,
   SettingSlider,
   SettingDescription,
   SettingToggle,
@@ -156,13 +156,14 @@ const DisplaySettings: React.FC<DisplaySettingsProps> = ({
       {/* 外观设置组 */}
       <SettingSection title="外观" className="-mt-4">
         <SettingRow label="外观模式" isLast>
-          <ButtonGroup
+          <SettingSelector
             value={theme || 'system'}
             options={[
               { value: 'light', label: '浅色' },
               { value: 'dark', label: '深色' },
               { value: 'system', label: '系统' },
             ]}
+            ariaLabel="外观模式"
             onChange={(value: string) => {
               setTheme(value);
               if (settings.hapticFeedback) {
