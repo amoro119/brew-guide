@@ -1239,4 +1239,5 @@ export const sponsorsList = [
   'StanleyZ',
   'YU',
   'Lvxunkk',
+  '悦MAX',
 ];
