@@ -95,7 +95,6 @@ import {
   getDefaultVisibleColumns,
 } from './components/TableView';
 import DeleteConfirmDrawer from '@/components/common/ui/DeleteConfirmDrawer';
-import { calculateEstimatedCupsPerBean } from '@/components/notes/utils';
 import {
   COFFEE_BEAN_NAVIGATION_EVENTS,
   type SyncCoffeeBeanInventoryContextDetail,
@@ -105,6 +104,8 @@ import EmptyBeanTipDrawer, {
 } from './components/EmptyBeanTipDrawer';
 import {
   buildBeanSummaryDetailItems,
+  calculateBeanSummaryEstimatedCups,
+  formatBeanSummaryEstimatedCups,
   formatBeanSummaryWeight,
   formatBeanSummaryWeightWithLimit,
   getBeanSummaryDisplayLimit,
@@ -714,16 +715,6 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   const hasImageBeans = useMemo(() => {
     return beans.some(bean => bean.image && bean.image.trim() !== '');
   }, [beans]);
-
-  // 计算预计杯数（使用逐豆计算算法，更准确地反映实际可冲泡杯数）
-  const estimatedCups = useMemo(() => {
-    // 只在显示预计杯数设置开启且是熟豆时计算
-    if (!showEstimatedCups || selectedBeanState !== 'roasted') {
-      return undefined;
-    }
-
-    return calculateEstimatedCupsPerBean(filteredBeans);
-  }, [showEstimatedCups, selectedBeanState, filteredBeans]);
 
   // 切换图片流模式（简化版，直接使用 updateDisplayMode）
   const handleToggleImageFlowMode = useCallback(() => {
@@ -1586,13 +1577,23 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   }, [isSearching, searchFilteredBeans, filteredBeans]);
 
   // 基于搜索结果的预计杯数
-  const searchAwareEstimatedCups = React.useMemo(() => {
+  const searchAwareEstimatedCupsLabel = React.useMemo(() => {
     if (!showEstimatedCups || selectedBeanState !== 'roasted') {
       return undefined;
     }
     const beansToCount = isSearching ? searchFilteredBeans : filteredBeans;
-    return calculateEstimatedCupsPerBean(beansToCount);
+    const cupsDisplay = calculateBeanSummaryEstimatedCups(
+      beansToCount,
+      beanSummaryDisplayLimit
+    );
+
+    if (cupsDisplay.value <= 0) {
+      return undefined;
+    }
+
+    return formatBeanSummaryEstimatedCups(cupsDisplay);
   }, [
+    beanSummaryDisplayLimit,
     showEstimatedCups,
     selectedBeanState,
     isSearching,
@@ -1651,10 +1652,9 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         if (
           showEstimatedCupsForExport &&
           selectedBeanState === 'roasted' &&
-          searchAwareEstimatedCups !== undefined &&
-          searchAwareEstimatedCups > 0
+          searchAwareEstimatedCupsLabel
         ) {
-          text += `，约 ${searchAwareEstimatedCups} 杯`;
+          text += `，约 ${searchAwareEstimatedCupsLabel}`;
         }
 
         // 添加详细剩余量信息（仅当选择"全部"类型且有多种类型时显示）- 使用搜索感知的统计值
@@ -1985,7 +1985,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         // 生豆库启用设置
         enableGreenBeanInventory={enableGreenBeanInventory}
         // 预计杯数（基于搜索结果）
-        estimatedCups={searchAwareEstimatedCups}
+        estimatedCupsLabel={searchAwareEstimatedCupsLabel}
         // 是否有生豆（用于动态调整列标签）
         hasGreenBeans={(isSearching ? searchFilteredBeans : filteredBeans).some(
           bean => bean.beanState === 'green'
