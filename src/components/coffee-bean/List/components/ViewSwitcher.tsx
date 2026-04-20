@@ -399,7 +399,7 @@ interface ViewSwitcherProps {
   // 生豆库启用设置
   enableGreenBeanInventory?: boolean;
   // 预计杯数
-  estimatedCups?: number;
+  estimatedCupsLabel?: string;
   // 是否有生豆（用于动态调整列标签）
   hasGreenBeans?: boolean;
 }
@@ -479,7 +479,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   // 生豆库启用设置
   enableGreenBeanInventory = false,
   // 预计杯数
-  estimatedCups,
+  estimatedCupsLabel,
   // 是否有生豆（用于动态调整列标签）
   hasGreenBeans = false,
 }) => {
@@ -810,9 +810,8 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                   {totalWeight ? `，剩余 ${totalWeight}` : ''}
                   {showEstimatedCups &&
                     selectedBeanState === 'roasted' &&
-                    estimatedCups !== undefined &&
-                    estimatedCups > 0 &&
-                    `，约 ${estimatedCups} 杯`}
+                    estimatedCupsLabel &&
+                    `，约 ${estimatedCupsLabel}`}
                 </span>
               ) : (
                 <span>
@@ -838,9 +837,8 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                   {totalWeight ? `，剩余 ${totalWeight}` : ''}
                   {showEstimatedCups &&
                     selectedBeanState === 'roasted' &&
-                    estimatedCups !== undefined &&
-                    estimatedCups > 0 &&
-                    `，约 ${estimatedCups} 杯`}
+                    estimatedCupsLabel &&
+                    `，约 ${estimatedCupsLabel}`}
                   {showBeanSummary && beanSummaryDetailsText}
                 </span>
               )
