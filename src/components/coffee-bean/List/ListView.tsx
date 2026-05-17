@@ -10,6 +10,7 @@ import React, {
 import { Virtuoso } from 'react-virtuoso';
 import Image from 'next/image';
 import { CoffeeBean } from '@/types/app';
+import CoffeeBeanCreateOption from '@/components/coffee-bean/ui/CoffeeBeanCreateOption';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import {
   getRoasterLogoSync,
@@ -126,6 +127,7 @@ const BeanImage: React.FC<{
 // 定义组件属性接口
 interface CoffeeBeanListProps {
   onSelect: (beanId: string | null, bean: CoffeeBean | null) => void;
+  onCreateBean?: (name: string) => void;
   isOpen?: boolean;
   searchQuery?: string; // 添加搜索查询参数
   highlightedBeanId?: string | null; // 添加高亮咖啡豆ID参数
@@ -135,6 +137,7 @@ interface CoffeeBeanListProps {
 
 const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
   onSelect,
+  onCreateBean,
   isOpen: _isOpen = true,
   searchQuery = '',
   highlightedBeanId = null,
@@ -437,17 +440,29 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
 
       {/* 显示无搜索结果的提示 */}
       {filteredBeans.length === 0 && searchQuery.trim() !== '' && (
-        <div className="flex gap-3">
-          {/* 左侧占位区域 - 与咖啡豆图片保持一致的尺寸 */}
-          <div className="size-14 shrink-0"></div>
+        <>
+          {onCreateBean && (
+            <CoffeeBeanCreateOption
+              name={searchQuery.trim()}
+              onCreate={onCreateBean}
+              className="mb-5"
+            />
+          )}
 
-          {/* 右侧内容区域 */}
-          <div className="flex h-14 min-w-0 flex-1 flex-col justify-center">
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">
-              没有找到匹配&quot;{searchQuery.trim()}&quot;的咖啡豆
+          {!onCreateBean && (
+            <div className="flex gap-3">
+              {/* 左侧占位区域 - 与咖啡豆图片保持一致的尺寸 */}
+              <div className="size-14 shrink-0"></div>
+
+              {/* 右侧内容区域 */}
+              <div className="flex h-14 min-w-0 flex-1 flex-col justify-center">
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                  没有找到匹配&quot;{searchQuery.trim()}&quot;的咖啡豆
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       <Virtuoso

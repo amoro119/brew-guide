@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Method,
@@ -15,6 +15,7 @@ import {
   TabType,
   MainTabType,
   Content,
+  type CoffeeBeanSelectionOptions,
   Step as BaseStep,
 } from '@/lib/hooks/useBrewingState';
 import { CoffeeBean } from '@/types/app';
@@ -24,7 +25,7 @@ import { showToast } from '@/components/common/feedback/LightToast';
 import { getEquipmentName } from '@/lib/brewing/parameters';
 import BottomActionBar from '@/components/layout/BottomActionBar';
 import CoffeeBeanList from '@/components/coffee-bean/List/ListView';
-import { MethodStepConfig } from '@/lib/types/method';
+import { COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER } from '@/components/coffee-bean/ui/coffeeBeanSelectionText';
 import GrinderScaleIndicator from '@/components/ui/GrinderScaleIndicator';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { useCopy } from '@/lib/hooks/useCopy';
@@ -88,6 +89,7 @@ interface TabContentProps {
   selectedEquipment: string | null;
   selectedCoffeeBean?: string | null;
   selectedCoffeeBeanData?: CoffeeBean | null;
+  selectedCoffeeBeanCreatedFromSearch?: boolean;
   countdownTime: number | null;
   customMethods: Record<string, Method[]>;
   actionMenuStates: Record<string, boolean>;
@@ -98,7 +100,11 @@ interface TabContentProps {
   setShowImportForm: (show: boolean) => void;
   settings: SettingsOptions;
   onMethodSelect: (index: number, step?: Step) => void;
-  onCoffeeBeanSelect?: (beanId: string | null, bean: CoffeeBean | null) => void;
+  onCoffeeBeanSelect?: (
+    beanId: string | null,
+    bean: CoffeeBean | null,
+    options?: CoffeeBeanSelectionOptions
+  ) => void;
   onEditMethod: (method: Method) => void;
   onDeleteMethod: (method: Method) => void;
   onHideMethod?: (method: Method) => Promise<void>; // 新增隐藏方案的回调
@@ -134,8 +140,9 @@ const TabContent: React.FC<TabContentProps> = ({
   currentStage,
   isWaiting = false,
   selectedEquipment,
-  selectedCoffeeBean,
+  selectedCoffeeBean: _selectedCoffeeBean,
   selectedCoffeeBeanData,
+  selectedCoffeeBeanCreatedFromSearch = false,
   countdownTime,
   customMethods,
   actionMenuStates,
@@ -180,6 +187,7 @@ const TabContent: React.FC<TabContentProps> = ({
   const allBeans = useCoffeeBeanStore(state => state.beans);
   const storeInitialized = useCoffeeBeanStore(state => state.initialized);
   const loadBeansFromStore = useCoffeeBeanStore(state => state.loadBeans);
+  const addBean = useCoffeeBeanStore(state => state.addBean);
   const [isLongPressRandom, setIsLongPressRandom] = useState(false);
 
   // 统一的复制功能（带失败抽屉）
@@ -476,6 +484,28 @@ const TabContent: React.FC<TabContentProps> = ({
     }
   };
 
+  const handleCreateCoffeeBean = useCallback(
+    async (name: string) => {
+      const trimmedName = name.trim();
+      if (!trimmedName) return;
+
+      await triggerHapticFeedback();
+
+      try {
+        const newBean = await addBean({ name: trimmedName });
+        setSearchQuery('');
+        setHighlightedBeanId(newBean.id);
+        onCoffeeBeanSelect?.(newBean.id, newBean, {
+          createdFromSearch: true,
+        });
+      } catch (error) {
+        console.error('创建咖啡豆失败:', error);
+        showToast({ type: 'error', title: '创建咖啡豆失败', duration: 2000 });
+      }
+    },
+    [addBean, onCoffeeBeanSelect, triggerHapticFeedback]
+  );
+
   // 获取基础器具ID的辅助函数
   const getBaseEquipmentId = (equipmentId: string): string => {
     if (equipmentId.includes('-v60-')) return 'V60';
@@ -654,6 +684,7 @@ const TabContent: React.FC<TabContentProps> = ({
               if (onCoffeeBeanSelect) onCoffeeBeanSelect(beanId, bean);
             }}
             searchQuery={searchQuery}
+            onCreateBean={handleCreateCoffeeBean}
             highlightedBeanId={highlightedBeanId}
             scrollParentRef={beanScrollEl ?? undefined}
             showStatusDots={settings.showStatusDots}
@@ -728,7 +759,7 @@ const TabContent: React.FC<TabContentProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="搜索咖啡豆名称..."
+                    placeholder={COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER}
                     className="w-48 rounded-full border border-neutral-200/50 bg-neutral-100 px-5 py-3.5 text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-hidden dark:border-neutral-700/50 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-500"
                     autoComplete="off"
                     autoFocus
@@ -803,6 +834,9 @@ const TabContent: React.FC<TabContentProps> = ({
             totalTime: calculateTotalTime(),
             coffeeBean: selectedCoffeeBeanData || undefined,
           }}
+          initialCoffeeBeanCreatedFromSearch={
+            selectedCoffeeBeanCreatedFromSearch
+          }
           settings={settings}
         />
       </div>

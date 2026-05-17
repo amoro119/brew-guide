@@ -48,6 +48,10 @@ export type MainTabType = '冲煮' | '笔记' | '咖啡豆';
 // 修改冲煮步骤类型
 export type BrewingStep = 'coffeeBean' | 'method' | 'brewing' | 'notes';
 
+export interface CoffeeBeanSelectionOptions {
+  createdFromSearch?: boolean;
+}
+
 export interface Step {
   title: string;
   description?: string;
@@ -109,6 +113,10 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
   );
   const [selectedCoffeeBeanData, setSelectedCoffeeBeanData] =
     useState<CoffeeBean | null>(null);
+  const [
+    selectedCoffeeBeanCreatedFromSearch,
+    setSelectedCoffeeBeanCreatedFromSearch,
+  ] = useState(false);
 
   const [selectedEquipment, setSelectedEquipment] = useState<string | null>(
     getSelectedEquipmentPreference()
@@ -251,6 +259,8 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
   // 简化的重置函数
   const resetBrewingState = useCallback(
     (preserveMethod = false) => {
+      setSelectedCoffeeBeanCreatedFromSearch(false);
+
       if (preserveMethod && selectedMethod) {
         navigateToStep('brewing');
       } else {
@@ -344,11 +354,6 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
   const handleSaveNote = useCallback(
     async (data: BrewingNoteData) => {
       try {
-        // 动态导入 Storage 模块
-        const { Storage } = await import('@/lib/core/storage');
-        const notesStr = await Storage.get('brewingNotes');
-        const notes = notesStr ? JSON.parse(notesStr) : [];
-
         const stages = selectedMethod?.params.stages || [];
         const newNote: any = {
           ...data,
@@ -378,10 +383,17 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
           if (match) {
             const coffeeAmount = parseFloat(match[1]);
             if (!isNaN(coffeeAmount) && coffeeAmount > 0) {
-              // 动态导入 updateBeanRemaining
-              const { updateBeanRemaining } =
+              const { initializeBeanFromBrewUsage, updateBeanRemaining } =
                 await import('@/lib/stores/coffeeBeanStore');
-              await updateBeanRemaining(selectedCoffeeBean, coffeeAmount);
+
+              if (selectedCoffeeBeanCreatedFromSearch) {
+                await initializeBeanFromBrewUsage(
+                  selectedCoffeeBean,
+                  newNote.params.coffee
+                );
+              } else {
+                await updateBeanRemaining(selectedCoffeeBean, coffeeAmount);
+              }
             }
           }
         }
@@ -399,6 +411,7 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
     [
       selectedMethod,
       selectedCoffeeBean,
+      selectedCoffeeBeanCreatedFromSearch,
       currentBrewingMethod,
       resetBrewingState,
     ]
@@ -535,9 +548,16 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
 
   // 简化咖啡豆选择处理
   const handleCoffeeBeanSelect = useCallback(
-    (beanId: string | null, bean: CoffeeBean | null) => {
+    (
+      beanId: string | null,
+      bean: CoffeeBean | null,
+      options: CoffeeBeanSelectionOptions = {}
+    ) => {
       setSelectedCoffeeBean(beanId);
       setSelectedCoffeeBeanData(bean);
+      setSelectedCoffeeBeanCreatedFromSearch(
+        Boolean(beanId && options.createdFromSearch)
+      );
       setActiveBrewingStep('method');
       setActiveTab('方案');
     },
@@ -641,6 +661,7 @@ export function useBrewingState(initialBrewingStep?: BrewingStep) {
     setSelectedCoffeeBean,
     selectedCoffeeBeanData,
     setSelectedCoffeeBeanData,
+    selectedCoffeeBeanCreatedFromSearch,
 
     // 计时状态
     isTimerRunning,

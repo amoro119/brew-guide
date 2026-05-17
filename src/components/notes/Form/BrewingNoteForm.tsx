@@ -154,6 +154,7 @@ interface BrewingNoteFormProps {
   initialData: Partial<BrewingNoteData> & {
     coffeeBean?: SelectableCoffeeBean | null;
   };
+  initialCoffeeBeanCreatedFromSearch?: boolean;
   inBrewPage?: boolean;
   showSaveButton?: boolean;
   onSaveSuccess?: () => void;
@@ -228,6 +229,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   onClose: _onClose,
   onSave,
   initialData,
+  initialCoffeeBeanCreatedFromSearch = false,
   inBrewPage = false,
   showSaveButton = true,
   onSaveSuccess,
@@ -1264,6 +1266,8 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       // 提取当前咖啡用量（用于容量计算和新建豆子）
       const {
         CapacitySyncManager,
+        createBeanFromBrewUsage,
+        initializeBeanFromBrewUsage,
         useCoffeeBeanStore,
         updateBeanRemaining,
         increaseBeanRemaining,
@@ -1293,18 +1297,12 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
       if (selectedCoffeeBean && isPendingCoffeeBean(selectedCoffeeBean)) {
         try {
-          const addBean = useCoffeeBeanStore.getState().addBean;
-
-          // 创建新咖啡豆，容量和剩余量基于本次冲煮用量
-          // 容量 = 咖啡用量（首次使用的量即为总容量）
-          // 剩余量 = 0（本次冲煮已用完）
-          const coffeeAmountStr =
-            currentCoffeeAmount > 0 ? `${currentCoffeeAmount}g` : '';
-          const newBean = await addBean({
-            name: selectedCoffeeBean.name,
-            capacity: coffeeAmountStr,
-            remaining: '0',
-          });
+          const newBean = await createBeanFromBrewUsage(
+            selectedCoffeeBean.name,
+            isQuickDecrementEdit && isQuickMode
+              ? `${parseFloat(quickDecrementAmount) || 0}g`
+              : methodParams.coffee
+          );
 
           finalBeanId = newBean.id;
 
@@ -1329,24 +1327,36 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
           // 新建笔记：直接扣除咖啡豆剩余量
           if (currentCoffeeAmount > 0) {
             try {
-              const latestBean =
-                useCoffeeBeanStore
-                  .getState()
-                  .getBeanById(selectedCoffeeBean.id) || selectedCoffeeBean;
-              const decrementAmount = isQuickDecrementOnly
-                ? Math.min(
-                    currentCoffeeAmount,
-                    getBeanRemainingAmount(latestBean)
-                  )
-                : currentCoffeeAmount;
-              deductedCoffeeAmount = decrementAmount;
+              if (initialCoffeeBeanCreatedFromSearch) {
+                await initializeBeanFromBrewUsage(
+                  selectedCoffeeBean.id,
+                  isQuickDecrementEdit && isQuickMode
+                    ? `${parseFloat(quickDecrementAmount) || 0}g`
+                    : methodParams.coffee
+                );
+              } else {
+                const latestBean =
+                  useCoffeeBeanStore
+                    .getState()
+                    .getBeanById(selectedCoffeeBean.id) || selectedCoffeeBean;
+                const decrementAmount = isQuickDecrementOnly
+                  ? Math.min(
+                      currentCoffeeAmount,
+                      getBeanRemainingAmount(latestBean)
+                    )
+                  : currentCoffeeAmount;
+                deductedCoffeeAmount = decrementAmount;
 
-              if (isQuickDecrementOnly && decrementAmount <= 0) {
-                alert('当前咖啡豆剩余量不足，无法扣除');
-                return;
+                if (isQuickDecrementOnly && decrementAmount <= 0) {
+                  alert('当前咖啡豆剩余量不足，无法扣除');
+                  return;
+                }
+
+                await updateBeanRemaining(
+                  selectedCoffeeBean.id,
+                  decrementAmount
+                );
               }
-
-              await updateBeanRemaining(selectedCoffeeBean.id, decrementAmount);
             } catch (error) {
               console.error('扣除咖啡豆剩余量失败:', error);
             }

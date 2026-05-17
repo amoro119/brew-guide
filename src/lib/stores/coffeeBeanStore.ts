@@ -299,6 +299,44 @@ export const CapacitySyncManager = {
   },
 };
 
+export function buildInitialBrewBeanInventory(
+  coffeeParam: string | undefined
+): Pick<CoffeeBean, 'capacity' | 'remaining'> {
+  const coffeeAmount = CapacitySyncManager.extractCoffeeAmount(
+    coffeeParam || ''
+  );
+
+  return {
+    capacity:
+      coffeeAmount > 0
+        ? CapacitySyncManager.formatCoffeeParam(coffeeAmount)
+        : '',
+    remaining: '0',
+  };
+}
+
+export async function createBeanFromBrewUsage(
+  name: string,
+  coffeeParam: string | undefined
+): Promise<CoffeeBean> {
+  return getCoffeeBeanStore().addBean({
+    name,
+    ...buildInitialBrewBeanInventory(coffeeParam),
+  });
+}
+
+export async function initializeBeanFromBrewUsage(
+  id: string,
+  coffeeParam: string | undefined
+): Promise<CoffeeBean | null> {
+  if (!id) return null;
+
+  return getCoffeeBeanStore().updateBean(
+    id,
+    buildInitialBrewBeanInventory(coffeeParam)
+  );
+}
+
 /**
  * 更新咖啡豆剩余量（减少）
  * @param id 咖啡豆ID
