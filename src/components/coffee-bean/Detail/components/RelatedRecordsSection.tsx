@@ -231,7 +231,6 @@ const RelatedRecordsSection: React.FC<RelatedRecordsSectionProps> = React.memo(
                         setNoteImageErrors={setNoteImageErrors}
                         onImageClick={onImageClick}
                         onOpenNoteDetail={onOpenNoteDetail}
-                        roasterSettings={roasterSettings}
                       />
                     )}
                   </div>
@@ -378,7 +377,6 @@ const BrewingRecordItem: React.FC<{
     beanUnitPrice: number;
     beanInfo?: CoffeeBean | null;
   }) => void;
-  roasterSettings: RoasterSettings;
 }> = React.memo(
   ({
     note,
@@ -390,7 +388,6 @@ const BrewingRecordItem: React.FC<{
     setNoteImageErrors,
     onImageClick,
     onOpenNoteDetail,
-    roasterSettings,
   }) => {
     const validTasteRatings = getValidTasteRatings(note.taste);
     const hasTasteRatings = validTasteRatings.length > 0;
@@ -403,10 +400,10 @@ const BrewingRecordItem: React.FC<{
       : '';
     const beanUnitPrice = getBeanUnitPrice(noteBean);
 
-    // 格式化咖啡豆显示名称
-    const beanDisplayName = noteBean
-      ? formatBeanDisplayName(noteBean, roasterSettings)
-      : null;
+    const titleParts = [
+      equipmentName || '未知器具',
+      note.method?.trim() || '',
+    ].filter(Boolean);
 
     return (
       <button
@@ -422,7 +419,7 @@ const BrewingRecordItem: React.FC<{
         }
       >
         {/* 图片和标题参数区域 */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           {/* 笔记图片 */}
           {note.image && (
             <div
@@ -466,35 +463,12 @@ const BrewingRecordItem: React.FC<{
             <div className="space-y-1.5">
               {/* 标题行 */}
               <div className="text-xs font-medium wrap-break-word text-neutral-800 dark:text-neutral-100">
-                {note.method && note.method.trim() !== '' ? (
-                  beanDisplayName ? (
-                    <>
-                      {beanDisplayName}
-                      <span className="mx-1">·</span>
-                      <span>{note.method}</span>
-                    </>
-                  ) : (
-                    <>
-                      {equipmentName || '未知器具'}
-                      <span className="mx-1">·</span>
-                      <span>{note.method}</span>
-                    </>
-                  )
-                ) : beanDisplayName ? (
-                  beanDisplayName === (equipmentName || '未知器具') ? (
-                    beanDisplayName
-                  ) : (
-                    <>
-                      {beanDisplayName}
-                      <span className="mx-1">·</span>
-                      <span>{equipmentName || '未知器具'}</span>
-                    </>
-                  )
-                ) : equipmentName ? (
-                  equipmentName
-                ) : (
-                  '未知器具'
-                )}
+                {titleParts.map((part, index) => (
+                  <React.Fragment key={`${part}-${index}`}>
+                    {index > 0 && <span className="mx-1">·</span>}
+                    <span>{part}</span>
+                  </React.Fragment>
+                ))}
               </div>
 
               {/* 参数信息 */}
@@ -508,15 +482,6 @@ const BrewingRecordItem: React.FC<{
 
                   return (
                     <div className="mt-1.5 space-x-1 text-xs leading-relaxed font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
-                      {beanDisplayName &&
-                        note.method &&
-                        note.method.trim() !== '' && (
-                          <>
-                            <span>{equipmentName || '未知器具'}</span>
-                            <span>·</span>
-                          </>
-                        )}
-
                       {isEspresso ? (
                         // 意式参数：粉量 · 研磨度 · 时间 · 液重
                         <>
