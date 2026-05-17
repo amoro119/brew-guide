@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X, Shuffle } from 'lucide-react';
 import type { CoffeeBean, SelectableCoffeeBean } from '@/types/app';
 import CoffeeBeanSelector from './CoffeeBeanSelector';
+import { COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER } from '@/components/coffee-bean/ui/coffeeBeanSelectionText';
 import { useModalHistory } from '@/lib/hooks/useModalHistory';
 import { useThemeColor } from '@/lib/hooks/useThemeColor';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
@@ -187,7 +188,7 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="输入咖啡豆名称..."
+                placeholder={COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER}
                 className="w-full rounded-full border-none bg-neutral-100 px-3 py-3 pl-11 text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-none dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-500"
                 autoComplete="off"
                 onKeyDown={e => {

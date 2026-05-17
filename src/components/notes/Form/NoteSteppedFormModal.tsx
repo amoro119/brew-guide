@@ -13,6 +13,7 @@ import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { showToast } from '@/components/common/feedback/LightToast';
 import AdaptiveModal from '@/components/common/ui/AdaptiveModal';
 import { useInputFocus } from '@/lib/hooks/useInputFocus';
+import { COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER } from '@/components/coffee-bean/ui/coffeeBeanSelectionText';
 
 export interface Step {
   id: string;
@@ -248,7 +249,7 @@ const NoteSteppedFormModal = forwardRef<
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="搜索咖啡豆名称..."
+                    placeholder={COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER}
                     className="w-48 rounded-full border-none bg-neutral-100 px-5 py-[14px] text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-hidden dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-500"
                     autoComplete="off"
                     onKeyDown={e => e.key === 'Escape' && handleCloseSearch()}

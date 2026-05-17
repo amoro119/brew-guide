@@ -45,7 +45,12 @@ import {
   type BrewingNoteDraftData,
   type BrewingNoteDraftSession,
 } from './brewingNoteDraft';
-import { findCoffeeBeanByIdentity } from '@/lib/utils/coffeeBeanUtils';
+import { createBeanFromBrewUsage } from '@/lib/stores/coffeeBeanStore';
+import {
+  createPendingBean,
+  findCoffeeBeanByIdentity,
+  isPendingCoffeeBean,
+} from '@/lib/utils/coffeeBeanUtils';
 
 interface BrewingNoteFormModalProps {
   showForm: boolean;
@@ -132,9 +137,6 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   settings,
 }) => {
   const { beans: coffeeBeans } = useCoffeeBeanData();
-  const persistedEquipment = useEquipmentStore(
-    state => state.selectedEquipment
-  );
   const setPersistedEquipment = useEquipmentStore(
     state => state.setSelectedEquipment
   );
@@ -146,8 +148,8 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   const [isExitDrawerOpen, setIsExitDrawerOpen] = useState(false);
   const hasPrefilledCoffeeBean = Boolean(
     initialNote?.coffeeBean ||
-      initialNote?.beanId ||
-      initialNote?.coffeeBeanInfo?.name
+    initialNote?.beanId ||
+    initialNote?.coffeeBeanInfo?.name
   );
 
   const getInitialDraftEquipmentId = useCallback(
@@ -194,6 +196,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   const latestIsCreateModeRef = useRef(!initialNote?.id);
   const shouldAutoPersistRef = useRef(true);
   const didAutoAdvancePrefilledStepRef = useRef(false);
+  const didInitializeOpenSessionRef = useRef(false);
 
   const setDraftStep = useCallback((value: React.SetStateAction<number>) => {
     setDraftSession(prev => ({
@@ -258,8 +261,15 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
 
   useEffect(() => {
     if (!showForm) {
+      didInitializeOpenSessionRef.current = false;
       return;
     }
+
+    if (didInitializeOpenSessionRef.current) {
+      return;
+    }
+
+    didInitializeOpenSessionRef.current = true;
 
     const baseSession = buildBaseSession();
     setBaselineSession(baseSession);
@@ -449,7 +459,24 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
         ...prev,
         coffeeBean: bean,
         beanId: bean?.id,
-        coffeeBeanInfo: buildCoffeeBeanInfo(bean, prev.coffeeBeanInfo),
+        coffeeBeanInfo: bean
+          ? buildCoffeeBeanInfo(bean, prev.coffeeBeanInfo)
+          : EMPTY_COFFEE_BEAN_INFO,
+      }));
+      setDraftStep(prev => prev + 1);
+    },
+    [setDraftStep, updateDraftNote]
+  );
+
+  const handleCreatePendingBean = useCallback(
+    (name: string) => {
+      const pendingBean = createPendingBean(name);
+
+      updateDraftNote(prev => ({
+        ...prev,
+        coffeeBean: pendingBean,
+        beanId: undefined,
+        coffeeBeanInfo: buildCoffeeBeanInfo(pendingBean, prev.coffeeBeanInfo),
       }));
       setDraftStep(prev => prev + 1);
     },
@@ -551,7 +578,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
   }, []);
 
   const handleSaveNote = useCallback(
-    (note: BrewingNoteData) => {
+    async (note: BrewingNoteData) => {
       shouldAutoPersistRef.current = false;
 
       let methodName = selectedMethodId || '';
@@ -579,7 +606,24 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
         params: normalizeBrewingNoteParams(note.params),
       };
 
-      if (
+      if (selectedCoffeeBean && isPendingCoffeeBean(selectedCoffeeBean)) {
+        try {
+          const newBean = await createBeanFromBrewUsage(
+            selectedCoffeeBean.name,
+            completeNote.params?.coffee
+          );
+
+          completeNote.beanId = newBean.id;
+          completeNote.coffeeBeanInfo = buildCoffeeBeanInfo(
+            newBean,
+            completeNote.coffeeBeanInfo
+          );
+        } catch (error) {
+          console.error('创建咖啡豆失败:', error);
+          alert('创建咖啡豆失败，请重试');
+          return;
+        }
+      } else if (
         selectedCoffeeBean &&
         'id' in selectedCoffeeBean &&
         selectedCoffeeBean.id
@@ -592,7 +636,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
       }
 
       clearBrewingNoteDraftSession();
-      onSave(completeNote);
+      await Promise.resolve(onSave(completeNote));
       onClose();
     },
     [
@@ -707,6 +751,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
                       : null
                   }
                   onSelect={handleCoffeeBeanSelect}
+                  onCreatePendingBean={handleCreatePendingBean}
                   showStatusDots={settings?.showStatusDots}
                 />
               ),
@@ -777,6 +822,7 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
       customMethods,
       draftSession.note,
       handleCoffeeBeanSelect,
+      handleCreatePendingBean,
       handleDraftChange,
       handleEquipmentSelect,
       handleMethodParamsChange,

@@ -3,8 +3,8 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import Image from 'next/image';
-import { Plus } from 'lucide-react';
 import type { CoffeeBean } from '@/types/app';
+import CoffeeBeanCreateOption from '@/components/coffee-bean/ui/CoffeeBeanCreateOption';
 import {
   getRoasterLogoSync,
   useSettingsStore,
@@ -45,12 +45,7 @@ const VirtuosoList = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ style, children, ...props }, ref) => (
-  <div
-    ref={ref}
-    style={style}
-    className="flex flex-col gap-y-3.5"
-    {...props}
-  >
+  <div ref={ref} style={style} className="flex flex-col gap-y-3.5" {...props}>
     {children}
   </div>
 ));
@@ -375,26 +370,10 @@ const CoffeeBeanSelector: React.FC<CoffeeBeanSelectorProps> = ({
 
   // 渲染创建选项
   const renderCreateItem = (name: string) => (
-    <div
-      className="group cursor-pointer transition-colors"
-      onClick={() => onCreatePendingBean?.(name)}
-    >
-      <div className="flex gap-3">
-        <div className="relative self-start">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border border-neutral-200/50 bg-neutral-100 dark:border-neutral-800/50 dark:bg-neutral-800/20">
-            <Plus className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-y-1">
-          <div className="line-clamp-2 text-xs leading-tight font-medium text-neutral-800 dark:text-neutral-100">
-            {name}
-          </div>
-          <div className="text-xs leading-relaxed font-medium text-neutral-600 dark:text-neutral-400">
-            <span className="inline whitespace-nowrap">新建咖啡豆</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <CoffeeBeanCreateOption
+      name={name}
+      onCreate={beanName => onCreatePendingBean?.(beanName)}
+    />
   );
 
   // 渲染咖啡豆选项 - 与 BeanListItem 样式一致（不含备注）

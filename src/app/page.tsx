@@ -625,6 +625,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     setCustomMethods,
     selectedCoffeeBean,
     selectedCoffeeBeanData,
+    selectedCoffeeBeanCreatedFromSearch,
     setSelectedCoffeeBean,
     setSelectedCoffeeBeanData,
     showCustomForm,
@@ -3507,6 +3508,9 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                   selectedEquipment={selectedEquipment}
                   selectedCoffeeBean={selectedCoffeeBean}
                   selectedCoffeeBeanData={selectedCoffeeBeanData}
+                  selectedCoffeeBeanCreatedFromSearch={
+                    selectedCoffeeBeanCreatedFromSearch
+                  }
                   countdownTime={countdownTime}
                   customMethods={customMethods}
                   actionMenuStates={actionMenuStates}
