@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Minus } from 'lucide-react';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
-import { SettingPage } from './atomic';
+import SettingPage from './atomic/SettingPage';
 
 const CollapsibleSection: React.FC<{
   title: string;
@@ -14,13 +14,14 @@ const CollapsibleSection: React.FC<{
 
   return (
     <div>
-      <p
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex cursor-pointer items-center gap-1 select-none"
       >
         {isOpen ? <Minus size={16} /> : <Plus size={16} />}
         {title}
-      </p>
+      </button>
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -67,16 +68,13 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
       });
   }, []);
 
-  const onCloseRef = React.useRef(onClose);
-  onCloseRef.current = onClose;
-
   const handleCloseWithAnimation = React.useCallback(() => {
     setIsVisible(false);
     window.dispatchEvent(new CustomEvent('subSettingsClosing'));
     setTimeout(() => {
-      onCloseRef.current();
+      onClose();
     }, 350);
-  }, []);
+  }, [onClose]);
 
   useModalHistory({
     id: 'about-settings',
@@ -130,10 +128,10 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
           <hr className="my-6" />
           <CollapsibleSection title="隐私政策">
             <p>
-              本应用使用百度统计收集匿名使用数据，包括页面访问、设备类型等基本信息，用于改进产品体验。
+              本应用不接入网页统计或第三方分析服务，不收集页面访问、设备信息等使用数据。
             </p>
             <p>
-              所有咖啡豆和冲煮记录均存储在您的设备本地。如启用云同步，数据将同步至您自行配置的服务器（WebDAV/S3/Supabase），我们不会访问或存储这些数据。
+              所有咖啡豆和冲煮记录均存储在您的设备本地。如启用云同步，数据将同步至您自行配置的服务器（WebDAV/S3/Supabase），本应用不访问或存储这些数据。
             </p>
             <p>
               使用图片识别功能（咖啡豆/冲煮方案）时，图片会上传至服务器进行 AI

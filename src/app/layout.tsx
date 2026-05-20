@@ -1,7 +1,6 @@
 import { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
-import { Analytics } from '@vercel/analytics/next';
 import localFont from 'next/font/local';
 import { LightToast } from '@/components/common/feedback/LightToast';
 import { ExitToast } from '@/components/common/feedback/ExitToast';
@@ -14,7 +13,6 @@ import StorageInit from '@/providers/StorageProvider';
 import ModalHistoryInit from '@/providers/ModalHistoryProvider';
 import { DataLayerProvider } from '@/providers/DataLayerProvider';
 
-import { BaiduAnalytics } from '@/components/common/BaiduAnalytics';
 import DevTools from '@/components/common/DevTools';
 import TauriDragRegion from '@/components/layout/TauriDragRegion';
 import PWAUpdatePrompt from '@/components/layout/PWAUpdatePrompt';
@@ -36,8 +34,6 @@ const SEO_TITLE =
   'Brew Guide 咖啡冲煮计时、豆仓管理与品鉴记录工具 | 手冲配方、参数记录与风味分析';
 const SEO_DESCRIPTION =
   'Brew Guide 是面向手冲与精品咖啡爱好者的一站式咖啡工具，提供分阶段冲煮计时、注水可视化引导、咖啡豆库存与烘焙信息管理、风味评分与品鉴记录、冲煮历史回顾与统计分析、器具与方案自定义，并支持离线使用、数据导入导出与 Web/iOS/Android/桌面多端同步，帮助你稳定复现一杯咖啡风味，优化萃取参数与冲煮体验。';
-const enableVercelAnalytics =
-  process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true';
 
 // SEO constants
 export const metadata: Metadata = {
@@ -229,8 +225,6 @@ export default function RootLayout({
         <link rel="icon" href="/images/icons/app/favicon.ico" sizes="any" />
         <link rel="manifest" href="/manifest.json" />
         {/* theme-color 由客户端 useThemeColor hook 动态管理，避免 RSC 静态标签覆盖 */}
-        {/* 百度统计代码 */}
-        <BaiduAnalytics />
         {/* 字体缩放初始化脚本 - 必须在页面渲染前执行，避免字体闪烁 */}
         <script
           dangerouslySetInnerHTML={{
@@ -338,7 +332,6 @@ export default function RootLayout({
             </div>
           </DataLayerProvider>
         </ThemeProvider>
-        {enableVercelAnalytics && <Analytics />}
       </body>
     </html>
   );
