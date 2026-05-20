@@ -68,6 +68,8 @@ android/app/release/
 # IDE specific
 .idea/
 .vscode/
+!.vscode/
+!.vscode/settings.json
 .kiro/
 .agents/
 *.swp
