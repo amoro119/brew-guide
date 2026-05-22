@@ -365,13 +365,8 @@ interface ViewSwitcherProps {
   rankingEspressoCount?: number;
   rankingFilterCount?: number;
   rankingOmniCount?: number;
-  // 新增图片流模式相关props
-  isImageFlowMode?: boolean;
-  onToggleImageFlowMode?: () => void;
-  hasImageBeans?: boolean;
-  // 新增显示模式 props（替代 isImageFlowMode）
-  displayMode?: 'list' | 'imageFlow' | 'table';
-  onDisplayModeChange?: (mode: 'list' | 'imageFlow' | 'table') => void;
+  displayMode?: 'list' | 'table';
+  onDisplayModeChange?: (mode: 'list' | 'table') => void;
   // 表格列配置相关 props
   tableVisibleColumns?: TableColumnKey[];
   onTableColumnsChange?: (columns: TableColumnKey[]) => void;
@@ -449,10 +444,6 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   rankingEspressoCount = 0,
   rankingFilterCount = 0,
   rankingOmniCount = 0,
-  isImageFlowMode = false,
-  onToggleImageFlowMode,
-  hasImageBeans = true,
-  // 新增显示模式参数
   displayMode: externalDisplayMode,
   onDisplayModeChange,
   // 表格列配置参数
@@ -1147,17 +1138,10 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       dataTab="all"
                       layoutId={`inventory-${filterMode}-underline`}
                     >
-                      <span onDoubleClick={() => onToggleImageFlowMode?.()}>
+                      <span>
                         全部
-                        {/* 显示当前显示模式 */}
-                        {externalDisplayMode === 'imageFlow' && (
-                          <span> · 图片流</span>
-                        )}
                         {externalDisplayMode === 'table' && (
                           <span> · 表格</span>
-                        )}
-                        {!externalDisplayMode && isImageFlowMode && (
-                          <span> · 图片流</span>
                         )}
                       </span>
                     </TabButton>
@@ -1438,7 +1422,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                                 <FilterButton
                                   isActive={
                                     externalDisplayMode === 'list' ||
-                                    (!externalDisplayMode && !isImageFlowMode)
+                                    !externalDisplayMode
                                   }
                                   onClick={() => onDisplayModeChange('list')}
                                 >
@@ -1449,19 +1433,6 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                                   onClick={() => onDisplayModeChange('table')}
                                 >
                                   表格
-                                </FilterButton>
-                                <FilterButton
-                                  isActive={
-                                    externalDisplayMode === 'imageFlow' ||
-                                    (!externalDisplayMode && isImageFlowMode)
-                                  }
-                                  onClick={() => {
-                                    if (!hasImageBeans) return;
-                                    onDisplayModeChange('imageFlow');
-                                  }}
-                                  disabled={!hasImageBeans}
-                                >
-                                  图片流
                                 </FilterButton>
                               </div>
                             )}
