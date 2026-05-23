@@ -63,7 +63,10 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
 
   // 用于保存最新的 onClose 引用
   const onCloseRef = React.useRef(onClose);
-  onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // 关闭处理函数（带动画）
   const handleCloseWithAnimation = React.useCallback(() => {
@@ -117,16 +120,24 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         )}
       </SettingSection>
 
-      {calendarSyncSupported && (
-        <SettingSection title="咖啡豆">
+      <SettingSection title="咖啡豆">
+        <SettingRow label="提醒弹窗" isLast={!calendarSyncSupported}>
+          <SettingToggle
+            checked={settings.showBeanReadyReminderPopup}
+            onChange={checked =>
+              handleChange('showBeanReadyReminderPopup', checked)
+            }
+          />
+        </SettingRow>
+        {calendarSyncSupported && (
           <SettingRow label="同步日历" isLast>
             <SettingToggle
               checked={calendarSync.enabled}
               onChange={handleCalendarSyncChange}
             />
           </SettingRow>
-        </SettingSection>
-      )}
+        )}
+      </SettingSection>
     </SettingPage>
   );
 };

@@ -163,6 +163,7 @@ export interface AppSettings {
   calendarSync?: {
     enabled: boolean;
   };
+  showBeanReadyReminderPopup: boolean;
 
   // 备份提醒设置
   backupReminder?: {

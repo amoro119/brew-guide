@@ -98,6 +98,7 @@ export const defaultSettings: AppSettings = {
     dark: { startDay: 0, endDay: 0 },
   },
   calendarSync: { ...defaultCalendarSyncSettings },
+  showBeanReadyReminderPopup: false,
 
   // 备份提醒设置
   backupReminder: undefined,
