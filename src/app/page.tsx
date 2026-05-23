@@ -75,10 +75,12 @@ import { useDataLayer } from '@/providers/DataLayerProvider';
 import DataMigrationModal from '@/components/common/modals/DataMigrationModal';
 import { showToast } from '@/components/common/feedback/LightToast';
 import BackupReminderModal from '@/components/common/modals/BackupReminderModal';
+import BeanReadyReminderDrawer from '@/components/common/modals/BeanReadyReminderDrawer';
 import {
   BackupReminderUtils,
   BackupReminderType,
 } from '@/lib/utils/backupReminderUtils';
+import type { BeanReadyReminderItem } from '@/lib/utils/beanReadyReminderUtils';
 import {
   getEquipmentNameById,
   getEquipmentById,
@@ -696,12 +698,17 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     legacyCount: number;
     totalCount: number;
   } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // 备份提醒状态
   const [showBackupReminder, setShowBackupReminder] = useState(false);
   const [reminderType, setReminderType] = useState<BackupReminderType | null>(
     null
   );
+  const [showBeanReadyReminder, setShowBeanReadyReminder] = useState(false);
+  const [beanReadyReminderItems, setBeanReadyReminderItems] = useState<
+    BeanReadyReminderItem[]
+  >([]);
 
   // 转生豆确认抽屉状态
   const [showConvertToGreenDrawer, setShowConvertToGreenDrawer] =
@@ -1014,6 +1021,76 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!storeInitialized || !settings.showBeanReadyReminderPopup) return;
+    if (showOnboarding || showDataMigration || showBackupReminder) return;
+
+    let isCancelled = false;
+    const checkBeanReadyReminder = async () => {
+      try {
+        const [
+          { getCoffeeBeanStore },
+          {
+            buildBeanReadyReminderItems,
+            getLocalISODate,
+            markBeanReadyReminderShownToday,
+            shouldShowBeanReadyReminderToday,
+          },
+          { getDefaultFlavorPeriodByRoastLevelSync },
+          { getBeanRoasterName },
+        ] = await Promise.all([
+          import('@/lib/stores/coffeeBeanStore'),
+          import('@/lib/utils/beanReadyReminderUtils'),
+          import('@/lib/utils/flavorPeriodUtils'),
+          import('@/lib/utils/coffeeBeanUtils'),
+        ]);
+
+        const today = getLocalISODate();
+        if (isCancelled) return;
+
+        const store = getCoffeeBeanStore();
+        if (!store.initialized) {
+          await store.loadBeans();
+        }
+
+        const items = buildBeanReadyReminderItems(store.beans, {
+          today,
+          customFlavorPeriod: settings.customFlavorPeriod,
+          resolveStartDay: bean =>
+            getDefaultFlavorPeriodByRoastLevelSync(
+              bean.roastLevel || '',
+              settings.customFlavorPeriod,
+              getBeanRoasterName(bean) || undefined
+            ).startDay,
+        });
+
+        if (items.length === 0 || isCancelled) return;
+        if (!(await shouldShowBeanReadyReminderToday(today)) || isCancelled) {
+          return;
+        }
+
+        setBeanReadyReminderItems(items);
+        setShowBeanReadyReminder(true);
+        void markBeanReadyReminderShownToday(today);
+      } catch (error) {
+        console.error('检查咖啡豆提醒失败:', error);
+      }
+    };
+
+    void checkBeanReadyReminder();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    settings.customFlavorPeriod,
+    settings.showBeanReadyReminderPopup,
+    showBackupReminder,
+    showDataMigration,
+    showOnboarding,
+    storeInitialized,
+  ]);
+
   // 设置变化事件监听已由 settingsStore 自动处理
   // settingsStore 使用 subscribeWithSelector 会自动触发 UI 更新
   // 保留事件监听用于兼容旧代码（如第三方组件监听 settingsChanged 事件）
@@ -1219,6 +1296,37 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     },
     [noteDetailOpen, openBeanDetailInInventory]
   );
+
+  const handleBeanReadyReminderBeanClick = useCallback(async (beanId: string) => {
+    const { getCoffeeBeanStore } = await import('@/lib/stores/coffeeBeanStore');
+    const store = getCoffeeBeanStore();
+
+    if (!store.initialized) {
+      await store.loadBeans();
+    }
+
+    const bean = store.getBeanById(beanId);
+    if (!bean) {
+      showToast({
+        type: 'error',
+        title: '咖啡豆不存在或已被删除',
+        duration: 2000,
+      });
+      setShowBeanReadyReminder(false);
+      return;
+    }
+
+    const openDetail = () => openBeanDetailInInventory(bean);
+
+    if (modalHistory.isTop('bean-ready-reminder')) {
+      modalHistory.back();
+      window.setTimeout(openDetail, DETAIL_NAVIGATION_DELAY_MS);
+      return;
+    }
+
+    setShowBeanReadyReminder(false);
+    window.setTimeout(openDetail, DETAIL_NAVIGATION_DELAY_MS);
+  }, [openBeanDetailInInventory]);
 
   const openNoteDetailInNotes = useCallback(
     (detail: {
@@ -1813,8 +1921,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     saveMainTabPreference(tab);
     setActiveMainTab(tab);
   };
-
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -4082,6 +4188,12 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           isOpen={showBackupReminder}
           onClose={() => setShowBackupReminder(false)}
           reminderType={reminderType}
+        />
+        <BeanReadyReminderDrawer
+          isOpen={showBeanReadyReminder}
+          items={beanReadyReminderItems}
+          onClose={() => setShowBeanReadyReminder(false)}
+          onBeanClick={handleBeanReadyReminderBeanClick}
         />
       </div>
 
