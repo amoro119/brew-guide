@@ -84,9 +84,7 @@ function normalizeImportText(text: string): string {
 }
 
 function startsWithCoffeeBeanTextHeader(text: string): boolean {
-  return (
-    text.startsWith('【咖啡豆】') || text.startsWith('【咖啡豆信息】')
-  );
+  return text.startsWith('【咖啡豆】') || text.startsWith('【咖啡豆信息】');
 }
 
 function splitCoffeeBeanTextSections(text: string): string[] {
@@ -182,9 +180,7 @@ export function extractJsonFromText(
     }
 
     // 检查是否是咖啡豆文本格式
-    if (
-      startsWithCoffeeBeanTextHeader(originalText)
-    ) {
+    if (startsWithCoffeeBeanTextHeader(originalText)) {
       // Log in development only
       if (process.env.NODE_ENV === 'development') {
         console.warn('检测到咖啡豆文本格式');
@@ -270,9 +266,15 @@ export function extractJsonFromText(
 
       if (
         !equipment.animationType ||
-        !['v60', 'kalita', 'origami', 'clever', 'custom', 'espresso'].includes(
-          equipment.animationType
-        )
+        ![
+          'v60',
+          'kalita',
+          'origami',
+          'orea',
+          'clever',
+          'custom',
+          'espresso',
+        ].includes(equipment.animationType)
       ) {
         throw new Error('无效的器具动画类型');
       }

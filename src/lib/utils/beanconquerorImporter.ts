@@ -120,7 +120,7 @@ export interface ImportResult {
 
 /**
  * 映射冲煮器具到应用预设器具
- * 支持的预设器具：V60、折纸滤杯、蛋糕滤杯、聪明杯、Espresso
+ * 支持的预设器具：V60、Origami、Kalita、OREA、聪明杯、Espresso
  */
 function mapBrewEquipment(preparationName?: string): string {
   if (!preparationName) return '';
@@ -133,10 +133,13 @@ function mapBrewEquipment(preparationName?: string): string {
     return 'V60';
   }
   if (name.includes('折纸')) {
-    return '折纸滤杯';
+    return 'Origami';
   }
   if (name.includes('蛋糕') || name.includes('kalita')) {
-    return '蛋糕滤杯';
+    return 'Kalita';
+  }
+  if (name.includes('orea')) {
+    return 'OREA';
   }
   if (name.includes('聪明') || name.includes('clever')) {
     return '聪明杯';

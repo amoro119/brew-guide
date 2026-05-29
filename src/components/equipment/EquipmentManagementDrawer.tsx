@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { GripVertical, Edit, Trash2, Share2, X, EyeOff } from 'lucide-react';
-import { type CustomEquipment } from '@/lib/core/config';
+import type {
+  CustomEquipment,
+  EquipmentAnimationType,
+} from '@/lib/core/config';
 import hapticsUtils from '@/lib/ui/haptics';
 import { SettingsOptions } from '@/components/settings/Settings';
 import { useEquipmentList } from '@/lib/equipment/useEquipmentList';
@@ -34,13 +37,7 @@ interface EquipmentWithActions {
   showActions?: boolean;
   isSystem?: boolean; // true 表示系统器具，false 表示自定义器具
   // 自定义器具的特有属性（可选）
-  animationType?:
-    | 'v60'
-    | 'kalita'
-    | 'origami'
-    | 'clever'
-    | 'custom'
-    | 'espresso';
+  animationType?: EquipmentAnimationType;
   hasValve?: boolean;
   isCustom?: true;
   customShapeSvg?: string;
@@ -291,8 +288,7 @@ const EquipmentManagementDrawer: React.FC<EquipmentManagementDrawerProps> = ({
                           }}
                           onPointerDown={e => {
                             const target = e.target as HTMLElement;
-                            const isDragHandle =
-                              target.closest('.drag-handle');
+                            const isDragHandle = target.closest('.drag-handle');
                             if (!isDragHandle) {
                               e.preventDefault();
                             }

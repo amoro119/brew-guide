@@ -116,17 +116,24 @@ const PRESET_OPTIONS = [
   },
   {
     value: 'kalita',
-    label: '蛋糕滤杯',
+    label: 'Kalita',
     animationType: 'kalita',
     hasValve: false,
     defaultShapeIcon: '/images/icons/ui/kalita-base.svg',
   },
   {
     value: 'origami',
-    label: '折纸滤杯',
+    label: 'Origami',
     animationType: 'origami',
     hasValve: false,
     defaultShapeIcon: '/images/icons/ui/origami-base.svg',
+  },
+  {
+    value: 'orea',
+    label: 'OREA',
+    animationType: 'orea',
+    hasValve: false,
+    defaultShapeIcon: '/images/icons/ui/orea-base.svg',
   },
   {
     value: 'clever',

@@ -8,7 +8,11 @@ import {
   modalHistory,
 } from '@/lib/hooks/useModalHistory';
 import MethodImportModal from '@/components/method/import/MethodImportModal';
-import { Method, CustomEquipment } from '@/lib/core/config';
+import {
+  Method,
+  CustomEquipment,
+  getAnimationTypeFromEquipmentId,
+} from '@/lib/core/config';
 import { loadCustomEquipments } from '@/lib/stores/customEquipmentStore';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -104,28 +108,6 @@ const CustomMethodFormModal: React.FC<CustomMethodFormModalProps> = ({
 
     fetchCustomEquipments();
   }, [selectedEquipment, showCustomForm]); // 只在selectedEquipment或showCustomForm变化时重新加载
-
-  // 根据标准器具ID获取动画类型
-  const getAnimationTypeFromEquipmentId = (
-    equipmentId: string | null
-  ): 'v60' | 'kalita' | 'origami' | 'clever' | 'custom' | 'espresso' => {
-    if (!equipmentId) return 'custom';
-
-    switch (equipmentId) {
-      case 'V60':
-        return 'v60';
-      case 'Kalita':
-        return 'kalita';
-      case 'Origami':
-        return 'origami';
-      case 'CleverDripper':
-        return 'clever';
-      case 'Espresso':
-        return 'espresso';
-      default:
-        return 'custom';
-    }
-  };
 
   // 根据表单数据保存自定义方法
   const handleSaveMethod = async (method: Method) => {

@@ -23,7 +23,11 @@ import UpdateDrawer from './UpdateDrawer';
 import SettingGroup from './SettingItem';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { useCloudSyncConnection } from '@/lib/hooks/useCloudSync';
-import { useSettingsStore, getSettingsStore } from '@/lib/stores/settingsStore';
+import {
+  useSettingsStore,
+  getSettingsStore,
+  getHiddenEquipmentIds,
+} from '@/lib/stores/settingsStore';
 
 import { useTheme } from 'next-themes';
 import {
@@ -306,9 +310,9 @@ const Settings: React.FC<SettingsProps> = ({
   }, [settings.hiddenCommonMethods]);
 
   const hasHiddenEquipments = React.useMemo(() => {
-    const hiddenEquipments = settings.hiddenEquipments || [];
+    const hiddenEquipments = getHiddenEquipmentIds();
     return hiddenEquipments.length > 0;
-  }, [settings.hiddenEquipments]);
+  }, [settings.hiddenEquipments, settings.equipmentOrder]);
 
   // S3同步相关状态（仅用于同步按钮）
   const {

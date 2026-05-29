@@ -29,13 +29,15 @@ const HiddenEquipmentsSettings: React.FC<HiddenEquipmentsSettingsProps> = ({
   const settings = useSettingsStore(state => state.settings) as SettingsOptions;
 
   // 控制动画状态
-  const [shouldRender, setShouldRender] = useState(true);
+  const [shouldRender] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
   const [hiddenEquipmentIds, setHiddenEquipmentIds] = useState<string[]>([]);
 
   // 用于保存最新的 onClose 引用
   const onCloseRef = React.useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // 关闭处理函数（带动画）
   const handleCloseWithAnimation = React.useCallback(() => {
@@ -145,7 +147,9 @@ const HiddenEquipmentsSettings: React.FC<HiddenEquipmentsSettingsProps> = ({
                     onClick={() => handleUnhideEquipment(equipmentId)}
                     className="text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
                   >
-                    恢复
+                    {settings.hiddenEquipments?.includes(equipmentId)
+                      ? '恢复'
+                      : '添加'}
                   </button>
                 </div>
               ))}

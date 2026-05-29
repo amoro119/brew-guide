@@ -77,16 +77,82 @@ export interface Equipment {
   id: string;
   name: string;
   note?: string;
+  defaultEnabled?: boolean;
 }
 
+export type EquipmentAnimationType =
+  | 'v60'
+  | 'kalita'
+  | 'origami'
+  | 'orea'
+  | 'clever'
+  | 'custom'
+  | 'espresso';
+
+export const EQUIPMENT_ANIMATION_TYPE_TO_ID: Record<
+  Exclude<EquipmentAnimationType, 'custom'>,
+  string
+> = {
+  v60: 'V60',
+  kalita: 'Kalita',
+  origami: 'Origami',
+  orea: 'Orea',
+  clever: 'CleverDripper',
+  espresso: 'Espresso',
+};
+
+export const getBaseEquipmentIdByAnimationType = (
+  animationType?: string | null
+): string => {
+  if (!animationType) return 'V60';
+
+  const normalized = animationType.toLowerCase() as EquipmentAnimationType;
+  if (normalized === 'custom') return '';
+
+  return (
+    EQUIPMENT_ANIMATION_TYPE_TO_ID[
+      normalized as Exclude<EquipmentAnimationType, 'custom'>
+    ] || 'V60'
+  );
+};
+
+export const getAnimationTypeFromEquipmentId = (
+  equipmentId?: string | null
+): EquipmentAnimationType => {
+  switch (equipmentId) {
+    case 'V60':
+      return 'v60';
+    case 'Kalita':
+      return 'kalita';
+    case 'Origami':
+      return 'origami';
+    case 'Orea':
+      return 'orea';
+    case 'CleverDripper':
+      return 'clever';
+    case 'Espresso':
+      return 'espresso';
+    default:
+      return 'custom';
+  }
+};
+
+export const inferBaseEquipmentIdFromCustomEquipmentId = (
+  equipmentId?: string | null
+): string => {
+  if (!equipmentId) return 'V60';
+
+  const matchedAnimationType = Object.keys(EQUIPMENT_ANIMATION_TYPE_TO_ID).find(
+    animationType => equipmentId.includes(`-${animationType}-`)
+  );
+
+  return matchedAnimationType
+    ? getBaseEquipmentIdByAnimationType(matchedAnimationType)
+    : 'V60';
+};
+
 export interface CustomEquipment extends Equipment {
-  animationType:
-    | 'v60'
-    | 'kalita'
-    | 'origami'
-    | 'clever'
-    | 'custom'
-    | 'espresso'; // 使用哪种基础器具的动画
+  animationType: EquipmentAnimationType; // 使用哪种基础器具的动画
   hasValve?: boolean; // 是否有阀门（类似聪明杯）
   isCustom: true; // 标记为自定义器具
   timestamp?: number; // 最后修改时间戳（用于同步冲突解决）
@@ -177,11 +243,16 @@ export const equipmentList: Equipment[] = [
   },
   {
     id: 'Kalita',
-    name: '蛋糕滤杯',
+    name: 'Kalita',
   },
   {
     id: 'Origami',
-    name: '折纸滤杯',
+    name: 'Origami',
+  },
+  {
+    id: 'Orea',
+    name: 'OREA',
+    defaultEnabled: false,
   },
   {
     id: 'Espresso',
@@ -1028,6 +1099,155 @@ export const brewingMethods: BrewingMethods = {
       },
     },
   ],
+  Orea: [
+    {
+      name: '杜嘉宁十克萃',
+      params: {
+        coffee: '10g',
+        water: '150g',
+        ratio: '1:15',
+        grindSize: '中细偏粗',
+        temp: '93°C',
+        stages: [
+          {
+            pourType: 'circle',
+            label: '大力绕圈',
+            water: '40',
+            duration: 5,
+            detail: '充分搅拌，激发风味强度',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 15,
+            detail: '',
+          },
+          {
+            pourType: 'circle',
+            label: '大力绕圈',
+            water: '40',
+            duration: 5,
+            detail: '充分搅拌，激发风味强度',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 15,
+            detail: '',
+          },
+          {
+            pourType: 'circle',
+            label: '缓慢绕圈',
+            water: '40',
+            duration: 5,
+            detail: '温柔搅拌，保证咖啡触感',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 15,
+            detail: '',
+          },
+          {
+            pourType: 'center',
+            label: '中心注水',
+            water: '30',
+            duration: 5,
+            detail: '注入剩余水量，可在150-160ml之间',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 65,
+            detail: '',
+          },
+        ],
+      },
+    },
+    {
+      name: '十五克四段式',
+      params: {
+        coffee: '15g',
+        water: '225g',
+        ratio: '1:15',
+        grindSize: '中细偏粗',
+        temp: '93°C',
+        stages: [
+          {
+            pourType: 'circle',
+            label: '焖蒸(绕圈注水)',
+            water: '60',
+            duration: 10,
+            detail: '中心向外绕圈，确保均匀萃取',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 10,
+            detail: '',
+          },
+          {
+            pourType: 'circle',
+            label: '绕圈注水',
+            water: '60',
+            duration: 10,
+            detail: '中心向外缓慢画圈注水，均匀萃取咖啡风味',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 10,
+            detail: '',
+          },
+          {
+            pourType: 'center',
+            label: '中心注水',
+            water: '60',
+            duration: 10,
+            detail: '中心定点注水，降低萃取率',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 10,
+            detail: '',
+          },
+          {
+            pourType: 'center',
+            label: '中心注水',
+            water: '45',
+            duration: 8,
+            detail: '中心定点注水，降低萃取率',
+          },
+          {
+            pourType: 'wait',
+            label: '等待',
+            duration: 62,
+            detail: '',
+          },
+        ],
+      },
+    },
+    {
+      name: '夏季八冲',
+      params: {
+        coffee: '0g',
+        water: '0g',
+        ratio: '1:0',
+        grindSize: '(略)',
+        temp: '0°C',
+        stages: [
+          {
+            pourType: 'other',
+            label: '(略)',
+            water: '0',
+            duration: 0,
+            detail: '(略)',
+          },
+        ],
+      },
+    },
+  ],
   Espresso: [
     {
       name: '浓缩',
@@ -1107,6 +1327,7 @@ export const commonMethods: BrewingMethods = {
   CleverDripper: brewingMethods.CleverDripper,
   Kalita: brewingMethods.Kalita,
   Origami: brewingMethods.Origami,
+  Orea: brewingMethods.Orea,
   Espresso: brewingMethods.Espresso,
 };
 

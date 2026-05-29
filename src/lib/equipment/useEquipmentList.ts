@@ -4,11 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  equipmentList,
-  type CustomEquipment,
-  type Equipment,
-} from '@/lib/core/config';
+import { type CustomEquipment, type Equipment } from '@/lib/core/config';
+import { equipmentUtils } from '@/lib/equipment/equipmentUtils';
 import type { SettingsOptions } from '@/lib/core/db';
 
 export interface UseEquipmentListOptions {
@@ -80,10 +77,8 @@ export function useEquipmentList<
       setError(err instanceof Error ? err.message : '加载失败');
 
       // 使用默认排序作为回退
-      const defaultEquipments = [
-        ...equipmentList.map(eq => ({ ...eq, isCustom: false })),
-        ...customEquipments,
-      ];
+      const defaultEquipments =
+        equipmentUtils.getAllEquipments(customEquipments);
 
       const finalEquipments = transformItems
         ? transformItems(defaultEquipments)

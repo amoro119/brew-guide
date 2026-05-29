@@ -4,6 +4,8 @@ import {
   brewingMethods as commonMethods,
   CustomEquipment,
   Stage,
+  getBaseEquipmentIdByAnimationType,
+  inferBaseEquipmentIdFromCustomEquipmentId,
 } from '@/lib/core/config';
 import { Content } from './useBrewingState';
 import type { SettingsOptions } from '@/lib/core/db';
@@ -141,32 +143,9 @@ export function useBrewingContent({
         {
           if (isCustomEquipment && customEquipment) {
             // 自定义器具，根据animationType获取对应的通用方案
-            let baseEquipmentId = '';
-            const animationType = customEquipment.animationType.toLowerCase();
-
-            switch (animationType) {
-              case 'v60':
-                baseEquipmentId = 'V60';
-                break;
-              case 'kalita':
-                baseEquipmentId = 'Kalita';
-                break;
-              case 'origami':
-                baseEquipmentId = 'Origami';
-                break;
-              case 'clever':
-                baseEquipmentId = 'CleverDripper';
-                break;
-              case 'espresso':
-                baseEquipmentId = 'Espresso';
-                break;
-              case 'custom':
-                // 自定义预设器具不使用任何通用方案
-                baseEquipmentId = '';
-                break;
-              default:
-                baseEquipmentId = 'V60'; // 默认使用 V60 的方案
-            }
+            const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+              customEquipment.animationType
+            );
 
             if (baseEquipmentId) {
               commonMethodsForEquipment = commonMethods[baseEquipmentId] || [];
@@ -185,19 +164,8 @@ export function useBrewingContent({
               selectedEquipment &&
               selectedEquipment.startsWith('custom-')
             ) {
-              let baseEquipmentId = '';
-
-              if (selectedEquipment.includes('-v60-')) {
-                baseEquipmentId = 'V60';
-              } else if (selectedEquipment.includes('-clever-')) {
-                baseEquipmentId = 'CleverDripper';
-              } else if (selectedEquipment.includes('-kalita-')) {
-                baseEquipmentId = 'Kalita';
-              } else if (selectedEquipment.includes('-origami-')) {
-                baseEquipmentId = 'Origami';
-              } else if (selectedEquipment.includes('-espresso-')) {
-                baseEquipmentId = 'Espresso';
-              }
+              const baseEquipmentId =
+                inferBaseEquipmentIdFromCustomEquipmentId(selectedEquipment);
 
               if (baseEquipmentId && commonMethods[baseEquipmentId]) {
                 commonMethodsForEquipment =
