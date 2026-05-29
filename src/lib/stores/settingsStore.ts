@@ -17,6 +17,7 @@ import {
   RoasterConfig,
   DEFAULT_FLAVOR_DIMENSIONS,
 } from '@/lib/core/db';
+import { equipmentList } from '@/lib/core/config';
 import { LayoutSettings } from '@/components/brewing/Timer/Settings';
 import {
   DEFAULT_NAVIGATION_SETTINGS,
@@ -499,7 +500,15 @@ export const useSettingsStore = create<SettingsStore>()(
       const hiddenEquipments = (currentSettings.hiddenEquipments || []).filter(
         id => id !== equipmentId
       );
-      await get().updateSettings({ hiddenEquipments });
+      const equipmentOrder = currentSettings.equipmentOrder || [];
+      const nextEquipmentOrder = equipmentOrder.includes(equipmentId)
+        ? equipmentOrder
+        : [...equipmentOrder, equipmentId];
+
+      await get().updateSettings({
+        hiddenEquipments,
+        equipmentOrder: nextEquipmentOrder,
+      });
     },
 
     hideMethod: async (equipmentId, methodId) => {
@@ -851,7 +860,16 @@ export function isEquipmentHidden(equipmentId: string): boolean {
  */
 export function getHiddenEquipmentIds(): string[] {
   const settings = getSettingsStore().settings;
-  return settings.hiddenEquipments || [];
+  const hiddenIds = settings.hiddenEquipments || [];
+  const enabledIds = settings.equipmentOrder || [];
+  const defaultDisabledIds = equipmentList
+    .filter(
+      equipment =>
+        equipment.defaultEnabled === false && !enabledIds.includes(equipment.id)
+    )
+    .map(equipment => equipment.id);
+
+  return Array.from(new Set([...hiddenIds, ...defaultDisabledIds]));
 }
 
 /**

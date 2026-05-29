@@ -2,24 +2,20 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Method, CustomEquipment } from '@/lib/core/config';
-import { equipmentList, commonMethods } from '@/lib/core/config';
+import {
+  equipmentList,
+  commonMethods,
+  getBaseEquipmentIdByAnimationType,
+} from '@/lib/core/config';
 import { loadCustomEquipments } from '@/lib/stores/customEquipmentStore';
 import { loadCustomMethods } from '@/lib/stores/customMethodStore';
+import { filterHiddenEquipments } from '@/lib/stores/settingsStore';
 import { useModalHistory } from '@/lib/hooks/useModalHistory';
 import { useThemeColor } from '@/lib/hooks/useThemeColor';
 import { SettingsOptions } from '@/components/settings/Settings';
 import hapticsUtils from '@/lib/ui/haptics';
 import EquipmentCategoryBar from './EquipmentCategoryBar';
 import MethodSelector from './MethodSelector';
-
-// 动画类型到器具ID的映射
-const ANIMATION_TYPE_MAPPING: Record<string, string> = {
-  v60: 'V60',
-  clever: 'CleverDripper',
-  espresso: 'Espresso',
-  kalita: 'Kalita',
-  origami: 'Origami',
-};
 
 /**
  * 获取器具对应的通用方案
@@ -42,9 +38,9 @@ const getCommonMethodsForEquipment = (
       if (customEquipment.animationType.toLowerCase() === 'custom') {
         return [];
       }
-      const baseEquipmentId =
-        ANIMATION_TYPE_MAPPING[customEquipment.animationType.toLowerCase()] ||
-        'V60';
+      const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+        customEquipment.animationType
+      );
       methods = commonMethods[baseEquipmentId] || [];
     }
   }
@@ -185,16 +181,8 @@ const EquipmentMethodPickerDrawer: React.FC<
   const availableEquipments = React.useMemo(() => {
     const baseEquipments = [...equipmentList];
     const allEquipments = [...baseEquipments, ...customEquipments];
-
-    // 过滤隐藏的器具
-    if (settings?.hiddenEquipments?.length) {
-      return allEquipments.filter(
-        eq => !settings.hiddenEquipments?.includes(eq.id)
-      );
-    }
-
-    return allEquipments;
-  }, [customEquipments, settings?.hiddenEquipments]);
+    return settings ? filterHiddenEquipments(allEquipments) : allEquipments;
+  }, [customEquipments, settings]);
 
   // 获取当前器具的通用方案
   const commonMethodsForEquipment = React.useMemo(() => {

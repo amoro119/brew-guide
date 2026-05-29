@@ -5,6 +5,7 @@ import {
   type Method,
   type CustomEquipment,
   brewingMethods,
+  getBaseEquipmentIdByAnimationType,
 } from '@/lib/core/config';
 import { SettingsOptions } from '@/components/settings/Settings';
 
@@ -59,23 +60,9 @@ export function useMethodManagement({
         return [];
       } else if (isCustomEquipment) {
         // 基于预设的自定义器具
-        let baseEquipmentId = '';
-        if (customEquipment) {
-          const animationType = customEquipment.animationType.toLowerCase();
-          switch (animationType) {
-            case 'v60':
-              baseEquipmentId = 'V60';
-              break;
-            case 'clever':
-              baseEquipmentId = 'CleverDripper';
-              break;
-            case 'espresso':
-              baseEquipmentId = 'Espresso';
-              break;
-            default:
-              baseEquipmentId = 'V60';
-          }
-        }
+        const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+          customEquipment?.animationType
+        );
         methods = brewingMethods[baseEquipmentId] || [];
       } else {
         // 预定义器具
@@ -130,23 +117,9 @@ export function useMethodManagement({
 
     if (isCustomEquipment) {
       // 基于预设的自定义器具
-      let baseEquipmentId = '';
-      if (customEquipment) {
-        const animationType = customEquipment.animationType.toLowerCase();
-        switch (animationType) {
-          case 'v60':
-            baseEquipmentId = 'V60';
-            break;
-          case 'clever':
-            baseEquipmentId = 'CleverDripper';
-            break;
-          case 'espresso':
-            baseEquipmentId = 'Espresso';
-            break;
-          default:
-            baseEquipmentId = 'V60';
-        }
-      }
+      const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+        customEquipment?.animationType
+      );
       methods = brewingMethods[baseEquipmentId] || [];
     } else {
       // 预定义器具
@@ -310,21 +283,9 @@ export function useMethodManagement({
         let hasCommonMethods = false;
         if (customEquipment) {
           // 自定义器具，检查基础器具是否有通用方案
-          const animationType = customEquipment.animationType.toLowerCase();
-          let baseEquipmentId = '';
-          switch (animationType) {
-            case 'v60':
-              baseEquipmentId = 'V60';
-              break;
-            case 'clever':
-              baseEquipmentId = 'CleverDripper';
-              break;
-            case 'espresso':
-              baseEquipmentId = 'Espresso';
-              break;
-            default:
-              baseEquipmentId = 'V60';
-          }
+          const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+            customEquipment.animationType
+          );
           hasCommonMethods = (brewingMethods[baseEquipmentId]?.length || 0) > 0;
         } else {
           // 预定义器具
@@ -382,20 +343,9 @@ export function useMethodManagement({
 
         // 如果是自定义器具，需要找到对应的基础器具ID
         if (customEquipment) {
-          const animationType = customEquipment.animationType.toLowerCase();
-          switch (animationType) {
-            case 'v60':
-              targetEquipmentId = 'V60';
-              break;
-            case 'clever':
-              targetEquipmentId = 'CleverDripper';
-              break;
-            case 'espresso':
-              targetEquipmentId = 'Espresso';
-              break;
-            default:
-              targetEquipmentId = 'V60';
-          }
+          targetEquipmentId = getBaseEquipmentIdByAnimationType(
+            customEquipment.animationType
+          );
         }
 
         if (brewingMethods[targetEquipmentId]?.length > 0) {

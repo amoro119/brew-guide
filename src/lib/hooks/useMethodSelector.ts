@@ -1,9 +1,15 @@
 import { useCallback } from 'react';
-import { Method, Stage, commonMethods } from '@/lib/core/config';
+import {
+  Method,
+  Stage,
+  commonMethods,
+  getBaseEquipmentIdByAnimationType,
+  inferBaseEquipmentIdFromCustomEquipmentId,
+} from '@/lib/core/config';
 import { EditableParams } from './useBrewingParameters';
 import { getEquipmentNameById } from '@/lib/utils/equipmentUtils';
 import { TabType, BrewingStep } from './useBrewingState';
-import { MethodStepConfig, MethodType } from '@/lib/types/method';
+import { MethodStepConfig } from '@/lib/types/method';
 
 export interface UseMethodSelectorProps {
   selectedEquipment: string | null;
@@ -19,32 +25,6 @@ export interface UseMethodSelectorProps {
   setActiveTab: (tab: TabType) => void;
   setActiveBrewingStep: (step: BrewingStep) => void;
   updateBrewingSteps: (stages: Stage[]) => void;
-}
-
-/**
- * 根据自定义器具的动画类型获取基础器具ID
- */
-function getBaseEquipmentId(animationType: string): string {
-  const mapping: Record<string, string> = {
-    v60: 'V60',
-    clever: 'CleverDripper',
-    espresso: 'Espresso',
-    kalita: 'Kalita',
-    origami: 'Origami',
-  };
-  return mapping[animationType.toLowerCase()] || 'V60';
-}
-
-/**
- * 从器具ID推断基础器具类型（兼容旧版本）
- */
-function inferEquipmentTypeFromId(equipmentId: string): string {
-  if (equipmentId.includes('-v60-')) return 'V60';
-  if (equipmentId.includes('-clever-')) return 'CleverDripper';
-  if (equipmentId.includes('-kalita-')) return 'Kalita';
-  if (equipmentId.includes('-origami-')) return 'Origami';
-  if (equipmentId.includes('-espresso-')) return 'Espresso';
-  return 'V60'; // 默认
 }
 
 export function useMethodSelector({
@@ -150,11 +130,13 @@ export function useMethodSelector({
             // 自定义预设器具不使用通用方案
             targetEquipmentId = '';
           } else if (animationType) {
-            targetEquipmentId = getBaseEquipmentId(animationType);
+            targetEquipmentId =
+              getBaseEquipmentIdByAnimationType(animationType);
           }
         } else if (selectedEquipment.startsWith('custom-')) {
           // 兼容旧版本：从ID推断器具类型
-          targetEquipmentId = inferEquipmentTypeFromId(selectedEquipment);
+          targetEquipmentId =
+            inferBaseEquipmentIdFromCustomEquipmentId(selectedEquipment);
         }
 
         method =

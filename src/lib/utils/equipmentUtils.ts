@@ -125,15 +125,6 @@ export const getPourTypeName = (pourType?: string): string => {
 };
 
 /**
- * 判断设备是否有阀门
- * @param customEquipment 自定义设备对象
- * @returns 是否有阀门
- */
-const hasValve = (customEquipment: CustomEquipment): boolean => {
-  return !!customEquipment.hasValve;
-};
-
-/**
  * 获取设备的默认注水方式
  * @param customEquipment 自定义设备对象
  * @returns 默认的注水方式
@@ -147,11 +138,10 @@ export const getDefaultPourType = (
       return 'extraction'; // 意式机默认使用萃取浓缩模式
     case 'v60':
     case 'origami':
-      return 'circle'; // V60和Origami默认使用绕圈注水
+    case 'orea':
     case 'kalita':
-      return 'center'; // Kalita默认使用中心注水
     case 'clever':
-      return 'circle'; // 聪明杯默认使用绕圈注水
+      return 'circle'; // 手冲器具默认使用绕圈注水
     case 'custom':
       // 如果是自定义预设并且有自定义注水动画
       if (

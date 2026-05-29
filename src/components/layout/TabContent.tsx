@@ -6,6 +6,8 @@ import {
   CustomEquipment,
   commonMethods,
   createEditableMethodFromCommon,
+  getBaseEquipmentIdByAnimationType,
+  inferBaseEquipmentIdFromCustomEquipmentId,
 } from '@/lib/core/config';
 import StageItem from '@/components/brewing/stages/StageItem';
 import StageDivider from '@/components/brewing/stages/StageDivider';
@@ -506,35 +508,6 @@ const TabContent: React.FC<TabContentProps> = ({
     [addBean, onCoffeeBeanSelect, triggerHapticFeedback]
   );
 
-  // 获取基础器具ID的辅助函数
-  const getBaseEquipmentId = (equipmentId: string): string => {
-    if (equipmentId.includes('-v60-')) return 'V60';
-    if (equipmentId.includes('-clever-')) return 'CleverDripper';
-    if (equipmentId.includes('-kalita-')) return 'Kalita';
-    if (equipmentId.includes('-origami-')) return 'Origami';
-    return 'V60'; // 默认
-  };
-
-  // 根据自定义器具的 animationType 获取基础器具ID
-  const getBaseEquipmentIdByAnimationType = (animationType: string): string => {
-    switch (animationType.toLowerCase()) {
-      case 'v60':
-        return 'V60';
-      case 'kalita':
-        return 'Kalita';
-      case 'origami':
-        return 'Origami';
-      case 'clever':
-        return 'CleverDripper';
-      case 'espresso':
-        return 'Espresso';
-      case 'custom':
-        return ''; // 自定义预设器具没有通用方案
-      default:
-        return 'V60';
-    }
-  };
-
   // 编辑通用方案 - 创建临时副本进入编辑模式，不立即保存 - 使用 useCallback 优化
   const editCommonMethod = useCallback(
     (step: Step, selectedEquipment: string) => {
@@ -555,7 +528,8 @@ const TabContent: React.FC<TabContentProps> = ({
           }
         } else if (selectedEquipment.startsWith('custom-')) {
           // 向后兼容旧的ID格式
-          const baseEquipmentId = getBaseEquipmentId(selectedEquipment);
+          const baseEquipmentId =
+            inferBaseEquipmentIdFromCustomEquipmentId(selectedEquipment);
           commonMethodsList = commonMethods[baseEquipmentId];
         }
       }
@@ -634,7 +608,8 @@ const TabContent: React.FC<TabContentProps> = ({
         } else if (!step.isCustom && selectedEquipment) {
           let commonMethodsList = commonMethods[selectedEquipment];
           if (!commonMethodsList && selectedEquipment.startsWith('custom-')) {
-            const baseEquipmentId = getBaseEquipmentId(selectedEquipment);
+            const baseEquipmentId =
+              inferBaseEquipmentIdFromCustomEquipmentId(selectedEquipment);
             commonMethodsList = commonMethods[baseEquipmentId];
           }
           if (commonMethodsList) {

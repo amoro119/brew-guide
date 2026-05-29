@@ -28,20 +28,34 @@ export const equipmentUtils = {
     customEquipments: CustomEquipment[],
     equipmentOrder?: EquipmentOrder
   ) => {
+    const orderedEquipmentIds = equipmentOrder?.equipmentIds || [];
     const systemEquipments = equipmentList.map(eq => ({
       ...eq,
       isCustom: false,
     }));
+    const enabledSystemEquipments = systemEquipments.filter(
+      eq => eq.defaultEnabled !== false || orderedEquipmentIds.includes(eq.id)
+    );
     const customEquipmentsWithFlag = customEquipments.map(eq => ({
       ...eq,
       isCustom: true,
     }));
 
     // 合并所有器具
-    const allEquipments = [...systemEquipments, ...customEquipmentsWithFlag];
+    const allEquipments = [
+      ...enabledSystemEquipments,
+      ...customEquipmentsWithFlag,
+    ];
 
     // 如果没有排序信息，返回默认顺序
-    if (!equipmentOrder || equipmentOrder.equipmentIds.length === 0) {
+    if (!equipmentOrder || orderedEquipmentIds.length === 0) {
+      return allEquipments;
+    }
+
+    const hasFullOrder = allEquipments.every(eq =>
+      orderedEquipmentIds.includes(eq.id)
+    );
+    if (!hasFullOrder) {
       return allEquipments;
     }
 
@@ -49,7 +63,7 @@ export const equipmentUtils = {
     const sortedEquipments: typeof allEquipments = [];
 
     // 按排序顺序添加器具
-    for (const id of equipmentOrder.equipmentIds) {
+    for (const id of orderedEquipmentIds) {
       const equipment = allEquipments.find(eq => eq.id === id);
       if (equipment) {
         sortedEquipments.push(equipment);
@@ -58,7 +72,7 @@ export const equipmentUtils = {
 
     // 添加未在排序中的器具（新增的器具）
     allEquipments.forEach(eq => {
-      if (!equipmentOrder.equipmentIds.includes(eq.id)) {
+      if (!orderedEquipmentIds.includes(eq.id)) {
         sortedEquipments.push(eq);
       }
     });

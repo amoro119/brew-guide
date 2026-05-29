@@ -27,6 +27,7 @@ import {
 import {
   equipmentList,
   commonMethods,
+  getBaseEquipmentIdByAnimationType,
   type Method,
   type CustomEquipment,
 } from '@/lib/core/config';
@@ -68,15 +69,6 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { BrewingNoteDraftData } from './brewingNoteDraft';
 
-// 动画类型到器具ID的映射
-const ANIMATION_TYPE_MAPPING: Record<string, string> = {
-  v60: 'V60',
-  clever: 'CleverDripper',
-  espresso: 'Espresso',
-  kalita: 'Kalita',
-  origami: 'Origami',
-};
-
 // 工具函数：获取器具对应的通用方案
 const getCommonMethodsForEquipment = (
   equipmentId: string,
@@ -100,9 +92,9 @@ const getCommonMethodsForEquipment = (
         return [];
       }
 
-      const baseEquipmentId =
-        ANIMATION_TYPE_MAPPING[customEquipment.animationType.toLowerCase()] ||
-        'V60';
+      const baseEquipmentId = getBaseEquipmentIdByAnimationType(
+        customEquipment.animationType
+      );
       methods = commonMethods[baseEquipmentId] || [];
     }
   }

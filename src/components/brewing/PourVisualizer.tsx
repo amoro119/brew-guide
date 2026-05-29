@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { Stage } from '@/components/method/forms/components/types';
+import type { EquipmentAnimationType } from '@/lib/core/config';
 import { AnimationFrame } from './AnimationEditor';
 
 // 定义扩展阶段类型
@@ -33,13 +34,7 @@ interface PourVisualizerProps {
     name: string;
     description: string;
     note?: string;
-    animationType:
-      | 'v60'
-      | 'kalita'
-      | 'origami'
-      | 'clever'
-      | 'custom'
-      | 'espresso';
+    animationType: EquipmentAnimationType;
     hasValve?: boolean;
     isCustom: true;
     customShapeSvg?: string;
@@ -147,6 +142,7 @@ const PourVisualizer: React.FC<PourVisualizerProps> = ({
         'V60',
         'Kalita',
         'Origami',
+        'Orea',
         'CleverDripper',
       ];
       const isStandardEquipment = standardEquipmentIds.includes(equipmentId);
@@ -263,6 +259,7 @@ const PourVisualizer: React.FC<PourVisualizerProps> = ({
       '/images/icons/ui/v60-base.svg',
       '/images/icons/ui/kalita-base.svg',
       '/images/icons/ui/origami-base.svg',
+      '/images/icons/ui/orea-base.svg',
     ];
 
     // 聪明杯相关图片（阀门控制）

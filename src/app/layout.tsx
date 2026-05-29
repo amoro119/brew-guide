@@ -268,7 +268,9 @@ export default function RootLayout({
 
             <h2>冲煮管理</h2>
             <ul>
-              <li>支持多种器具：V60、聪明杯、蛋糕滤杯、折纸滤杯、意式咖啡机</li>
+              <li>
+                支持多种器具：V60、聪明杯、Kalita、Origami、OREA、意式咖啡机
+              </li>
               <li>丰富的冲煮方案库，预设和自定义方法</li>
               <li>精确的计时器，按阶段引导冲煮</li>
               <li>可视化注水过程</li>
