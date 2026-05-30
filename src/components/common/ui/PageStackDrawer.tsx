@@ -24,6 +24,17 @@ interface PageStackDrawerProps {
   historyId: string;
 }
 
+type PageStackDrawerSnapshot = Pick<
+  PageStackDrawerProps,
+  | 'title'
+  | 'activeKey'
+  | 'canGoBack'
+  | 'doneLabel'
+  | 'backLabel'
+  | 'doneDisabled'
+  | 'children'
+>;
+
 export function useDrawerPageStack<PageKey extends string>(
   initialPage: PageKey,
   isOpen: boolean,
@@ -92,13 +103,43 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
 }) => {
   const headerRef = React.useRef<HTMLDivElement>(null);
   const pageContentRef = React.useRef<HTMLDivElement | null>(null);
+  const isOpenRef = React.useRef(isOpen);
+  const currentSnapshot: PageStackDrawerSnapshot = {
+    title,
+    activeKey,
+    canGoBack,
+    doneLabel,
+    backLabel,
+    doneDisabled,
+    children,
+  };
+  const [closingSnapshot, setClosingSnapshot] =
+    React.useState<PageStackDrawerSnapshot>(currentSnapshot);
   const [bodyHeight, setBodyHeight] = React.useState<number | 'auto'>('auto');
   const [maxBodyHeight, setMaxBodyHeight] = React.useState<number | undefined>(
     undefined
   );
   const pageControls = useAnimationControls();
+  const visibleSnapshot = isOpen ? currentSnapshot : closingSnapshot;
 
   useThemeColor({ useOverlay: true, enabled: isOpen });
+
+  if (
+    isOpen &&
+    (closingSnapshot.title !== title ||
+      closingSnapshot.activeKey !== activeKey ||
+      closingSnapshot.canGoBack !== canGoBack ||
+      closingSnapshot.doneLabel !== doneLabel ||
+      closingSnapshot.backLabel !== backLabel ||
+      closingSnapshot.doneDisabled !== doneDisabled ||
+      closingSnapshot.children !== children)
+  ) {
+    setClosingSnapshot(currentSnapshot);
+  }
+
+  React.useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   const handleOpenChange = React.useCallback(
     (open: boolean) => {
@@ -122,7 +163,6 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
 
   React.useEffect(() => {
     if (!isOpen) {
-      setBodyHeight('auto');
       return;
     }
 
@@ -151,10 +191,15 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
 
     void pageControls.start({
       opacity: [0, 1],
-      x: [canGoBack ? 18 : -18, 0],
+      x: [visibleSnapshot.canGoBack ? 18 : -18, 0],
       transition: DRAWER_TRANSITION,
     });
-  }, [activeKey, canGoBack, isOpen, pageControls]);
+  }, [
+    isOpen,
+    pageControls,
+    visibleSnapshot.activeKey,
+    visibleSnapshot.canGoBack,
+  ]);
 
   React.useLayoutEffect(() => {
     if (!isOpen) return;
@@ -168,12 +213,28 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
     observer.observe(content);
 
     return () => observer.disconnect();
-  }, [activeKey, isOpen, updateBodyHeight]);
+  }, [isOpen, updateBodyHeight, visibleSnapshot.activeKey]);
+
+  const handleAnimationEnd = React.useCallback((open: boolean) => {
+    if (!open && !isOpenRef.current) {
+      setBodyHeight('auto');
+      setMaxBodyHeight(undefined);
+      setClosingSnapshot({
+        title: '',
+        activeKey: '',
+        canGoBack: false,
+        doneLabel: '完成',
+        doneDisabled: false,
+        children: null,
+      });
+    }
+  }, []);
 
   return (
     <Drawer.Root
       open={isOpen}
       onOpenChange={handleOpenChange}
+      onAnimationEnd={handleAnimationEnd}
       repositionInputs={false}
     >
       <Drawer.Portal>
@@ -192,18 +253,20 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
                 onClick={canGoBack ? onBack : onCancel}
                 className="w-fit cursor-pointer rounded-full bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-600 transition active:scale-95 dark:bg-neutral-800 dark:text-neutral-300"
               >
-                {canGoBack ? backLabel || '返回' : '取消'}
+                {visibleSnapshot.canGoBack
+                  ? visibleSnapshot.backLabel || '返回'
+                  : '取消'}
               </button>
               <Drawer.Title className="max-w-48 truncate px-3 text-center text-base font-semibold text-neutral-900 dark:text-neutral-50">
-                {title}
+                {visibleSnapshot.title}
               </Drawer.Title>
               <button
                 type="button"
                 onClick={onDone}
-                disabled={doneDisabled}
+                disabled={visibleSnapshot.doneDisabled}
                 className="ml-auto w-fit cursor-pointer rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition active:scale-95 disabled:cursor-default disabled:opacity-30 disabled:active:scale-100 dark:bg-neutral-800 dark:text-neutral-100"
               >
-                {doneLabel}
+                {visibleSnapshot.doneLabel}
               </button>
             </div>
 
@@ -231,7 +294,7 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
                     paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
                   }}
                 >
-                  {children}
+                  {visibleSnapshot.children}
                 </div>
               </motion.div>
             </motion.div>
