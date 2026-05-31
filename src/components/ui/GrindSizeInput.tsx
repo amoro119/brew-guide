@@ -16,10 +16,6 @@ import {
   autoUpdate,
   offset,
   shift,
-  useDismiss,
-  useRole,
-  useListNavigation,
-  useInteractions,
   useTransitionStyles,
   FloatingPortal,
 } from '@floating-ui/react';
@@ -114,6 +110,8 @@ type OptionItem = {
   grinderId?: string;
 };
 
+const GRIND_SIZE_DROPDOWN_Z_INDEX = 80;
+
 /** 格式化磨豆机显示文本 */
 const formatGrinderOption = (grinder: Grinder): string =>
   grinder.currentGrindSize
@@ -148,9 +146,11 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
     );
     const [isSyncEnabled, setIsSyncEnabled] = useState(defaultSyncEnabled);
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
+    const [floatingElement, setFloatingElement] =
+      useState<HTMLDivElement | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const listRef = useRef<Array<HTMLButtonElement | null>>([]);
+    const listboxId = React.useId();
 
     const { grinders, initialized, initialize, setSyncState } =
       useGrinderStore();
@@ -171,19 +171,6 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
       whileElementsMounted: autoUpdate,
       placement: dropdownPlacement === 'right' ? 'right-start' : 'bottom-start',
     });
-
-    const { getReferenceProps, getFloatingProps, getItemProps } =
-      useInteractions([
-        useDismiss(context),
-        useRole(context, { role: 'listbox' }),
-        useListNavigation(context, {
-          listRef,
-          activeIndex,
-          onNavigate: setActiveIndex,
-          virtual: true,
-          loop: true,
-        }),
-      ]);
 
     // 过渡动画配置：使用 floating-ui 的 useTransitionStyles
     // 参考 https://jakub.kr/components/exit-animations - 退出动画使用较小的位移值
@@ -302,6 +289,30 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
       return options;
     }, [grinders, selectedGrinderId, initialValue, value]);
 
+    useEffect(() => {
+      if (!isOpen) return;
+
+      const handlePointerDown = (event: PointerEvent) => {
+        const target = event.target;
+        if (!(target instanceof Node)) return;
+
+        if (
+          inputRef.current?.contains(target) ||
+          floatingElement?.contains(target)
+        ) {
+          return;
+        }
+
+        setIsOpen(false);
+        setActiveIndex(null);
+      };
+
+      document.addEventListener('pointerdown', handlePointerDown);
+      return () => {
+        document.removeEventListener('pointerdown', handlePointerDown);
+      };
+    }, [floatingElement, isOpen]);
+
     // 处理选项点击
     const handleOptionClick = useCallback(
       (option: OptionItem, event?: React.MouseEvent) => {
@@ -340,16 +351,85 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
     // 处理输入框聚焦
     const handleFocus = useCallback(() => setIsOpen(true), []);
 
+    const handleInputRef = useCallback(
+      (node: HTMLInputElement | null) => {
+        inputRef.current = node;
+        refs.setReference(node);
+      },
+      [refs]
+    );
+
+    const handleFloatingRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        setFloatingElement(node);
+        refs.setFloating(node);
+      },
+      [refs]
+    );
+
+    const handleInputChange = useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+        onChange(event.target.value);
+      },
+      [onChange]
+    );
+
+    const handleOptionMouseDown = useCallback(
+      (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+      },
+      []
+    );
+
+    const handleOptionSelect = useCallback(
+      (event: React.MouseEvent<HTMLButtonElement>) => {
+        const optionIndex = Number(event.currentTarget.dataset.optionIndex);
+        const option = allOptions[optionIndex];
+
+        if (option) {
+          handleOptionClick(option, event);
+        }
+      },
+      [allOptions, handleOptionClick]
+    );
+
     // 处理键盘事件
     const handleKeyDown = useCallback(
       (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (
-          event.key === 'Enter' &&
-          activeIndex != null &&
-          allOptions[activeIndex]
-        ) {
+        if (allOptions.length === 0) return;
+
+        if (event.key === 'ArrowDown') {
           event.preventDefault();
-          handleOptionClick(allOptions[activeIndex]);
+          setIsOpen(true);
+          setActiveIndex(current =>
+            current === null ? 0 : (current + 1) % allOptions.length
+          );
+          return;
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setIsOpen(true);
+          setActiveIndex(current =>
+            current === null
+              ? allOptions.length - 1
+              : (current - 1 + allOptions.length) % allOptions.length
+          );
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          setIsOpen(false);
+          setActiveIndex(null);
+          return;
+        }
+
+        if (event.key === 'Enter') {
+          const option = activeIndex === null ? null : allOptions[activeIndex];
+          if (option) {
+            event.preventDefault();
+            handleOptionClick(option);
+          }
         }
       },
       [activeIndex, allOptions, handleOptionClick]
@@ -389,56 +469,57 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
           />
         )}
         <input
-          ref={node => {
-            inputRef.current = node;
-            refs.setReference(node);
-          }}
+          ref={handleInputRef}
           type="text"
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={inputClassName}
           style={
             autoWidth && measuredWidth ? { width: measuredWidth } : undefined
           }
+          role="combobox"
           aria-autocomplete="list"
+          aria-activedescendant={
+            activeIndex === null
+              ? undefined
+              : `${listboxId}-option-${activeIndex}`
+          }
+          aria-controls={listboxId}
           aria-expanded={isOpen}
-          {...getReferenceProps({
-            onFocus: handleFocus,
-            onKeyDown: handleKeyDown,
-          })}
+          aria-haspopup="listbox"
         />
 
         {/* 下拉面板 */}
         {isMounted && allOptions.length > 0 && (
           <FloatingPortal>
             <div
-              ref={refs.setFloating}
-              style={{ ...floatingStyles, zIndex: 9999 }}
-              {...getFloatingProps()}
+              ref={handleFloatingRef}
+              id={listboxId}
+              role="listbox"
+              style={{
+                ...floatingStyles,
+                zIndex: GRIND_SIZE_DROPDOWN_Z_INDEX,
+                pointerEvents: 'auto',
+              }}
             >
               {/* 内部容器用于过渡动画，避免与定位 transform 冲突 */}
               <div style={transitionStyles} className="flex flex-col gap-1.5">
                 {/* 选中的磨豆机 - 胶囊形状独立显示 */}
-                {allOptions
-                  .filter(o => o.type === 'selected-grinder')
-                  .map((option, index) => (
+                {allOptions.map((option, index) =>
+                  option.type === 'selected-grinder' ? (
                     <button
                       key={option.grinderId}
-                      ref={node => {
-                        listRef.current[index] = node;
-                      }}
+                      id={`${listboxId}-option-${index}`}
+                      data-option-index={index}
                       type="button"
                       role="option"
                       aria-selected={activeIndex === index}
                       tabIndex={activeIndex === index ? 0 : -1}
-                      onMouseDown={e => {
-                        // 阻止 mousedown 导致输入框失去焦点
-                        e.preventDefault();
-                      }}
-                      {...getItemProps({
-                        onClick: e => handleOptionClick(option, e),
-                      })}
+                      onMouseDown={handleOptionMouseDown}
+                      onClick={handleOptionSelect}
                       className="inline-flex cursor-pointer items-center gap-1.5 self-start rounded-full border border-neutral-200/60 bg-white/90 px-2.5 py-1 text-xs text-neutral-600 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-colors dark:border-neutral-700/60 dark:bg-neutral-800/90 dark:text-neutral-400"
                     >
                       {isSyncEnabled ? (
@@ -452,7 +533,8 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
                         {option.label}
                       </span>
                     </button>
-                  ))}
+                  ) : null
+                )}
 
                 {/* 其他选项列表 */}
                 {allOptions.filter(o => o.type !== 'selected-grinder').length >
@@ -469,15 +551,14 @@ const GrindSizeInput = forwardRef<GrindSizeInputRef, GrindSizeInputProps>(
                       .map(({ option, originalIndex }) => (
                         <button
                           key={option.grinderId ?? `restore-${originalIndex}`}
-                          ref={node => {
-                            listRef.current[originalIndex] = node;
-                          }}
+                          id={`${listboxId}-option-${originalIndex}`}
+                          data-option-index={originalIndex}
                           type="button"
                           role="option"
+                          aria-selected={activeIndex === originalIndex}
                           tabIndex={-1}
-                          {...getItemProps({
-                            onClick: () => handleOptionClick(option),
-                          })}
+                          onMouseDown={handleOptionMouseDown}
+                          onClick={handleOptionSelect}
                           className="flex w-full cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-left text-xs text-neutral-600 dark:text-neutral-400"
                         >
                           {option.type === 'restore' && (
