@@ -49,6 +49,26 @@ const DEFAULT_SORTING: SortingState = [];
 const SORTING_STORAGE_KEY = 'brew-guide:coffee-beans:tableSorting:v2';
 const HOVER_PREVIEW_OFFSET_X = 24;
 const HOVER_PREVIEW_OFFSET_Y = 20;
+const DEFAULT_COLUMN_MIN_SIZE = 96;
+const COLUMN_SIZE_CONFIG: Record<
+  TableColumnKey,
+  { size: number; minSize: number; maxSize?: number }
+> = {
+  roaster: { size: 160, minSize: 120, maxSize: 320 },
+  name: { size: 220, minSize: 160, maxSize: 420 },
+  flavorPeriod: { size: 140, minSize: 120, maxSize: 240 },
+  capacity: { size: 128, minSize: 96, maxSize: 220 },
+  price: { size: 128, minSize: 96, maxSize: 220 },
+  beanType: { size: 100, minSize: 88, maxSize: 180 },
+  origin: { size: 140, minSize: 110, maxSize: 260 },
+  estate: { size: 140, minSize: 110, maxSize: 260 },
+  process: { size: 120, minSize: 100, maxSize: 220 },
+  variety: { size: 120, minSize: 100, maxSize: 220 },
+  roastLevel: { size: 110, minSize: 96, maxSize: 200 },
+  flavor: { size: 200, minSize: 140, maxSize: 360 },
+  rating: { size: 96, minSize: 88, maxSize: 140 },
+  notes: { size: 240, minSize: 160, maxSize: 420 },
+};
 
 // 从 localStorage 读取排序状态
 const loadSorting = (): SortingState => {
@@ -218,6 +238,8 @@ const SortIcon: React.FC<{
 };
 
 const columnHelper = createColumnHelper<ExtendedCoffeeBean>();
+const getColumnSizing = (columnKey: TableColumnKey) =>
+  COLUMN_SIZE_CONFIG[columnKey];
 
 const TableView: React.FC<TableViewProps> = ({
   filteredBeans,
@@ -448,6 +470,7 @@ const TableView: React.FC<TableViewProps> = ({
           header: '烘焙商',
           cell: info => info.getValue(),
           sortingFn: alphanumericSortingFn,
+          ...getColumnSizing('roaster'),
         }
       ),
       name: columnHelper.accessor(row => getNameDisplayValue(row), {
@@ -455,6 +478,7 @@ const TableView: React.FC<TableViewProps> = ({
         header: '名称',
         cell: ({ row }) => getNameDisplayValue(row.original),
         sortingFn: nameSortingFn,
+        ...getColumnSizing('name'),
       }),
       flavorPeriod: columnHelper.accessor(
         row => getDateSortValue(row, dateDisplayMode),
@@ -491,6 +515,7 @@ const TableView: React.FC<TableViewProps> = ({
             );
           },
           sortingFn: dateDisplaySortingFn,
+          ...getColumnSizing('flavorPeriod'),
         }
       ),
       capacity: columnHelper.accessor(row => parseFloat(row.remaining || '0'), {
@@ -516,6 +541,7 @@ const TableView: React.FC<TableViewProps> = ({
           );
         },
         sortingFn: basicSortingFn,
+        ...getColumnSizing('capacity'),
       }),
       price: columnHelper.accessor(
         row => getPricePerGram(row.price || '0', row.capacity || '0'),
@@ -529,6 +555,7 @@ const TableView: React.FC<TableViewProps> = ({
               : '-';
           },
           sortingFn: basicSortingFn,
+          ...getColumnSizing('price'),
         }
       ),
       beanType: columnHelper.accessor(row => row.beanType || '', {
@@ -545,6 +572,7 @@ const TableView: React.FC<TableViewProps> = ({
                 : '-';
         },
         sortingFn: alphanumericSortingFn,
+        ...getColumnSizing('beanType'),
       }),
       origin: columnHelper.accessor(
         row => row.blendComponents?.[0]?.origin || '',
@@ -553,6 +581,7 @@ const TableView: React.FC<TableViewProps> = ({
           header: '产地',
           cell: info => info.getValue() || '-',
           sortingFn: alphanumericSortingFn,
+          ...getColumnSizing('origin'),
         }
       ),
       estate: columnHelper.accessor(
@@ -562,6 +591,7 @@ const TableView: React.FC<TableViewProps> = ({
           header: '庄园',
           cell: info => info.getValue() || '-',
           sortingFn: alphanumericSortingFn,
+          ...getColumnSizing('estate'),
         }
       ),
       process: columnHelper.accessor(
@@ -571,6 +601,7 @@ const TableView: React.FC<TableViewProps> = ({
           header: '处理法',
           cell: info => info.getValue() || '-',
           sortingFn: alphanumericSortingFn,
+          ...getColumnSizing('process'),
         }
       ),
       variety: columnHelper.accessor(
@@ -580,6 +611,7 @@ const TableView: React.FC<TableViewProps> = ({
           header: '品种',
           cell: info => info.getValue() || '-',
           sortingFn: alphanumericSortingFn,
+          ...getColumnSizing('variety'),
         }
       ),
       roastLevel: columnHelper.accessor(row => row.roastLevel || '', {
@@ -587,12 +619,14 @@ const TableView: React.FC<TableViewProps> = ({
         header: '烘焙度',
         cell: info => info.getValue() || '-',
         sortingFn: alphanumericSortingFn,
+        ...getColumnSizing('roastLevel'),
       }),
       flavor: columnHelper.accessor(row => row.flavor?.join('、') || '', {
         id: 'flavor',
         header: '风味',
         cell: info => info.getValue() || '-',
         sortingFn: alphanumericSortingFn,
+        ...getColumnSizing('flavor'),
       }),
       rating: columnHelper.accessor(row => row.overallRating || 0, {
         id: 'rating',
@@ -625,12 +659,14 @@ const TableView: React.FC<TableViewProps> = ({
           );
         },
         sortingFn: basicSortingFn,
+        ...getColumnSizing('rating'),
       }),
       notes: columnHelper.accessor(row => row.notes || '', {
         id: 'notes',
         header: '备注',
         cell: info => info.getValue() || '-',
         sortingFn: alphanumericSortingFn,
+        ...getColumnSizing('notes'),
       }),
     };
 
@@ -658,6 +694,8 @@ const TableView: React.FC<TableViewProps> = ({
     getSortedRowModel: getSortedRowModel(),
     enableMultiSort: true,
     isMultiSortEvent: () => true,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
   });
 
   // 处理详情点击
@@ -683,7 +721,10 @@ const TableView: React.FC<TableViewProps> = ({
         style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
         onScroll={clearHoverPreview}
       >
-        <table className="w-full min-w-max border-separate border-spacing-0">
+        <table
+          className="w-full min-w-max border-separate border-spacing-0"
+          style={{ minWidth: table.getTotalSize() }}
+        >
           {/* 表头 - 使用 border-separate 解决 sticky 边框问题 */}
           <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-900">
             {table.getHeaderGroups().map(headerGroup => (
@@ -694,23 +735,76 @@ const TableView: React.FC<TableViewProps> = ({
                   const paddingClass = `py-2 ${isFirst ? 'pl-6 pr-3' : isLast ? 'pl-3 pr-6' : 'px-3'}`;
                   const sortIndex = sorting.findIndex(s => s.id === header.id);
                   const isSorted = header.column.getIsSorted();
+                  const canSort = header.column.getCanSort();
+                  const canResize = header.column.getCanResize();
+                  const isResizing = header.column.getIsResizing();
+                  const resizeHandler = header.getResizeHandler();
 
                   return (
                     <th
                       key={header.id}
-                      className={`${paddingClass} cursor-pointer border-b border-neutral-200/50 bg-neutral-50 text-left text-xs leading-relaxed font-medium whitespace-nowrap text-neutral-600 select-none hover:text-neutral-800 dark:border-neutral-800/50 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200`}
-                      onClick={header.column.getToggleSortingHandler()}
+                      className="group relative border-b border-neutral-200/50 bg-neutral-50 text-left text-xs leading-relaxed font-medium whitespace-nowrap text-neutral-600 select-none dark:border-neutral-800/50 dark:bg-neutral-900 dark:text-neutral-400"
+                      style={{
+                        width: header.getSize(),
+                        minWidth:
+                          header.column.columnDef.minSize ?? DEFAULT_COLUMN_MIN_SIZE,
+                      }}
                     >
-                      <span className="inline-flex items-center">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                        <SortIcon
-                          direction={isSorted}
-                          index={sorting.length > 1 ? sortIndex : undefined}
-                        />
-                      </span>
+                      {header.isPlaceholder ? null : (
+                        <div className={`relative flex items-center ${paddingClass}`}>
+                          <button
+                            type="button"
+                            className={`inline-flex items-center ${
+                              canSort
+                                ? 'cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200'
+                                : 'cursor-default'
+                            }`}
+                            onClick={
+                              canSort
+                                ? header.column.getToggleSortingHandler()
+                                : undefined
+                            }
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <SortIcon
+                              direction={isSorted}
+                              index={sorting.length > 1 ? sortIndex : undefined}
+                            />
+                          </button>
+                          {canResize && (
+                            <div
+                              role="separator"
+                              aria-label={`调整${
+                                String(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )
+                                ) || '列'
+                              }宽度`}
+                              aria-orientation="vertical"
+                              className={`absolute top-0 right-0 z-20 h-full w-4 translate-x-1/2 cursor-col-resize touch-none ${
+                                isResizing
+                                  ? 'opacity-100'
+                                  : 'opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100'
+                              }`}
+                              onMouseDown={resizeHandler}
+                              onTouchStart={resizeHandler}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onClick={event => event.stopPropagation()}
+                            >
+                              <span
+                                className={`absolute top-1/2 left-1/2 h-5 w-px -translate-x-1/2 -translate-y-1/2 bg-neutral-300 transition-opacity dark:bg-neutral-600 ${
+                                  isResizing ? 'opacity-100' : 'opacity-70'
+                                }`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -756,6 +850,11 @@ const TableView: React.FC<TableViewProps> = ({
                       <td
                         key={cell.id}
                         className={`${cellClass} ${paddingClass} ${widthClass} border-b border-neutral-200/50 dark:border-neutral-800/50`}
+                        style={{
+                          width: cell.column.getSize(),
+                          minWidth:
+                            cell.column.columnDef.minSize ?? DEFAULT_COLUMN_MIN_SIZE,
+                        }}
                         onClick={
                           isCapacity && !isEmpty
                             ? e => {
