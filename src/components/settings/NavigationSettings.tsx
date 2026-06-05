@@ -5,12 +5,10 @@ import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import hapticsUtils from '@/lib/ui/haptics';
 import { showToast } from '@/components/common/feedback/LightToast';
-import {
-  SettingPage,
-  SettingSection,
-  SettingRow,
-  SettingToggle,
-} from './atomic';
+import SettingPage from './atomic/SettingPage';
+import SettingSection from './atomic/SettingSection';
+import SettingRow from './atomic/SettingRow';
+import SettingToggle from './atomic/SettingToggle';
 import {
   VIEW_LABELS,
   SIMPLIFIED_VIEW_LABELS,
@@ -19,12 +17,14 @@ import {
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import {
   canDisableCoffeeBeanView,
-  COFFEE_BEAN_MAIN_VIEW,
   CONFIGURABLE_COFFEE_BEAN_VIEW_ORDER,
   canDisableMainNavigationTab,
   deriveNavigationSettings,
+  getMainNavigationTabLabel,
+  MAIN_NAVIGATION_TABS,
   mergeNavigationSettings,
   normalizeNavigationSettings,
+  type MainNavigationTab,
 } from '@/lib/navigation/navigationSettings';
 
 interface NavigationSettingsProps {
@@ -123,7 +123,7 @@ const NavigationSettings: React.FC<NavigationSettingsProps> = ({
     [currentNavigation, settings.hapticFeedback, updateNavigationSettings]
   );
 
-  const handleMainTabToggle = (tab: 'brewing' | 'coffeeBean' | 'notes') => {
+  const handleMainTabToggle = (tab: MainNavigationTab) => {
     if (
       currentNavigation.visibleTabs[tab] &&
       !canDisableMainNavigationTab(settings.navigationSettings, tab)
@@ -200,40 +200,25 @@ const NavigationSettings: React.FC<NavigationSettingsProps> = ({
         footer="关闭后隐藏对应入口，并简化相关流程；至少保留一个功能"
         className="-mt-4"
       >
-        <SettingRow label="冲煮">
-          <SettingToggle
-            checked={derivedNavigation.visibleTabs.brewing}
-            disabled={
-              !canDisableMainNavigationTab(
-                settings.navigationSettings,
-                'brewing'
-              )
-            }
-            onChange={() => handleMainTabToggle('brewing')}
-          />
-        </SettingRow>
-        <SettingRow label={getLabel(COFFEE_BEAN_MAIN_VIEW)}>
-          <SettingToggle
-            checked={derivedNavigation.visibleTabs.coffeeBean}
-            disabled={
-              currentNavigation.visibleTabs.coffeeBean &&
-              !canDisableMainNavigationTab(
-                settings.navigationSettings,
-                'coffeeBean'
-              )
-            }
-            onChange={() => handleMainTabToggle('coffeeBean')}
-          />
-        </SettingRow>
-        <SettingRow label="笔记" isLast>
-          <SettingToggle
-            checked={derivedNavigation.visibleTabs.notes}
-            disabled={
-              !canDisableMainNavigationTab(settings.navigationSettings, 'notes')
-            }
-            onChange={() => handleMainTabToggle('notes')}
-          />
-        </SettingRow>
+        {MAIN_NAVIGATION_TABS.map((tab, index) => (
+          <SettingRow
+            key={tab}
+            label={getMainNavigationTabLabel(
+              tab,
+              settings.simplifiedViewLabels
+            )}
+            isLast={index === MAIN_NAVIGATION_TABS.length - 1}
+          >
+            <SettingToggle
+              checked={derivedNavigation.visibleTabs[tab]}
+              disabled={
+                currentNavigation.visibleTabs[tab] &&
+                !canDisableMainNavigationTab(settings.navigationSettings, tab)
+              }
+              onChange={() => handleMainTabToggle(tab)}
+            />
+          </SettingRow>
+        ))}
       </SettingSection>
 
       {showCoffeeBeanViewSettings &&
