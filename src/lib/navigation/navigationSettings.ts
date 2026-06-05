@@ -1,5 +1,7 @@
 import type { AppSettings } from '@/lib/core/db';
 import {
+  SIMPLIFIED_VIEW_LABELS,
+  VIEW_LABELS,
   VIEW_OPTIONS,
   type ViewOption,
 } from '@/components/coffee-bean/List/constants';
@@ -31,6 +33,27 @@ export const MAIN_NAVIGATION_TABS: MainNavigationTab[] = [
 ];
 
 export const COFFEE_BEAN_MAIN_VIEW = VIEW_OPTIONS.INVENTORY;
+
+const MAIN_NAVIGATION_TAB_LABELS: Record<
+  Exclude<MainNavigationTab, 'coffeeBean'>,
+  string
+> = {
+  brewing: '冲煮',
+  notes: '笔记',
+};
+
+export const getMainNavigationTabLabel = (
+  tab: MainNavigationTab,
+  simplifiedViewLabels?: boolean
+) => {
+  if (tab === 'coffeeBean') {
+    return simplifiedViewLabels
+      ? SIMPLIFIED_VIEW_LABELS[COFFEE_BEAN_MAIN_VIEW]
+      : VIEW_LABELS[COFFEE_BEAN_MAIN_VIEW];
+  }
+
+  return MAIN_NAVIGATION_TAB_LABELS[tab];
+};
 
 export const COFFEE_BEAN_VIEW_ORDER: ViewOption[] = [
   VIEW_OPTIONS.INVENTORY,

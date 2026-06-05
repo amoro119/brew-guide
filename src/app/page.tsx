@@ -52,7 +52,10 @@ import Onboarding from '@/components/onboarding/Onboarding';
 import PWAInstallBanner from '@/components/layout/PWAInstallBanner';
 import AppModals from '@/components/layout/AppModals';
 import fontZoomUtils from '@/lib/utils/fontZoomUtils';
-import { saveMainTabPreference } from '@/lib/navigation/navigationCache';
+import {
+  resolveVisibleMainTab,
+  saveMainTabPreference,
+} from '@/lib/navigation/navigationCache';
 import {
   COFFEE_BEAN_VIEW_ORDER,
   deriveNavigationSettings,
@@ -693,14 +696,29 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     isDesktopNavigationCollapsible && !isNavigationActuallyCollapsed;
   const canToggleNavigation =
     isDesktopNavigationCollapsible && !isNavResizing && !hasAnyModalOpen;
-  const canSwipeNavigation =
-    isMobileNavigationCollapsible && !hasAnyModalOpen;
+  const canSwipeNavigation = isMobileNavigationCollapsible && !hasAnyModalOpen;
+
+  useEffect(() => {
+    if (!storeInitialized) return;
+
+    const visibleMainTab = resolveVisibleMainTab(
+      activeMainTab,
+      settings.navigationSettings
+    );
+
+    if (visibleMainTab === activeMainTab) return;
+
+    saveMainTabPreference(visibleMainTab);
+    setActiveMainTab(visibleMainTab);
+  }, [
+    activeMainTab,
+    settings.navigationSettings,
+    setActiveMainTab,
+    storeInitialized,
+  ]);
 
   const persistNavigationCollapsed = useCallback((isCollapsed: boolean) => {
-    localStorage.setItem(
-      NAVIGATION_COLLAPSED_STORAGE_KEY,
-      String(isCollapsed)
-    );
+    localStorage.setItem(NAVIGATION_COLLAPSED_STORAGE_KEY, String(isCollapsed));
     setIsNavigationCollapsed(isCollapsed);
   }, []);
 

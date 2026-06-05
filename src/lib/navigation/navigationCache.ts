@@ -4,6 +4,11 @@
  */
 
 import { getStringState, saveStringState } from '@/lib/core/statePersistence';
+import type { AppSettings } from '@/lib/core/db';
+import {
+  deriveNavigationSettings,
+  type MainNavigationTab,
+} from '@/lib/navigation/navigationSettings';
 
 // 模块名称
 const MODULE_NAME = 'navigation';
@@ -13,6 +18,16 @@ export type MainTabType = '冲煮' | '咖啡豆' | '笔记';
 
 // 默认主标签页
 const DEFAULT_MAIN_TAB: MainTabType = '冲煮';
+const NAVIGATION_TAB_TO_MAIN_TAB: Record<MainNavigationTab, MainTabType> = {
+  brewing: '冲煮',
+  coffeeBean: '咖啡豆',
+  notes: '笔记',
+};
+const MAIN_TAB_TO_NAVIGATION_TAB: Record<MainTabType, MainNavigationTab> = {
+  冲煮: 'brewing',
+  咖啡豆: 'coffeeBean',
+  笔记: 'notes',
+};
 
 /**
  * 从localStorage读取上次选择的主标签页
@@ -24,6 +39,24 @@ export const getMainTabPreference = (): MainTabType => {
   const validTabs: MainTabType[] = ['冲煮', '咖啡豆', '笔记'];
   return validTabs.includes(value as MainTabType)
     ? (value as MainTabType)
+    : DEFAULT_MAIN_TAB;
+};
+
+export const resolveVisibleMainTab = (
+  tab: MainTabType,
+  navigationSettings?: AppSettings['navigationSettings']
+): MainTabType => {
+  const navigation = deriveNavigationSettings(navigationSettings);
+  const navigationTab = MAIN_TAB_TO_NAVIGATION_TAB[tab];
+
+  if (navigation.renderedMainTabs.includes(navigationTab)) {
+    return tab;
+  }
+
+  const firstVisibleTab = navigation.renderedMainTabs[0];
+
+  return firstVisibleTab
+    ? NAVIGATION_TAB_TO_MAIN_TAB[firstVisibleTab]
     : DEFAULT_MAIN_TAB;
 };
 

@@ -51,6 +51,8 @@ export interface ActionDrawerProps {
    * 默认 false，设为 true 可以让抽屉随键盘顶起
    */
   repositionInputs?: boolean;
+  /** 是否允许通过拖拽、返回键或遮罩关闭抽屉，默认 true */
+  dismissible?: boolean;
 }
 
 export interface ActionDrawerIconProps {
@@ -214,6 +216,7 @@ const ActionDrawer: React.FC<ActionDrawerProps> & {
   disableHistory = false,
   onExitComplete,
   repositionInputs = false,
+  dismissible = true,
 }) => {
   // 生成稳定的唯一 ID（如果未提供 historyId）
   const [autoId] = useState(
@@ -229,7 +232,7 @@ const ActionDrawer: React.FC<ActionDrawerProps> & {
   // 当 disableHistory 为 true 时，传入空 id 和 false 来禁用
   useModalHistory({
     id: disableHistory ? '' : modalId,
-    isOpen: disableHistory ? false : isOpen,
+    isOpen: disableHistory || !dismissible ? false : isOpen,
     onClose,
   });
 
@@ -259,6 +262,7 @@ const ActionDrawer: React.FC<ActionDrawerProps> & {
       onOpenChange={handleOpenChange}
       onAnimationEnd={handleAnimationEnd}
       repositionInputs={repositionInputs}
+      dismissible={dismissible}
     >
       <Drawer.Portal>
         {/* 背景遮罩 - 强制 fixed 定位确保覆盖安全区 */}
