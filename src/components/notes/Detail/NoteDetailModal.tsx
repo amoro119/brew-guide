@@ -25,7 +25,7 @@ import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { useBrewingNoteStore } from '@/lib/stores/brewingNoteStore';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { useCustomEquipmentStore } from '@/lib/stores/customEquipmentStore';
-import { useSettingsStore } from '@/lib/stores/settingsStore';
+import { useRoasterLogo, useSettingsStore } from '@/lib/stores/settingsStore';
 import { openImageViewer } from '@/lib/ui/imageViewer';
 import DeleteConfirmDrawer from '@/components/common/ui/DeleteConfirmDrawer';
 import RatingRadarDrawer from './RatingRadarDrawer';
@@ -40,6 +40,7 @@ import {
   getNoteBeanAgingDaysForNote,
 } from '@/lib/notes/noteDisplay';
 import { useCoffeeBeanImage } from '@/lib/hooks/useCoffeeBeanImage';
+import { getRoasterName } from '@/lib/utils/beanVarietyUtils';
 
 // 信息行组件
 interface InfoRowProps {
@@ -228,6 +229,50 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
     fallback: beanInfo?.backImage,
     preferThumbnail: false,
   });
+
+  // 获取烘焙商相关设置
+  const roasterFieldEnabled = useSettingsStore(
+    state => state.settings.roasterFieldEnabled
+  );
+  const roasterSeparator = useSettingsStore(
+    state => state.settings.roasterSeparator
+  );
+  const roasterSettings = useMemo(
+    () => ({
+      roasterFieldEnabled,
+      roasterSeparator,
+    }),
+    [roasterFieldEnabled, roasterSeparator]
+  );
+
+  const beanName = note
+    ? resolveNoteBeanDisplayName(
+        note,
+        coffeeBeanLookup,
+        roasterSettings,
+        beanInfo
+      )
+    : '';
+  const roasterName = useMemo(
+    () => (beanInfo ? getRoasterName(beanInfo, roasterSettings) : ''),
+    [beanInfo, roasterSettings]
+  );
+  const roasterLogoName = useMemo(() => {
+    if (!beanInfo || beanFrontImage) {
+      return null;
+    }
+
+    return roasterName && roasterName !== '未知烘焙商' ? roasterName : null;
+  }, [beanFrontImage, beanInfo, roasterName]);
+  const roasterLogo = useRoasterLogo(roasterLogoName);
+  const beanDisplayImage = beanFrontImage || roasterLogo;
+  const isBeanDisplayImageFromBean = Boolean(beanFrontImage);
+  const beanDisplayImageAlt = isBeanDisplayImageFromBean
+    ? beanName || '咖啡豆图片'
+    : roasterName
+      ? `${roasterName} 烘焙商图标`
+      : '烘焙商图标';
+
   const equipmentName = useMemo(
     () => (note ? resolveNoteEquipmentName(note, equipmentNames) : ''),
     [note, equipmentNames]
@@ -346,14 +391,14 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
     if (note?.image) {
       setImageError(false);
     }
-    if (beanFrontImage) {
+    if (beanDisplayImage) {
       setBeanImageError(false);
     }
     // 重置轮播状态
     setShowMultiImages(false);
     setMultiImageErrors(new Set());
     setCurrentHeight('auto');
-  }, [note?.image, beanFrontImage, note?.id]);
+  }, [note?.image, beanDisplayImage, note?.id]);
 
   // 使用 ResizeObserver 实时监听高度变化
   useEffect(() => {
@@ -506,26 +551,6 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
     // 动画由 isOpen 状态变化触发，无需手动设置 isVisible
     modalHistory.back();
   }, []);
-
-  // 获取烘焙商相关设置
-  const roasterFieldEnabled = useSettingsStore(
-    state => state.settings.roasterFieldEnabled
-  );
-  const roasterSeparator = useSettingsStore(
-    state => state.settings.roasterSeparator
-  );
-
-  const beanName = note
-    ? resolveNoteBeanDisplayName(
-        note,
-        coffeeBeanLookup,
-        {
-          roasterFieldEnabled,
-          roasterSeparator,
-        },
-        beanInfo
-      )
-    : '';
 
   const validTasteRatings = useMemo(
     () => (note ? getValidTasteRatings(note.taste) : []),
@@ -742,7 +767,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
           }}
         >
           {/* 图片区域 - 带滑动轮播 */}
-          {(noteImages.length > 0 || beanFrontImage) && (
+          {(noteImages.length > 0 || beanDisplayImage) && (
             <div
               className="relative mb-4 overflow-hidden"
               style={{
@@ -766,7 +791,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               >
                 <div className="relative flex cursor-pointer items-end justify-center gap-3 bg-neutral-200/30 px-6 py-3 dark:bg-neutral-800/40">
                   {/* 咖啡豆图片 - 当没有笔记图片时显示大图 */}
-                  {beanFrontImage && noteImages.length === 0 && (
+                  {beanDisplayImage && noteImages.length === 0 && (
                     <div className="relative h-32 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                       {beanImageError ? (
                         <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -774,8 +799,8 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                         </div>
                       ) : (
                         <Image
-                          src={beanFrontImage}
-                          alt={beanName || '咖啡豆图片'}
+                          src={beanDisplayImage}
+                          alt={beanDisplayImageAlt}
                           height={192}
                           width={192}
                           className="h-full w-auto object-cover"
@@ -783,9 +808,11 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                           onClick={e => {
                             if (!beanImageError) {
                               openImageViewer({
-                                url: beanFrontImage,
-                                alt: beanName || '咖啡豆图片',
-                                backUrl: beanBackImage,
+                                url: beanDisplayImage,
+                                alt: beanDisplayImageAlt,
+                                backUrl: isBeanDisplayImageFromBean
+                                  ? beanBackImage
+                                  : undefined,
                                 sourceElement: e.currentTarget,
                               });
                             }
@@ -799,7 +826,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                   {noteImages.length > 0 && (
                     <>
                       {/* 咖啡豆图片 - 小图 */}
-                      {beanFrontImage && (
+                      {beanDisplayImage && (
                         <div className="relative h-20 shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                           {beanImageError ? (
                             <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -807,8 +834,8 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                             </div>
                           ) : (
                             <Image
-                              src={beanFrontImage}
-                              alt={beanName || '咖啡豆图片'}
+                              src={beanDisplayImage}
+                              alt={beanDisplayImageAlt}
                               height={80}
                               width={80}
                               className="h-full w-auto object-cover"
@@ -817,9 +844,11 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
                                 e.stopPropagation();
                                 if (!beanImageError) {
                                   openImageViewer({
-                                    url: beanFrontImage,
-                                    alt: beanName || '咖啡豆图片',
-                                    backUrl: beanBackImage,
+                                    url: beanDisplayImage,
+                                    alt: beanDisplayImageAlt,
+                                    backUrl: isBeanDisplayImageFromBean
+                                      ? beanBackImage
+                                      : undefined,
                                     sourceElement: e.currentTarget,
                                   });
                                 }
