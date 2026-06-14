@@ -79,7 +79,7 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
   content,
   formattedDate,
 }) => {
-  const { fontSize, titleFontSize, fontWeight } = config;
+  const { fontSize, fontWeight } = config;
   const validFlavors = content.flavor.filter(f => f.trim());
   const displayBeanName = getDisplayBeanName(content);
   const weightValue = content.weight
@@ -94,37 +94,31 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
     { field: 'process', value: content.process },
     { field: 'variety', value: content.variety },
     { field: 'roastLevel', value: content.roastLevel },
-    { field: 'flavor', value: validFlavors.join(' / ') },
+    { field: 'flavor', value: validFlavors.join('/') },
     { field: 'weight', value: weightValue },
     { field: 'notes', value: content.notes },
   ] as const;
 
   return (
-    <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
+    <div style={{ display: 'flex',height: '100%', flexDirection: 'column' }}>
       {/* 标题 */}
       {isPrintFieldVisible('name', config, content) && (
         <div
           style={{
-            marginBottom: '0.375rem',
+            marginTop: '0.2rem',
+            marginBottom: '0.35rem',
             flexShrink: 0,
           }}
         >
           <div
             style={{
-              fontSize: `${titleFontSize}px`,
+              fontSize: `${fontSize}px`,
               fontWeight,
               lineHeight: 1.2,
             }}
           >
             {displayBeanName}
           </div>
-          <div
-            style={{
-              marginTop: '0.25rem',
-              width: '100%',
-              borderBottom: '1.5px solid #000',
-            }}
-          />
         </div>
       )}
 
@@ -137,7 +131,7 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
           alignContent: 'flex-start',
           fontSize: `${fontSize}px`,
           gap: `${Math.max(fontSize * 0.4, 4)}px`,
-          lineHeight: 1.3,
+          lineHeight: 1,
         }}
       >
         {rows.map(({ field, value }) => (
