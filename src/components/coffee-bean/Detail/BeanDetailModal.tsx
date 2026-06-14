@@ -55,12 +55,7 @@ import OriginInfoSection from './components/OriginInfoSection';
 import BlendComponentsSection from './components/BlendComponentsSection';
 import FlavorNotesSection from './components/FlavorNotesSection';
 import RatingSection from './components/RatingSection';
-
-// 延迟加载记录部分，因为它通常在页面下方
-const RelatedRecordsSection = dynamic(
-  () => import('./components/RelatedRecordsSection'),
-  { ssr: false }
-);
+import RelatedRecordsSection from './components/RelatedRecordsSection';
 
 const BeanPrintModal = dynamic(
   () => import('@/components/coffee-bean/Print/BeanPrintModal'),
