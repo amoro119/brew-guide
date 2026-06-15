@@ -10,6 +10,7 @@ import { METHOD_RECOGNITION_PROMPT } from '@/lib/constants/methodRecognitionProm
 import AddCircleIcon from '@public/images/icons/ui/add-circle.svg';
 import AddBoxIcon from '@public/images/icons/ui/add-box.svg';
 import { type Method, type CustomEquipment } from '@/lib/core/config';
+import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
 
 // 模拟 API 开关 - 设置为 true 时使用模拟数据
 const USE_MOCK_API = false;
@@ -349,18 +350,10 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
       if (!files || files.length === 0) return;
 
       const file = files[0];
-      // 仅支持 JPG、PNG、WebP、HEIC 格式
-      const allowedTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-        'image/heic',
-        'image/heif',
-      ];
-      if (!allowedTypes.includes(file.type)) {
+      if (!isSupportedSourceImageFile(file)) {
         showToast({
           type: 'error',
-          title: '请上传 JPG、PNG 或 WebP 格式的图片',
+          title: '请上传 JPG、PNG、WebP 或 HEIF 格式的图片',
         });
         return;
       }

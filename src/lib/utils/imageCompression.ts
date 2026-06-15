@@ -9,6 +9,14 @@ import {
   JPEG_IMAGE_MIME_TYPE,
 } from '@/lib/images/imageFormat';
 
+const LOSSLESS_METADATA_MIME_TYPES = new Set([
+  JPEG_IMAGE_MIME_TYPE,
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]);
+
 export interface CompressionOptions {
   maxWidth?: number; // 最大宽度，默认 1920
   maxHeight?: number; // 最大高度，默认 1920
@@ -216,20 +224,120 @@ function base64ToFile(base64: string, fileName: string): File {
   });
 }
 
+function startsWithBytes(
+  bytes: Uint8Array,
+  signature: number[],
+  offset = 0
+): boolean {
+  if (bytes.length < offset + signature.length) return false;
+  return signature.every((byte, index) => bytes[offset + index] === byte);
+}
+
+function readAscii(bytes: Uint8Array, start: number, end: number): string {
+  return String.fromCharCode(...bytes.slice(start, end));
+}
+
+function detectImageMimeTypeFromBytes(bytes: Uint8Array): string | null {
+  if (startsWithBytes(bytes, [0xff, 0xd8, 0xff])) {
+    return JPEG_IMAGE_MIME_TYPE;
+  }
+
+  if (
+    startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    startsWithBytes(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWithBytes(bytes, [0x57, 0x45, 0x42, 0x50], 8)
+  ) {
+    return 'image/webp';
+  }
+
+  if (bytes.length >= 12 && readAscii(bytes, 4, 8) === 'ftyp') {
+    const boxSize = new DataView(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength
+    ).getUint32(0);
+    const brandEnd = Math.min(
+      bytes.length,
+      boxSize >= 16 ? boxSize : bytes.length,
+      64
+    );
+    const brands = new Set<string>();
+
+    for (let offset = 8; offset + 4 <= brandEnd; offset += 4) {
+      const brand = readAscii(bytes, offset, offset + 4);
+      if (/^[\x20-\x7e]{4}$/.test(brand)) {
+        brands.add(brand);
+      }
+    }
+
+    if (['avif', 'avis'].some(brand => brands.has(brand))) {
+      return 'image/avif';
+    }
+
+    if (
+      ['heic', 'heix', 'hevc', 'hevx', 'heis', 'heim'].some(brand =>
+        brands.has(brand)
+      )
+    ) {
+      return 'image/heic';
+    }
+
+    if (['mif1', 'msf1'].some(brand => brands.has(brand))) {
+      return 'image/heif';
+    }
+  }
+
+  return null;
+}
+
+async function detectImageMimeTypeFromFile(file: File): Promise<string | null> {
+  const bytes = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  return detectImageMimeTypeFromBytes(bytes);
+}
+
+function getImageFileNameForMimeType(fileName: string, mimeType: string) {
+  const extension =
+    mimeType === JPEG_IMAGE_MIME_TYPE ? 'jpg' : mimeType.split('/')[1];
+  return /\.[^/.]+$/.test(fileName)
+    ? fileName.replace(/\.[^/.]+$/, `.${extension}`)
+    : `${fileName}.${extension}`;
+}
+
+function withDetectedImageMimeType(file: File, mimeType: string): File {
+  if (file.type === mimeType) return file;
+
+  return new File([file], getImageFileNameForMimeType(file.name, mimeType), {
+    type: mimeType,
+    lastModified: file.lastModified,
+  });
+}
+
 /**
  * 智能压缩：根据文件大小自动选择压缩策略
  * @param file 原始图片文件
  * @returns 压缩后的文件
  */
 export async function smartCompress(file: File): Promise<File> {
+  const detectedMimeType = await detectImageMimeTypeFromFile(file);
+  const sourceFile = detectedMimeType
+    ? withDetectedImageMimeType(file, detectedMimeType)
+    : file;
   const fileSizeKB = file.size / 1024;
 
   // 小图或文字截图很容易被过度压缩后影响 OCR，保留原图更稳
-  if (file.size <= 300 * 1024) {
+  if (
+    file.size <= 300 * 1024 &&
+    (!detectedMimeType || LOSSLESS_METADATA_MIME_TYPES.has(detectedMimeType))
+  ) {
     console.log(
       `📸 原始图片大小: ${fileSizeKB.toFixed(1)}KB，已足够小，跳过压缩以保留文字细节`
     );
-    return file;
+    return sourceFile;
   }
 
   // AI 识别专用：大图再做压缩，兼顾速度和可读性
@@ -238,7 +346,7 @@ export async function smartCompress(file: File): Promise<File> {
   );
 
   // 对大图压到更温和的体积，避免小字和细线信息损失过多
-  return compressImage(file, {
+  return compressImage(sourceFile, {
     maxWidth: 1600,
     maxHeight: 1600,
     quality: 0.82,

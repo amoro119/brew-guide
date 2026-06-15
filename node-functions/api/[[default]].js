@@ -17,18 +17,23 @@ const IMAGE_ALLOWED_TYPES = [
   'image/webp',
   'image/heic',
   'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
 ];
 
-const IMAGE_MAGIC_NUMBERS = {
-  'image/jpeg': [[0xff, 0xd8, 0xff]],
-  'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
-  'image/webp': [[0x52, 0x49, 0x46, 0x46]],
-  'image/heic': [[0x00, 0x00, 0x00]],
-  'image/heif': [[0x00, 0x00, 0x00]],
+const IMAGE_MIME_TYPE_BY_EXTENSION = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  hif: 'image/heif',
 };
 
-const QINIU_CHAT_COMPLETIONS =
-  'https://api.qnaigc.com/v1/chat/completions';
+const IMAGE_ALLOWED_TYPE_SET = new Set(IMAGE_ALLOWED_TYPES);
+
+const QINIU_CHAT_COMPLETIONS = 'https://api.qnaigc.com/v1/chat/completions';
 
 const BEAN_RECOGNITION_PROMPT = `你是OCR工具，提取图片中的咖啡豆信息，直接返回JSON（单豆返回对象{}，多豆返回数组[]）。
 
@@ -143,13 +148,95 @@ function noContentResponse(request, env) {
   return withCors(request, env, new Response(null, { status: 204 }));
 }
 
-function isMagicNumberValid(buffer, mimeType) {
-  const signatures = IMAGE_MAGIC_NUMBERS[mimeType];
-  if (!signatures) return false;
-  return signatures.some(signature => {
-    if (buffer.length < signature.length) return false;
-    return signature.every((byte, index) => buffer[index] === byte);
-  });
+function startsWithBytes(buffer, signature, offset = 0) {
+  if (buffer.length < offset + signature.length) return false;
+  return signature.every((byte, index) => buffer[offset + index] === byte);
+}
+
+function readAscii(buffer, start, end) {
+  return buffer.subarray(start, end).toString('ascii');
+}
+
+function normalizeDeclaredImageMimeType(file) {
+  const declaredType = (file.type || '').trim().toLowerCase();
+  if (declaredType === 'image/jpg') return 'image/jpeg';
+  if (IMAGE_ALLOWED_TYPE_SET.has(declaredType)) return declaredType;
+
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  return extension
+    ? IMAGE_MIME_TYPE_BY_EXTENSION[extension] || declaredType
+    : declaredType;
+}
+
+function detectImageMimeType(buffer) {
+  if (startsWithBytes(buffer, [0xff, 0xd8, 0xff])) {
+    return 'image/jpeg';
+  }
+
+  if (
+    startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    startsWithBytes(buffer, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWithBytes(buffer, [0x57, 0x45, 0x42, 0x50], 8)
+  ) {
+    return 'image/webp';
+  }
+
+  if (buffer.length >= 12 && readAscii(buffer, 4, 8) === 'ftyp') {
+    const boxSize = buffer.readUInt32BE(0);
+    const brandEnd = Math.min(
+      buffer.length,
+      boxSize >= 16 ? boxSize : buffer.length,
+      64
+    );
+    const brands = new Set();
+    for (let offset = 8; offset + 4 <= brandEnd; offset += 4) {
+      const brand = readAscii(buffer, offset, offset + 4);
+      if (/^[\x20-\x7e]{4}$/.test(brand)) {
+        brands.add(brand);
+      }
+    }
+
+    if (['avif', 'avis'].some(brand => brands.has(brand))) {
+      return 'image/avif';
+    }
+
+    if (
+      ['heic', 'heix', 'hevc', 'hevx', 'heis', 'heim'].some(brand =>
+        brands.has(brand)
+      )
+    ) {
+      return 'image/heic';
+    }
+
+    if (['mif1', 'msf1'].some(brand => brands.has(brand))) {
+      return 'image/heif';
+    }
+  }
+
+  return null;
+}
+
+function resolveImageMimeType(file, buffer) {
+  const declaredType = normalizeDeclaredImageMimeType(file);
+  const detectedType = detectImageMimeType(buffer);
+
+  if (detectedType) {
+    if (!IMAGE_ALLOWED_TYPE_SET.has(detectedType)) {
+      throw new Error('不支持的文件类型，请上传 JPG、PNG、WebP 或 HEIF 图片');
+    }
+    return detectedType;
+  }
+
+  if (IMAGE_ALLOWED_TYPE_SET.has(declaredType)) {
+    throw new Error('文件内容与声明的类型不匹配，请上传有效图片');
+  }
+
+  throw new Error('不支持的文件类型，请上传 JPG、PNG、WebP 或 HEIF 图片');
 }
 
 function stripCodeFence(content) {
@@ -261,7 +348,11 @@ function parseMethodResponse(aiText) {
   const payload = stripCodeFence(aiText);
   let methodData = JSON.parse(payload);
 
-  if (methodData && typeof methodData === 'object' && !Array.isArray(methodData)) {
+  if (
+    methodData &&
+    typeof methodData === 'object' &&
+    !Array.isArray(methodData)
+  ) {
     const possibleKeys = ['method', '方案', 'data'];
     for (const key of possibleKeys) {
       if (methodData[key] && typeof methodData[key] === 'object') {
@@ -297,7 +388,10 @@ function parseMethodResponse(aiText) {
   if (!methodData.params || typeof methodData.params !== 'object') {
     throw new Error('识别结果缺少方案参数');
   }
-  if (!Array.isArray(methodData.params.stages) || methodData.params.stages.length === 0) {
+  if (
+    !Array.isArray(methodData.params.stages) ||
+    methodData.params.stages.length === 0
+  ) {
     throw new Error('识别结果缺少冲煮步骤');
   }
 
@@ -310,10 +404,6 @@ async function parseImageFromRequest(request) {
 
   if (!(file instanceof File)) {
     throw new Error('请上传图片文件');
-  }
-
-  if (!IMAGE_ALLOWED_TYPES.includes(file.type)) {
-    throw new Error('不支持的文件类型，请上传 JPG、PNG 或 HEIF 图片');
   }
 
   if (file.size > 5 * 1024 * 1024) {
@@ -330,15 +420,12 @@ async function parseImageFromRequest(request) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-
-  if (!isMagicNumberValid(buffer, file.type)) {
-    throw new Error('文件内容与声明的类型不匹配，请上传有效图片');
-  }
+  const mimeType = resolveImageMimeType(file, buffer);
 
   const base64 = buffer.toString('base64');
   return {
-    mimeType: file.type,
-    imageUrl: `data:${file.type};base64,${base64}`,
+    mimeType,
+    imageUrl: `data:${mimeType};base64,${base64}`,
   };
 }
 
@@ -389,13 +476,14 @@ async function handleBeanRecognition(context) {
     const message = normalizeRecognitionErrorMessage(
       error?.message || '服务器内部错误'
     );
-    const status = message.includes('请上传图片文件') ||
+    const status =
+      message.includes('请上传图片文件') ||
       message.includes('不支持的文件类型') ||
       message.includes('文件过大') ||
       message.includes('文件名包含非法字符') ||
       message.includes('文件内容与声明')
-      ? 400
-      : 500;
+        ? 400
+        : 500;
     return errorResponse(request, env, message, status);
   }
 }
@@ -447,13 +535,14 @@ async function handleMethodRecognition(context) {
     const message = normalizeRecognitionErrorMessage(
       error?.message || '服务器内部错误'
     );
-    const status = message.includes('请上传图片文件') ||
+    const status =
+      message.includes('请上传图片文件') ||
       message.includes('不支持的文件类型') ||
       message.includes('文件过大') ||
       message.includes('文件名包含非法字符') ||
       message.includes('文件内容与声明')
-      ? 400
-      : 500;
+        ? 400
+        : 500;
     return errorResponse(request, env, message, status);
   }
 }
