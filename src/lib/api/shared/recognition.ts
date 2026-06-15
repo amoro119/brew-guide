@@ -1,3 +1,5 @@
+import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
+
 export const RECOGNITION_UPLOAD_CONFIG = {
   allowedTypes: [
     'image/jpeg',
@@ -5,6 +7,8 @@ export const RECOGNITION_UPLOAD_CONFIG = {
     'image/webp',
     'image/heic',
     'image/heif',
+    'image/heic-sequence',
+    'image/heif-sequence',
   ],
   maxSize: 5 * 1024 * 1024,
 } as const;
@@ -12,10 +16,8 @@ export const RECOGNITION_UPLOAD_CONFIG = {
 export { normalizeRecognitionErrorMessage } from './recognitionErrors';
 
 export function validateRecognitionImageFile(file: File): void {
-  const allowedTypes = RECOGNITION_UPLOAD_CONFIG.allowedTypes as readonly string[];
-
-  if (!allowedTypes.includes(file.type)) {
-    throw new Error('不支持的文件类型，请上传 JPG、PNG 或 HEIF 图片');
+  if (!isSupportedSourceImageFile(file)) {
+    throw new Error('不支持的文件类型，请上传 JPG、PNG、WebP 或 HEIF 图片');
   }
 
   if (file.size > RECOGNITION_UPLOAD_CONFIG.maxSize) {

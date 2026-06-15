@@ -14,6 +14,7 @@ import {
   DEFAULT_BEAN_RECOGNITION_PROMPT,
   type CustomBeanRecognitionConfig,
 } from '@/lib/api/beanRecognition';
+import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
 
 // 模拟 API 开关 - 设置为 true 时使用模拟数据
 const USE_MOCK_API = false;
@@ -146,7 +147,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   // 当前步骤
   const [currentStep, setCurrentStep] = useState<ImportStep>('main');
   // 图片识别加载状态
-  const [isRecognizing, setIsRecognizing] = useState(false);
+  const [, setIsRecognizing] = useState(false);
   // 识别中的图片 URL
   const [recognizingImageUrl, setRecognizingImageUrl] = useState<string | null>(
     null
@@ -167,7 +168,6 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   );
   // 多图识别是否正在进行
   const [isMultiRecognizing, setIsMultiRecognizing] = useState(false);
-  const recognitionRequestSeq = useRef(0);
 
   const effectiveRecognitionPrompt = (
     settings?.experimentalBeanRecognitionPrompt || ''
@@ -328,11 +328,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
 
   // 识别单张图片的核心函数
   const recognizeSingleImage = useCallback(
-    async (
-      file: File,
-      imageUrl: string
-    ): Promise<{ data: unknown; file: File }> => {
-      const requestId = ++recognitionRequestSeq.current;
+    async (file: File): Promise<{ data: unknown; file: File }> => {
       let beanData: unknown;
 
       if (USE_MOCK_API) {
@@ -363,18 +359,10 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       const files = event.target.files;
       if (!files || files.length === 0) return;
 
-      // 过滤有效图片文件（仅支持 JPG、PNG、WebP、HEIC）
-      const allowedTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-        'image/heic',
-        'image/heif',
-      ];
       const validFiles: File[] = [];
       for (let i = 0; i < Math.min(files.length, MAX_IMAGES); i++) {
         const file = files[i];
-        if (!allowedTypes.includes(file.type)) {
+        if (!isSupportedSourceImageFile(file)) {
           continue;
         }
         if (file.size > 10 * 1024 * 1024) {
@@ -386,7 +374,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       if (validFiles.length === 0) {
         showToast({
           type: 'error',
-          title: '请上传 JPG、PNG 或 WebP 格式的图片',
+          title: '请上传 JPG、PNG、WebP 或 HEIF 格式的图片',
         });
         return;
       }
@@ -408,7 +396,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         setIsRecognizing(true);
 
         try {
-          const { data: beanData } = await recognizeSingleImage(file, imageUrl);
+          const { data: beanData } = await recognizeSingleImage(file);
 
           // 识别成功后，检查是否为单个豆子，如果是则传递识别图片（无论设置如何，都传递给表单，由表单决定是否自动填充）
           const isSingleBean =
@@ -551,7 +539,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       try {
         // 并行执行识别和图片压缩
         const [{ data }, imageBase64] = await Promise.all([
-          recognizeSingleImage(img.file, img.previewUrl),
+          recognizeSingleImage(img.file),
           compressImageToBase64(img.file),
         ]);
         // 更新状态为成功
