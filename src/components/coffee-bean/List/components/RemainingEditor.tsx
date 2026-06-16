@@ -24,6 +24,23 @@ import {
   getSelectedDatePreference,
 } from '@/components/notes/List/globalCache';
 
+const POPOVER_EASE_OUT: [number, number, number, number] = [
+  0.23,
+  1,
+  0.32,
+  1,
+];
+const POPOVER_ENTER_TRANSITION = {
+  opacity: { duration: 0.16, ease: POPOVER_EASE_OUT },
+  y: { duration: 0.14, ease: POPOVER_EASE_OUT },
+  scale: { duration: 0.14, ease: POPOVER_EASE_OUT },
+};
+const POPOVER_EXIT_TRANSITION = {
+  opacity: { duration: 0.12, ease: POPOVER_EASE_OUT },
+  y: { duration: 0.12, ease: POPOVER_EASE_OUT },
+  scale: { duration: 0.1, ease: POPOVER_EASE_OUT },
+};
+
 interface RemainingEditorProps {
   position?: { x: number; y: number } | null;
   targetElement?: HTMLElement | null;
@@ -386,19 +403,23 @@ const RemainingEditor: React.FC<RemainingEditorProps> = ({
     }
   };
 
-  if (!position && !targetElement && !open) return null;
-
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" initial={false}>
       {open && (
         <motion.div
+          key="remaining-editor-popover"
           ref={popoverRef}
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          transition={{ duration: 0.15 }}
+          initial={{ opacity: 0, y: -4, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{
+            opacity: 0,
+            y: -2,
+            scale: 0.985,
+            transition: POPOVER_EXIT_TRANSITION,
+          }}
+          transition={POPOVER_ENTER_TRANSITION}
           className={cn(
-            'fixed z-10 max-w-xs rounded-lg border border-neutral-200/50 bg-white p-2 shadow-lg dark:border-neutral-700 dark:bg-neutral-800',
+            'fixed z-10 max-w-xs rounded-lg bg-white p-1 shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_2px_-1px_rgba(0,0,0,0.06),0px_2px_4px_0px_rgba(0,0,0,0.04)] dark:bg-neutral-800 dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.06),0px_1px_2px_-1px_rgba(255,255,255,0.05),0px_2px_4px_0px_rgba(255,255,255,0.03)]',
             className
           )}
           style={positionStyle}
