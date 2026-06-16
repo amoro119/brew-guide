@@ -290,10 +290,13 @@ const Onboarding: React.FC<OnboardingProps> = ({
           </div>
         ) : (
           <div>
-            <div className="mb-6 space-y-2">
+            <div className="mb-6 space-y-1">
               <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-                你需要哪些功能？
+                选择常用功能
               </h2>
+              <p className="text-sm text-neutral-900/50 dark:text-neutral-50/50">
+                可以随时在设置中调整
+              </p>
             </div>
 
             <ActionDrawer.Content className="mb-8! space-y-2">
