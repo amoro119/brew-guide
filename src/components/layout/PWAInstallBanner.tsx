@@ -177,7 +177,7 @@ export default function PWAInstallBanner() {
     <div className="relative z-50 mx-auto w-full max-w-6xl border-b border-neutral-200/50 bg-neutral-50 px-6 py-3 dark:border-neutral-800/50 dark:bg-neutral-900">
       <div className="flex items-center gap-3">
         <Image
-          src="/images/icons/app/icon-192x192.png"
+          src="/images/icons/app/icon-192x192-contained.png"
           alt="Brew Guide APP"
           className="h-11 w-11"
           width={44}

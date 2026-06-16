@@ -73,7 +73,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: 'https://coffee.chu3.top/images/icons/app/icon-512x512.png',
+        url: 'https://coffee.chu3.top/images/icons/app/icon-512x512-opaque.png',
         width: 512,
         height: 512,
         alt: 'Brew Guide Logo',
@@ -84,7 +84,9 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: SEO_TITLE,
     description: SEO_DESCRIPTION,
-    images: ['https://coffee.chu3.top/images/icons/app/icon-512x512.png'],
+    images: [
+      'https://coffee.chu3.top/images/icons/app/icon-512x512-opaque.png',
+    ],
     creator: '@chu3',
   },
   robots: {
@@ -102,21 +104,21 @@ export const metadata: Metadata = {
     icon: [
       { url: '/images/icons/app/favicon.ico', sizes: 'any' },
       {
-        url: '/images/icons/app/icon-192x192.png',
+        url: '/images/icons/app/icon-192x192-contained.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        url: '/images/icons/app/icon-512x512.png',
+        url: '/images/icons/app/icon-512x512-contained.png',
         sizes: '512x512',
         type: 'image/png',
       },
     ],
     shortcut: '/images/icons/app/favicon.ico',
-    apple: '/images/icons/app/icon-192x192.png',
+    apple: '/images/icons/app/apple-touch-icon.png',
     other: {
       rel: 'apple-touch-icon-precomposed',
-      url: '/images/icons/app/icon-192x192.png',
+      url: '/images/icons/app/apple-touch-icon.png',
     },
   },
   appleWebApp: {
@@ -216,11 +218,11 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
         <link
           rel="apple-touch-startup-image"
-          href="/images/icons/app/icon-512x512.png"
+          href="/images/icons/app/icon-512x512-opaque.png"
         />
         <link
           rel="apple-touch-icon"
-          href="/images/icons/app/icon-192x192.png"
+          href="/images/icons/app/apple-touch-icon.png"
         />
         <link rel="icon" href="/images/icons/app/favicon.ico" sizes="any" />
         <link rel="manifest" href="/manifest.json" />
