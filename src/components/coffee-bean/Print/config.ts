@@ -42,6 +42,7 @@ export const DEFAULT_CONFIG: PrintConfig = {
   orientation: 'landscape',
   fields: {
     name: true,
+    nameSeparator: false,
     origin: true,
     estate: false,
     roastLevel: true,

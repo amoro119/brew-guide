@@ -82,6 +82,7 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
   const { fontSize, fontWeight } = config;
   const validFlavors = content.flavor.filter(f => f.trim());
   const displayBeanName = getDisplayBeanName(content);
+  const showName = isPrintFieldVisible('name', config, content);
   const weightValue = content.weight
     ? content.weight.trim().toLowerCase().endsWith('g')
       ? content.weight
@@ -108,7 +109,7 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
       }}
     >
       {/* 标题 */}
-      {isPrintFieldVisible('name', config, content) && (
+      {showName && (
         <div
           style={{
             marginTop: '0.2rem',
@@ -126,6 +127,16 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
             {displayBeanName}
           </div>
         </div>
+      )}
+
+      {showName && config.fields.nameSeparator && (
+        <div
+          style={{
+            borderTop: '1px solid currentColor',
+            marginBottom: '0.35rem',
+            flexShrink: 0,
+          }}
+        />
       )}
 
       {/* 字段列表 */}
