@@ -1,0 +1,11 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-label="Brew Guide icon"
+>
+  <path
+    fill="#000"
+    d="M105.5 125h301c9.9 0 15.9 10.9 10.6 19.3L267.2 403.8c-5 8.6-17.4 8.6-22.4 0L94.9 144.3c-5.3-8.4.7-19.3 10.6-19.3Z"
+  />
+</svg>

@@ -245,7 +245,7 @@ const Onboarding: React.FC<OnboardingProps> = ({
             <div className="mb-6 flex flex-col items-start gap-6">
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[1.125rem]">
                 <Image
-                  src="/images/icons/app/icon-192x192.png"
+                  src="/images/icons/app/icon-192x192-contained.png"
                   alt="Brew Guide"
                   width={64}
                   height={64}
