@@ -141,7 +141,7 @@ interface FieldEditorPanelProps {
 }
 
 export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
-  config: _config,
+  config,
   content,
   activeField,
   activeStatusLabel,
@@ -224,6 +224,20 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
               </div>
               {renderTextInput('name', PRINT_TEXT_FIELD_PLACEHOLDERS.name)}
             </div>
+            {config.template === 'detailed' && (
+              <button
+                type="button"
+                aria-pressed={config.fields.nameSeparator}
+                onClick={() => onToggleField('nameSeparator')}
+                className={`w-full rounded border px-2 py-1.5 text-xs leading-none font-medium transition-colors ${
+                  config.fields.nameSeparator
+                    ? 'border-neutral-300 bg-neutral-200/70 text-neutral-700 hover:bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600'
+                    : 'border-dashed border-neutral-400 text-neutral-500 hover:bg-neutral-200/60 dark:border-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-700/60'
+                }`}
+              >
+                {config.fields.nameSeparator ? '关闭分隔线' : '开启分隔线'}
+              </button>
+            )}
           </div>
         );
       case 'roastDate':

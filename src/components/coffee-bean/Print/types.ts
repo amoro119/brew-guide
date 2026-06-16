@@ -31,6 +31,7 @@ export interface PrintConfig {
   orientation: 'landscape' | 'portrait';
   fields: {
     name: boolean;
+    nameSeparator: boolean;
     origin: boolean;
     estate: boolean;
     roastLevel: boolean;
@@ -50,7 +51,10 @@ export interface PrintConfig {
   iconPlacement: PrintIconPlacement;
 }
 
-export type PrintFieldKey = keyof PrintConfig['fields'];
+export type PrintFieldKey = Exclude<
+  keyof PrintConfig['fields'],
+  'nameSeparator'
+>;
 
 // 预设尺寸
 export interface PresetSize {
