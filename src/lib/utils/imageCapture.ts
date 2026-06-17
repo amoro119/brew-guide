@@ -5,6 +5,7 @@ import {
   type GalleryPhoto,
 } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import {
   getImageFormatFromMimeType,
   IMAGE_FILE_ACCEPT,
@@ -45,6 +46,17 @@ function normalizeImageFormat(format?: string) {
   return format === 'jpg' ? 'jpeg' : format.toLowerCase();
 }
 
+function fileDataToBlob(data: string | Blob, mimeType: string) {
+  if (typeof data !== 'string') {
+    return data.type ? data : new Blob([data], { type: mimeType });
+  }
+
+  const base64 = data.includes(',') ? data.split(',').pop() || '' : data;
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  return new Blob([bytes], { type: mimeType });
+}
+
 function getGalleryPhotoFileName(photo: GalleryPhoto, index: number) {
   const format = normalizeImageFormat(photo.format);
   const fallback = `gallery-image-${Date.now()}-${index + 1}.${format}`;
@@ -61,15 +73,28 @@ function getGalleryPhotoFileName(photo: GalleryPhoto, index: number) {
 }
 
 async function galleryPhotoToFile(photo: GalleryPhoto, index: number) {
-  const response = await fetch(photo.webPath);
+  let blob: Blob;
+  const fallbackType = `image/${normalizeImageFormat(photo.format)}`;
 
-  if (!response.ok) {
-    throw new Error(`系统相册图片读取失败：HTTP ${response.status}`);
+  if (photo.path) {
+    try {
+      const { data } = await Filesystem.readFile({ path: photo.path });
+      blob = fileDataToBlob(data, fallbackType);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`系统相册图片读取失败：${message}`);
+    }
+  } else {
+    const response = await fetch(photo.webPath);
+
+    if (!response.ok) {
+      throw new Error(`系统相册图片读取失败：HTTP ${response.status}`);
+    }
+
+    blob = await response.blob();
   }
 
-  const blob = await response.blob();
-  const format = normalizeImageFormat(photo.format);
-  const type = blob.type || `image/${format}`;
+  const type = blob.type || fallbackType;
 
   return new File([blob], getGalleryPhotoFileName(photo, index), {
     type,
