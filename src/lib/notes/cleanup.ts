@@ -2,44 +2,54 @@ import type { BrewingNote } from '@/lib/core/config';
 import { db } from '@/lib/core/db';
 import { recordCrashCheckpoint } from '@/lib/app/crashDiagnostics';
 
-type LegacyBrewingNote = BrewingNote & {
+type StoredBrewingNote = BrewingNote & {
   coffeeBean?: unknown;
+  taste?: BrewingNote['taste'] | null;
 };
 
-export interface BrewingNoteCleanupStats {
+export interface BrewingNoteNormalizationStats {
   scannedCount: number;
   cleanedCount: number;
 }
 
-let cleanupPromise: Promise<BrewingNoteCleanupStats> | null = null;
+let cleanupPromise: Promise<BrewingNoteNormalizationStats> | null = null;
 
-export const stripEmbeddedCoffeeBeanFromNote = (
+const isTasteRecord = (value: unknown): value is BrewingNote['taste'] =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+export const normalizeBrewingNote = (
   note: BrewingNote
 ): { note: BrewingNote; changed: boolean } => {
-  if (!Object.prototype.hasOwnProperty.call(note, 'coffeeBean')) {
-    return { note, changed: false };
+  const cleanedNote = { ...(note as StoredBrewingNote) };
+  let changed = false;
+
+  if (Object.prototype.hasOwnProperty.call(cleanedNote, 'coffeeBean')) {
+    delete cleanedNote.coffeeBean;
+    changed = true;
   }
 
-  const cleanedNote = { ...(note as LegacyBrewingNote) };
-  delete cleanedNote.coffeeBean;
+  if (!isTasteRecord(cleanedNote.taste)) {
+    cleanedNote.taste = {};
+    changed = true;
+  }
 
-  return { note: cleanedNote, changed: true };
+  return { note: changed ? (cleanedNote as BrewingNote) : note, changed };
 };
 
-export async function cleanupEmbeddedCoffeeBeansFromNotes(): Promise<BrewingNoteCleanupStats> {
+export async function normalizeStoredBrewingNotes(): Promise<BrewingNoteNormalizationStats> {
   if (cleanupPromise) {
     return cleanupPromise;
   }
 
-  cleanupPromise = runEmbeddedCoffeeBeanCleanup().catch(error => {
+  cleanupPromise = runStoredBrewingNoteNormalization().catch(error => {
     cleanupPromise = null;
     throw error;
   });
   return cleanupPromise;
 }
 
-async function runEmbeddedCoffeeBeanCleanup(): Promise<BrewingNoteCleanupStats> {
-  const stats: BrewingNoteCleanupStats = {
+async function runStoredBrewingNoteNormalization(): Promise<BrewingNoteNormalizationStats> {
+  const stats: BrewingNoteNormalizationStats = {
     scannedCount: 0,
     cleanedCount: 0,
   };
@@ -47,7 +57,7 @@ async function runEmbeddedCoffeeBeanCleanup(): Promise<BrewingNoteCleanupStats> 
   await db.transaction('rw', db.brewingNotes, async () => {
     await db.brewingNotes.each(async note => {
       stats.scannedCount += 1;
-      const cleaned = stripEmbeddedCoffeeBeanFromNote(note);
+      const cleaned = normalizeBrewingNote(note);
 
       if (!cleaned.changed) {
         return;
@@ -59,7 +69,7 @@ async function runEmbeddedCoffeeBeanCleanup(): Promise<BrewingNoteCleanupStats> 
   });
 
   if (stats.cleanedCount > 0) {
-    recordCrashCheckpoint('brewing-notes:embedded-beans-cleaned', {
+    recordCrashCheckpoint('brewing-notes:normalized', {
       ...stats,
     });
   }
