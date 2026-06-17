@@ -78,15 +78,9 @@ export async function notifyStoreUpsert(
     } else if (table === SYNC_TABLES.BREWING_NOTES) {
       const { useBrewingNoteStore } =
         await import('@/lib/stores/brewingNoteStore');
-      const note = data as unknown as BrewingNote;
-      useBrewingNoteStore.setState(s => {
-        const exists = s.notes.some(n => n.id === recordId);
-        return {
-          notes: exists
-            ? s.notes.map(n => (n.id === recordId ? note : n))
-            : [...s.notes, note],
-        };
-      });
+      await useBrewingNoteStore
+        .getState()
+        .upsertNote(data as unknown as BrewingNote);
     } else if (table === SYNC_TABLES.CUSTOM_EQUIPMENTS) {
       const { useCustomEquipmentStore } =
         await import('@/lib/stores/customEquipmentStore');
@@ -131,7 +125,7 @@ export async function refreshAllStores(): Promise<void> {
         const { useBrewingNoteStore } =
           await import('@/lib/stores/brewingNoteStore');
         const notes = await db.brewingNotes.toArray();
-        useBrewingNoteStore.setState({ notes });
+        useBrewingNoteStore.getState().setNotes(notes);
       })(),
       (async () => {
         const { useCustomEquipmentStore } =

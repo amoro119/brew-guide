@@ -70,8 +70,12 @@ export const useFlavorDimensions = () => {
    * 获取所有有效的风味评分（当至少有一个评分大于0时，返回所有评分）
    */
   const getValidTasteRatings = (
-    taste: Record<string, number>
+    taste?: Record<string, number> | null
   ): Array<{ id: string; label: string; value: number }> => {
+    if (!taste) {
+      return [];
+    }
+
     // 检查是否有任何评分大于0
     const hasAnyRating = Object.values(taste).some(value => value > 0);
 

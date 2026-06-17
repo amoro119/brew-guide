@@ -15,7 +15,7 @@ import { useEquipmentStore } from '@/lib/stores/equipmentStore';
 import { useGrinderStore } from '@/lib/stores/grinderStore';
 import { recordCrashCheckpoint } from '@/lib/app/crashDiagnostics';
 import { migrateRoasterField } from '@/lib/utils/roasterMigration';
-import { cleanupEmbeddedCoffeeBeansFromNotes } from '@/lib/notes/cleanup';
+import { normalizeStoredBrewingNotes } from '@/lib/notes/cleanup';
 import {
   exportCoffeeBeansWithImages,
   replaceCoffeeBeansWithSplitImages,
@@ -67,8 +67,8 @@ export async function initializeDataLayer(): Promise<void> {
     recordCrashCheckpoint('data-layer:db:migrate');
     await dbUtils.migrateFromLocalStorage();
     await dbUtils.migrateCoffeeBeanImages();
-    recordCrashCheckpoint('data-layer:notes:cleanup');
-    await cleanupEmbeddedCoffeeBeansFromNotes();
+    recordCrashCheckpoint('data-layer:notes:normalize');
+    await normalizeStoredBrewingNotes();
 
     // 3. 并行初始化所有 Store
     console.log('📦 Step 3: 初始化 Stores...');

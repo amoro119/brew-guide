@@ -10,8 +10,8 @@ import { BrewingNote } from '@/lib/core/config';
 import { db } from '@/lib/core/db';
 import { nanoid } from 'nanoid';
 import {
-  cleanupEmbeddedCoffeeBeansFromNotes,
-  stripEmbeddedCoffeeBeanFromNote,
+  normalizeBrewingNote,
+  normalizeStoredBrewingNotes,
 } from '@/lib/notes/cleanup';
 import { recordCrashCheckpoint } from '@/lib/app/crashDiagnostics';
 
@@ -50,12 +50,16 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
       if (get().isLoading) return;
       set({ isLoading: true, error: null });
       try {
-        await cleanupEmbeddedCoffeeBeansFromNotes();
+        await normalizeStoredBrewingNotes();
         const notes = await db.brewingNotes.toArray();
         recordCrashCheckpoint('brewing-notes:loaded', {
           noteCount: notes.length,
         });
-        set({ notes, isLoading: false, initialized: true });
+        set({
+          notes: notes.map(note => normalizeBrewingNote(note).note),
+          isLoading: false,
+          initialized: true,
+        });
       } catch {
         set({ error: '加载笔记失败', isLoading: false, initialized: true });
       }
@@ -65,7 +69,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
       const inputNote = noteData as BrewingNote;
       const now = Date.now();
       const timestamp = inputNote.timestamp || now;
-      const newNote = stripEmbeddedCoffeeBeanFromNote({
+      const newNote = normalizeBrewingNote({
         ...noteData,
         id: inputNote.id || nanoid(),
         timestamp,
@@ -98,7 +102,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
       const shouldRemoveChangeRecord =
         'changeRecord' in updates && updates.changeRecord === undefined;
 
-      const updatedNote = stripEmbeddedCoffeeBeanFromNote({
+      const updatedNote = normalizeBrewingNote({
         ...existingNote,
         ...updates,
         id,
@@ -151,12 +155,12 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
 
     setNotes: notes =>
       set({
-        notes: notes.map(note => stripEmbeddedCoffeeBeanFromNote(note).note),
+        notes: notes.map(note => normalizeBrewingNote(note).note),
         initialized: true,
       }),
 
     upsertNote: async note => {
-      const cleanNote = stripEmbeddedCoffeeBeanFromNote(note).note;
+      const cleanNote = normalizeBrewingNote(note).note;
       await db.brewingNotes.put(cleanNote);
       set(state => {
         const exists = state.notes.some(n => n.id === cleanNote.id);

@@ -20,7 +20,8 @@ const createReport = (
   sessionOverrides: Partial<CrashDiagnosticSession> = {}
 ): CrashDiagnosticReport => ({
   source: 'inferred',
-  inferredReason: '应用在启动完成前中断，可能是内存压力、WebView 崩溃或系统强杀',
+  inferredReason:
+    '应用在启动完成前中断，可能是内存压力、WebView 崩溃或系统强杀',
   detectedAt: '2026-05-24T23:03:22.382Z',
   session: createSession(sessionOverrides),
 });
@@ -30,7 +31,7 @@ describe('shouldShowCrashDiagnosticReport', () => {
     const report = createReport({
       startupState: 'booting',
       lastCheckpoint: {
-        name: 'data-layer:notes:cleanup',
+        name: 'data-layer:notes:normalize',
         at: '2026-05-24T11:28:15.116Z',
       },
       checkpoints: [
@@ -43,7 +44,7 @@ describe('shouldShowCrashDiagnosticReport', () => {
           at: '2026-05-24T11:28:14.729Z',
         },
         {
-          name: 'data-layer:notes:cleanup',
+          name: 'data-layer:notes:normalize',
           at: '2026-05-24T11:28:15.116Z',
         },
       ],
