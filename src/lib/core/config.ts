@@ -1616,4 +1616,5 @@ export const sponsorsList = [
   'TáuM',
   'Elvis',
   'Ray',
+  'Jennia',
 ];
