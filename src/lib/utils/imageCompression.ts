@@ -5,7 +5,6 @@
 
 import {
   APP_IMAGE_MIME_TYPE,
-  getAppImageFileName,
   JPEG_IMAGE_MIME_TYPE,
 } from '@/lib/images/imageFormat';
 
@@ -49,7 +48,7 @@ export async function compressImage(
     reader.onload = e => {
       const img = new Image();
 
-      img.onload = () => {
+      img.onload = async () => {
         // 计算压缩后的尺寸
         let { width, height } = img;
 
@@ -77,66 +76,60 @@ export async function compressImage(
         // 绘制图片
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 如果指定了最大文件大小，则循环压缩
-        if (maxSizeMB) {
-          const targetSize = maxSizeMB * 1024 * 1024;
-          let currentQuality = quality;
-
-          const tryCompress = () => {
+        const createBlob = (type: string, outputQuality: number) =>
+          new Promise<Blob>((resolveBlob, rejectBlob) => {
             canvas.toBlob(
-              blob => {
-                if (!blob) {
-                  reject(new Error('图片压缩失败'));
-                  return;
-                }
-
-                // 达到目标大小或质量已经很低了
-                if (blob.size <= targetSize || currentQuality <= 0.1) {
-                  const compressedFile = new File([blob], file.name, {
-                    type: mimeType,
-                    lastModified: Date.now(),
-                  });
-
-                  console.log(
-                    `📦 图片压缩完成: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% 压缩率, 质量: ${Math.round(currentQuality * 100)}%)`
-                  );
-
-                  resolve(compressedFile);
-                } else {
-                  // 降低质量继续压缩
-                  currentQuality = Math.max(0.1, currentQuality - 0.1);
-                  tryCompress();
-                }
-              },
-              mimeType,
-              currentQuality
+              blob =>
+                blob
+                  ? resolveBlob(blob)
+                  : rejectBlob(new Error('图片压缩失败')),
+              type,
+              outputQuality
             );
-          };
+          });
 
-          tryCompress();
-        } else {
-          // 不限制文件大小，直接压缩一次
-          canvas.toBlob(
-            blob => {
-              if (!blob) {
-                reject(new Error('图片压缩失败'));
-                return;
-              }
+        const compressOnce = async (outputQuality: number) => {
+          const blob = await createBlob(mimeType, outputQuality);
+          const actualType = blob.type || 'image/png';
 
-              const compressedFile = new File([blob], file.name, {
-                type: mimeType,
-                lastModified: Date.now(),
-              });
+          if (actualType === mimeType || mimeType === 'image/png') {
+            return blob;
+          }
 
-              console.log(
-                `📦 图片压缩完成: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% 压缩率)`
-              );
+          return createBlob(JPEG_IMAGE_MIME_TYPE, outputQuality);
+        };
 
-              resolve(compressedFile);
-            },
-            mimeType,
-            quality
+        try {
+          const targetSize = maxSizeMB ? maxSizeMB * 1024 * 1024 : 0;
+          let currentQuality = quality;
+          let blob = await compressOnce(currentQuality);
+
+          while (
+            targetSize > 0 &&
+            blob.size > targetSize &&
+            currentQuality > 0.1
+          ) {
+            currentQuality = Math.max(0.1, currentQuality - 0.1);
+            blob = await compressOnce(currentQuality);
+          }
+
+          const actualType = blob.type || mimeType;
+          const compressedFile = new File(
+            [blob],
+            getImageFileNameForMimeType(file.name, actualType),
+            {
+              type: actualType,
+              lastModified: Date.now(),
+            }
           );
+
+          console.log(
+            `📦 图片压缩完成: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% 压缩率${maxSizeMB ? `, 质量: ${Math.round(currentQuality * 100)}%` : ''})`
+          );
+
+          resolve(compressedFile);
+        } catch (error) {
+          reject(error);
         }
       };
 
@@ -186,12 +179,7 @@ export async function compressBase64Image(
     maxSizeMB,
   });
 
-  return readFileAsDataUrl(
-    new File([compressedFile], getAppImageFileName(sourceFile.name), {
-      type: fileType,
-      lastModified: compressedFile.lastModified,
-    })
-  );
+  return readFileAsDataUrl(compressedFile);
 }
 
 export function readFileAsDataUrl(file: Blob): Promise<string> {
