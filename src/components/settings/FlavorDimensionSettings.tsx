@@ -164,6 +164,7 @@ const FlavorDimensionSettings: React.FC<FlavorDimensionSettingsProps> = ({
     id: 'flavor-dimension-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   const handleClose = () => {

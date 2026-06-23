@@ -49,7 +49,10 @@ import {
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 import Image from 'next/image';
-import { getChildPageStyle } from '@/lib/navigation/pageTransition';
+import {
+  getChildPageStyle,
+  getParentPageStyle,
+} from '@/lib/navigation/pageTransition';
 
 // 从统一的类型定义导入，避免重复定义
 // 类型定义在 db.ts，默认值在 settingsStore.ts
@@ -267,8 +270,6 @@ const Settings: React.FC<SettingsProps> = ({
   React.useEffect(() => {
     const handleSubSettingsClosing = () => {
       setIsSubSettingsClosing(true);
-      // 350ms 后重置状态
-      setTimeout(() => setIsSubSettingsClosing(false), 350);
     };
 
     window.addEventListener('subSettingsClosing', handleSubSettingsClosing);
@@ -278,6 +279,10 @@ const Settings: React.FC<SettingsProps> = ({
         handleSubSettingsClosing
       );
   }, []);
+
+  if (!hasSubSettingsOpen && isSubSettingsClosing) {
+    setIsSubSettingsClosing(false);
+  }
 
   // 添加显示哪种二维码的状态
   const [qrCodeType, setQrCodeType] = useState<'appreciation' | 'group' | null>(
@@ -401,6 +406,7 @@ const Settings: React.FC<SettingsProps> = ({
     id: 'settings',
     isOpen,
     onClose,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // 处理设置变更 - 使用 settingsStore 更新
@@ -426,17 +432,19 @@ const Settings: React.FC<SettingsProps> = ({
   // 计算 Settings 页面的样式
   // 只在打开时应用滑入动画，子页面打开时应用左移（但不改变透明度）
   const baseStyle = getChildPageStyle(isVisible);
+  const shouldApplySubSettingsParentStyle =
+    !isLargeScreen && isVisible && (hasSubSettingsOpen || isSubSettingsClosing);
+  const subSettingsParentStyle = shouldApplySubSettingsParentStyle
+    ? getParentPageStyle(hasSubSettingsOpen && !isSubSettingsClosing)
+    : null;
 
   // Settings 的最终样式
   // 当子设置页面打开时，Settings 需要像主页一样向左滑动 24px
-  // 当子设置正在关闭时（isSubSettingsClosing），立即开始恢复动画
+  // 当系统手势返回时，复用 parent skip，避免系统动画后 Web 再恢复一次
   const settingsStyle: React.CSSProperties = {
     ...baseStyle,
-    // 如果有子设置页面打开且不是正在关闭，Settings 向左移动
-    transform:
-      !isLargeScreen && isVisible && hasSubSettingsOpen && !isSubSettingsClosing
-        ? 'translate3d(-24px, 0, 0)'
-        : baseStyle.transform,
+    transform: subSettingsParentStyle?.transform ?? baseStyle.transform,
+    transition: subSettingsParentStyle?.transition ?? baseStyle.transition,
     // 保持完全不透明，不要降低透明度
     opacity: isVisible ? 1 : 0,
   };
@@ -469,7 +477,7 @@ const Settings: React.FC<SettingsProps> = ({
               setTimeout(() => performQuickSync('upload'), 250);
             }}
             disabled={isSyncing}
-            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-all hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-[transform,opacity,background-color] ease-out hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${
               showSyncMenu && !isSyncing
                 ? 'translate-x-0 opacity-100'
                 : 'pointer-events-none translate-x-4 opacity-0'
@@ -487,7 +495,7 @@ const Settings: React.FC<SettingsProps> = ({
               setTimeout(() => performQuickSync('download'), 250);
             }}
             disabled={isSyncing}
-            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-all hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-[transform,opacity,background-color] ease-out hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${
               showSyncMenu && !isSyncing
                 ? 'translate-x-0 opacity-100'
                 : 'pointer-events-none translate-x-4 opacity-0'
@@ -501,7 +509,7 @@ const Settings: React.FC<SettingsProps> = ({
             type="button"
             onClick={() => !isSyncing && setShowSyncMenu(!showSyncMenu)}
             disabled={isSyncing}
-            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-all hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${isSyncing ? 'cursor-default' : ''}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-[transform,background-color] duration-150 ease-out hover:bg-neutral-200 active:scale-95 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 ${isSyncing ? 'cursor-default' : ''}`}
           >
             {isSyncing ? (
               <LoadingSpinner className="h-5 w-5" />
@@ -723,13 +731,19 @@ const Settings: React.FC<SettingsProps> = ({
                   key={activeSubSettingId}
                   className="h-full"
                   initial={
-                    shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: 12 }
+                    shouldReduceMotion
+                      ? { opacity: 0 }
+                      : { opacity: 0, transform: 'translate3d(12px, 0, 0)' }
                   }
                   animate={
-                    shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }
+                    shouldReduceMotion
+                      ? { opacity: 1 }
+                      : { opacity: 1, transform: 'translate3d(0, 0, 0)' }
                   }
                   exit={
-                    shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }
+                    shouldReduceMotion
+                      ? { opacity: 0 }
+                      : { opacity: 0, transform: 'translate3d(-8px, 0, 0)' }
                   }
                   transition={{
                     duration: shouldReduceMotion ? 0.12 : 0.2,

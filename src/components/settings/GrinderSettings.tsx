@@ -63,6 +63,7 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
     id: 'grinder-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // UI 返回按钮点击处理

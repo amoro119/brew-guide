@@ -68,6 +68,7 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
     id: 'green-bean-settings',
     isOpen: true, // 子设置页面挂载即为打开状态
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // UI 返回按钮点击处理

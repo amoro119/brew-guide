@@ -118,6 +118,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
     id: 'roaster-logo-settings',
     isOpen,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // 处理显示/隐藏动画

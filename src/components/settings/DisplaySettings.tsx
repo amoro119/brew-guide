@@ -132,6 +132,7 @@ function DisplaySettings({ onClose }: DisplaySettingsProps) {
     id: 'display-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   const handleClose = React.useCallback(function closeDisplaySettings() {

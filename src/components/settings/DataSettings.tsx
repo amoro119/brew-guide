@@ -221,6 +221,7 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     id: 'data-settings',
     isOpen: true, // 子设置页面挂载即为打开状态
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // 动画初始化（入场动画）

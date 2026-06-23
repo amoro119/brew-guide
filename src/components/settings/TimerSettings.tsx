@@ -68,6 +68,7 @@ const TimerSettings: React.FC<TimerSettingsProps> = ({
     id: 'timer-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // UI 返回按钮点击处理

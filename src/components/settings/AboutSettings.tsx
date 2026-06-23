@@ -80,6 +80,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
     id: 'about-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   const handleClose = () => {

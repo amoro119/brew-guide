@@ -893,6 +893,7 @@ const CoffeeBeanGroupSettings: React.FC<CoffeeBeanGroupSettingsProps> = ({
     id: 'coffee-bean-group-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   React.useEffect(() => {

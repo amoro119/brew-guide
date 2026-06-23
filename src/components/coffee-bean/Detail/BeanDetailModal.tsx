@@ -4,7 +4,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AnimatePresence,
+  LazyMotion,
+  domAnimation,
+  m,
+  useReducedMotion,
+} from 'framer-motion';
 
 import { CoffeeBean } from '@/types/app';
 import type { BrewingNote } from '@/lib/core/config';
@@ -17,6 +23,7 @@ import { useCustomEquipmentStore } from '@/lib/stores/customEquipmentStore';
 import { RoastingManager } from '@/lib/managers/roastingManager';
 import {
   getChildPageStyle,
+  usePageTransitionState,
   useIsLargeScreen,
 } from '@/lib/navigation/pageTransition';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
@@ -69,13 +76,13 @@ const BeanRatingModal = dynamic(
 
 const contentFadeTransition = {
   enter: {
-    duration: 0.32,
-    delay: 0.04,
-    ease: [0.22, 1, 0.36, 1],
+    duration: 0.24,
+    delay: 0.03,
+    ease: [0.23, 1, 0.32, 1],
   },
   exit: {
-    duration: 0.18,
-    ease: [0.4, 0, 1, 1],
+    duration: 0.14,
+    ease: [0.23, 1, 0.32, 1],
   },
 } as const;
 
@@ -108,6 +115,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   const isFormMode = isAddMode || isEditMode;
   const isRepurchaseMode = isAddMode && !!propBean;
   const storeSettings = useSettingsStore(state => state.settings);
+  const shouldReduceMotion = useReducedMotion();
 
   const createTempBean = React.useCallback(
     (sourceBean?: CoffeeBean | null): Partial<CoffeeBean> => {
@@ -262,8 +270,8 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
     () => buildEquipmentNameMap(customEquipments, equipmentNameOverrides),
     [customEquipments, equipmentNameOverrides]
   );
-  const [shouldRender, setShouldRender] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  const { shouldRender, isVisible, skipNextExitAnimation } =
+    usePageTransitionState(isOpen);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [observedTitleVisible, setObservedTitleVisible] = useState(true);
@@ -292,6 +300,10 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
     [baselineTempBean, isAddMode, tempBean]
   );
 
+  if (!isOpen && printModalOpen) {
+    setPrintModalOpen(false);
+  }
+
   useEffect(() => {
     latestTempBeanRef.current = tempBean;
     latestHasDraftContentRef.current = hasAddDraftContent;
@@ -312,26 +324,6 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
       updatedAt: Date.now(),
     });
   }, [isAddMode]);
-
-  // 动画处理（优化：使用 flushSync 确保立即渲染，然后触发动画）
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(isOpen);
-      // 使用 setTimeout(0) 让浏览器先完成 DOM 渲染，然后立即触发动画
-      // 比 requestAnimationFrame 更快（~4ms vs ~16ms）
-      const timer = setTimeout(() => {
-        setIsVisible(isOpen);
-      }, 0);
-      return () => clearTimeout(timer);
-    } else {
-      setIsVisible(isOpen);
-      setPrintModalOpen(isOpen);
-      const timer = setTimeout(() => {
-        setShouldRender(isOpen);
-      }, 350);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   // 记录显示状态
   const relatedRecordAvailability = useMemo(() => {
@@ -546,7 +538,12 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   useModalHistory({
     id: 'bean-detail',
     isOpen,
-    onClose: handleHistoryCloseRequest,
+    onClose: event => {
+      if (event.source === 'history' && !latestHasDraftContentRef.current) {
+        skipNextExitAnimation();
+      }
+      handleHistoryCloseRequest();
+    },
   });
 
   useModalHistory({
@@ -1017,151 +1014,163 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
         style={getChildPageStyle(isVisible, undefined, true)}
       >
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <AnimatePresence initial={false}>
-            <motion.div
-              key={contentModeKey}
-              className="absolute inset-0 flex min-h-0 flex-col bg-neutral-50 dark:bg-neutral-900"
-              initial={{
-                opacity: 0,
-              }}
-              animate={{
-                opacity: 1,
-                transition: contentFadeTransition.enter,
-              }}
-              exit={{
-                opacity: 0,
-                transition: contentFadeTransition.exit,
-              }}
-            >
-              <HeaderBar
-                isAddMode={isFormMode}
-                isEditMode={isEditMode}
-                isGreenBean={isGreenBean}
-                isTitleVisible={isTitleVisible}
-                bean={bean}
-                tempBean={tempBean}
-                printEnabled={printEnabled}
-                saveButtonLabel={isRepurchaseMode ? '添加' : undefined}
-                canGoToBrewing={navigationState.visibleTabs.brewing}
-                canGoToNotes={navigationState.visibleTabs.notes}
-                onClose={handleClose}
-                onGoToBrewing={handleGoToBrewing}
-                onGoToNotes={handleGoToNotes}
-                onGoToRoast={handleGoToRoast}
-                onPrint={() => setPrintModalOpen(true)}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onShare={onShare}
-                onRoast={onRoast}
-                onConvertToGreen={onConvertToGreen}
-                onSaveNew={onSaveNew}
-                onSaveEdit={
-                  isEditMode && persistedBean
-                    ? updates => onSaveEdit?.(persistedBean, updates)
-                    : undefined
-                }
-                onSaveComplete={handleFormSaveComplete}
-                onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
-              />
-
-              <div
-                className="pb-safe-bottom flex-1 overflow-auto"
-                style={{ overflowY: 'auto', touchAction: 'pan-y pinch-zoom' }}
+          <LazyMotion features={domAnimation}>
+            <AnimatePresence initial={false}>
+              <m.div
+                key={contentModeKey}
+                className="absolute inset-0 flex min-h-0 flex-col bg-neutral-50 dark:bg-neutral-900"
+                initial={{
+                  opacity: 0,
+                  filter: shouldReduceMotion ? 'blur(0px)' : 'blur(2px)',
+                  transform: shouldReduceMotion
+                    ? 'translate3d(0, 0, 0)'
+                    : 'translate3d(0, 8px, 0)',
+                }}
+                animate={{
+                  opacity: 1,
+                  filter: 'blur(0px)',
+                  transform: 'translate3d(0, 0, 0)',
+                  transition: contentFadeTransition.enter,
+                }}
+                exit={{
+                  opacity: 0,
+                  filter: shouldReduceMotion ? 'blur(0px)' : 'blur(2px)',
+                  transform: shouldReduceMotion
+                    ? 'translate3d(0, 0, 0)'
+                    : 'translate3d(0, -4px, 0)',
+                  transition: contentFadeTransition.exit,
+                }}
               >
-                <BeanImageSection
+                <HeaderBar
+                  isAddMode={isFormMode}
+                  isEditMode={isEditMode}
+                  isGreenBean={isGreenBean}
+                  isTitleVisible={isTitleVisible}
                   bean={bean}
                   tempBean={tempBean}
-                  isAddMode={isFormMode}
-                  roasterLogo={roasterLogo}
-                  setTempBean={setTempBean}
-                  handleUpdateField={handleUpdateField}
-                  onImageClick={handleImageClick}
+                  printEnabled={printEnabled}
+                  saveButtonLabel={isRepurchaseMode ? '添加' : undefined}
+                  canGoToBrewing={navigationState.visibleTabs.brewing}
+                  canGoToNotes={navigationState.visibleTabs.notes}
+                  onClose={handleClose}
+                  onGoToBrewing={handleGoToBrewing}
+                  onGoToNotes={handleGoToNotes}
+                  onGoToRoast={handleGoToRoast}
+                  onPrint={() => setPrintModalOpen(true)}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onShare={onShare}
+                  onRoast={onRoast}
+                  onConvertToGreen={onConvertToGreen}
+                  onSaveNew={onSaveNew}
+                  onSaveEdit={
+                    isEditMode && persistedBean
+                      ? updates => onSaveEdit?.(persistedBean, updates)
+                      : undefined
+                  }
+                  onSaveComplete={handleFormSaveComplete}
+                  onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
                 />
 
-                {bean ? (
-                  <div className="space-y-3 px-6 pb-6">
-                    <BasicInfoSection
-                      bean={bean}
-                      tempBean={tempBean}
-                      isAddMode={isFormMode}
-                      isEditMode={isEditMode}
-                      searchQuery={searchQuery}
-                      editingCapacity={editingCapacity}
-                      editingRemaining={editingRemaining}
-                      editingPrice={editingPrice}
-                      setEditingCapacity={setEditingCapacity}
-                      setEditingRemaining={setEditingRemaining}
-                      setEditingPrice={setEditingPrice}
-                      handleUpdateField={handleUpdateField}
-                      handleCapacityBlur={handleCapacityBlur}
-                      handleRemainingBlur={handleRemainingBlur}
-                      handleRemainingQuickAction={handleRemainingQuickAction}
-                      handlePriceBlur={handlePriceBlur}
-                      handleDateChange={handleDateChange}
-                      onRepurchase={
-                        isEditMode && persistedBean && onRepurchase
-                          ? () => onRepurchase(persistedBean)
-                          : undefined
-                      }
-                    />
+                <div
+                  className="pb-safe-bottom flex-1 overflow-auto"
+                  style={{ overflowY: 'auto', touchAction: 'pan-y pinch-zoom' }}
+                >
+                  <BeanImageSection
+                    bean={bean}
+                    tempBean={tempBean}
+                    isAddMode={isFormMode}
+                    roasterLogo={roasterLogo}
+                    setTempBean={setTempBean}
+                    handleUpdateField={handleUpdateField}
+                    onImageClick={handleImageClick}
+                  />
 
-                    <OriginInfoSection
-                      bean={bean}
-                      tempBean={tempBean}
-                      isAddMode={isFormMode}
-                      searchQuery={searchQuery}
-                      showEstateField={showEstateField}
-                      handleUpdateField={handleUpdateField}
-                      handleRoastLevelSelect={handleRoastLevelSelect}
-                    />
-
-                    <BlendComponentsSection
-                      bean={bean}
-                      isAddMode={isFormMode}
-                      handleUpdateField={handleUpdateField}
-                    />
-
-                    <FlavorNotesSection
-                      bean={bean}
-                      tempBean={tempBean}
-                      isAddMode={isFormMode}
-                      searchQuery={searchQuery}
-                      handleUpdateField={handleUpdateField}
-                    />
-
-                    <RatingSection
-                      bean={bean}
-                      isAddMode={isFormMode}
-                      showBeanRating={showBeanRating}
-                      onOpenRatingModal={() => setRatingModalOpen(true)}
-                    />
-
-                    {!isFormMode && (
-                      <RelatedRecordsSection
-                        relatedNotes={relatedNotes}
-                        relatedBeans={relatedBeans}
-                        equipmentNames={equipmentNames}
-                        isGreenBean={isGreenBean}
-                        allBeans={allBeans}
+                  {bean ? (
+                    <div className="space-y-3 px-6 pb-6">
+                      <BasicInfoSection
                         bean={bean}
-                        showChangeRecords={showChangeRecords}
-                        showGreenBeanRecords={showGreenBeanRecords}
-                        setShowChangeRecords={setShowChangeRecords}
-                        setShowGreenBeanRecords={setShowGreenBeanRecords}
-                        onImageClick={handleImageClick}
-                        onOpenNoteDetail={
-                          navigationState.visibleTabs.notes
-                            ? onOpenRelatedNote
+                        tempBean={tempBean}
+                        isAddMode={isFormMode}
+                        isEditMode={isEditMode}
+                        searchQuery={searchQuery}
+                        editingCapacity={editingCapacity}
+                        editingRemaining={editingRemaining}
+                        editingPrice={editingPrice}
+                        setEditingCapacity={setEditingCapacity}
+                        setEditingRemaining={setEditingRemaining}
+                        setEditingPrice={setEditingPrice}
+                        handleUpdateField={handleUpdateField}
+                        handleCapacityBlur={handleCapacityBlur}
+                        handleRemainingBlur={handleRemainingBlur}
+                        handleRemainingQuickAction={handleRemainingQuickAction}
+                        handlePriceBlur={handlePriceBlur}
+                        handleDateChange={handleDateChange}
+                        onRepurchase={
+                          isEditMode && persistedBean && onRepurchase
+                            ? () => onRepurchase(persistedBean)
                             : undefined
                         }
-                        onEditNote={onEditRelatedNote}
                       />
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+
+                      <OriginInfoSection
+                        bean={bean}
+                        tempBean={tempBean}
+                        isAddMode={isFormMode}
+                        searchQuery={searchQuery}
+                        showEstateField={showEstateField}
+                        handleUpdateField={handleUpdateField}
+                        handleRoastLevelSelect={handleRoastLevelSelect}
+                      />
+
+                      <BlendComponentsSection
+                        bean={bean}
+                        isAddMode={isFormMode}
+                        handleUpdateField={handleUpdateField}
+                      />
+
+                      <FlavorNotesSection
+                        bean={bean}
+                        tempBean={tempBean}
+                        isAddMode={isFormMode}
+                        searchQuery={searchQuery}
+                        handleUpdateField={handleUpdateField}
+                      />
+
+                      <RatingSection
+                        bean={bean}
+                        isAddMode={isFormMode}
+                        showBeanRating={showBeanRating}
+                        onOpenRatingModal={() => setRatingModalOpen(true)}
+                      />
+
+                      {!isFormMode && (
+                        <RelatedRecordsSection
+                          relatedNotes={relatedNotes}
+                          relatedBeans={relatedBeans}
+                          equipmentNames={equipmentNames}
+                          isGreenBean={isGreenBean}
+                          allBeans={allBeans}
+                          bean={bean}
+                          showChangeRecords={showChangeRecords}
+                          showGreenBeanRecords={showGreenBeanRecords}
+                          setShowChangeRecords={setShowChangeRecords}
+                          setShowGreenBeanRecords={setShowGreenBeanRecords}
+                          onImageClick={handleImageClick}
+                          onOpenNoteDetail={
+                            navigationState.visibleTabs.notes
+                              ? onOpenRelatedNote
+                              : undefined
+                          }
+                          onEditNote={onEditRelatedNote}
+                        />
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              </m.div>
+            </AnimatePresence>
+          </LazyMotion>
         </div>
       </div>
 
