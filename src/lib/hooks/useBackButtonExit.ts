@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { showExitToast } from '@/components/common/feedback/ExitToast';
+import { modalHistory } from '@/lib/navigation/modalHistory';
 
 /**
  * 自定义 Hook: 处理 Android 设备的双击返回键退出应用
@@ -38,7 +39,11 @@ export function useBackButtonExit() {
         ({ canGoBack }) => {
           // 如果应用有历史记录可以返回，则执行默认返回操作
           if (canGoBack) {
-            window.history.back();
+            if (modalHistory.getStackLength() > 0) {
+              modalHistory.back();
+            } else {
+              window.history.back();
+            }
             return;
           }
 

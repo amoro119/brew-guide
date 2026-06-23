@@ -14,9 +14,15 @@
  * - 单一 popstate 监听器处理所有模态框
  */
 
+export type ModalCloseSource = 'app' | 'history';
+
+export interface ModalCloseEvent {
+  source: ModalCloseSource;
+}
+
 export interface ModalEntry {
   id: string;
-  onClose: () => void;
+  onClose: (event: ModalCloseEvent) => void;
   /**
    * 可选的步骤标识，用于多步骤表单
    * 如 'bean-form' 模态框可能有 step: 1, 2, 3, 4
@@ -34,6 +40,7 @@ interface ModalHistoryState {
   isProcessing: boolean; // 防止重复处理
   // 标记是否正在执行主动关闭，避免 popstate 重复处理
   isClosingProgrammatically: boolean;
+  nextPopStateSource: ModalCloseSource;
 }
 
 // 用于标识我们添加的历史记录
@@ -44,6 +51,7 @@ class ModalHistoryManager {
     stack: [],
     isProcessing: false,
     isClosingProgrammatically: false,
+    nextPopStateSource: 'history',
   };
 
   private popstateHandler: ((event: PopStateEvent) => void) | null = null;
@@ -81,6 +89,7 @@ class ModalHistoryManager {
       stack: [],
       isProcessing: false,
       isClosingProgrammatically: false,
+      nextPopStateSource: 'history',
     };
     this.isInitialized = false;
   }
@@ -135,6 +144,9 @@ class ModalHistoryManager {
    * 处理 popstate 事件
    */
   private handlePopState(event: PopStateEvent): void {
+    const source = this.state.nextPopStateSource;
+    this.state.nextPopStateSource = 'history';
+
     // 如果是主动关闭触发的 popstate，跳过处理
     if (this.state.isClosingProgrammatically) {
       return;
@@ -160,13 +172,13 @@ class ModalHistoryManager {
 
     // 如果当前状态是我们的，且不是栈顶模态框的状态，说明需要关闭栈顶
     // 如果当前状态不是我们的，也需要关闭栈顶（用户返回到了根页面）
-    this.closeTop();
+    this.closeTop(source);
   }
 
   /**
    * 关闭栈顶模态框
    */
-  private closeTop(): void {
+  private closeTop(source: ModalCloseSource): void {
     const top = this.state.stack[this.state.stack.length - 1];
     if (!top) {
       return;
@@ -210,7 +222,7 @@ class ModalHistoryManager {
 
     // 直接调用 onClose，让组件自己处理动画
     // 组件通过 isOpen 状态变化触发动画，无需历史栈管理延迟
-    top.onClose();
+    top.onClose({ source });
     this.state.isProcessing = false;
   }
 
@@ -224,6 +236,7 @@ class ModalHistoryManager {
     }
 
     // 通过 history.back() 触发 popstate，保持统一的关闭路径
+    this.state.nextPopStateSource = 'app';
     window.history.back();
   }
 
@@ -245,6 +258,7 @@ class ModalHistoryManager {
     }
 
     // 使用 history.go 一次性返回多层
+    this.state.nextPopStateSource = 'app';
     window.history.go(-closeCount);
   }
 
@@ -258,6 +272,7 @@ class ModalHistoryManager {
     }
 
     // 一次性关闭所有
+    this.state.nextPopStateSource = 'app';
     window.history.go(-closeCount);
   }
 
@@ -326,6 +341,7 @@ class ModalHistoryManager {
     this.state.stack = [];
     this.state.isProcessing = false;
     this.state.isClosingProgrammatically = false;
+    this.state.nextPopStateSource = 'history';
     if (process.env.NODE_ENV === 'development') {
       console.log('[ModalHistory] 栈已清空');
     }
@@ -369,7 +385,7 @@ class ModalHistoryManager {
 
     // 如果不跳过 onClose，调用最底层被关闭模态框的 onClose
     if (!skipOnClose && removed.length > 0) {
-      removed[0].onClose();
+      removed[0].onClose({ source: 'app' });
     }
   }
 
@@ -414,7 +430,7 @@ class ModalHistoryManager {
 
     // 如果不跳过 onClose，调用第一个被关闭模态框的 onClose
     if (!skipOnClose && removed.length > 0) {
-      removed[0].onClose();
+      removed[0].onClose({ source: 'app' });
     }
   }
 
@@ -455,7 +471,7 @@ class ModalHistoryManager {
     baseId: string,
     step: number,
     onStepChange: (step: number) => void,
-    onClose: () => void
+    onClose: (event: ModalCloseEvent) => void
   ): void {
     // 确保已初始化
     if (!this.isInitialized) {
@@ -495,7 +511,7 @@ class ModalHistoryManager {
    */
   updateTopCallbacks(
     onStepChange?: (step: number) => void,
-    onClose?: () => void
+    onClose?: (event: ModalCloseEvent) => void
   ): void {
     const top = this.state.stack[this.state.stack.length - 1];
     if (top) {

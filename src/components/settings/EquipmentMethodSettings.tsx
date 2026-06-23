@@ -351,6 +351,7 @@ const EquipmentMethodSettings: React.FC<EquipmentMethodSettingsProps> = ({
     id: 'equipment-method-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   const managedEquipments = React.useMemo(

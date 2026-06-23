@@ -8,7 +8,7 @@
  * - 使用流畅的缓动曲线
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface PageTransitionConfig {
   // 父页面动画配置
@@ -32,8 +32,11 @@ export const IOS_TRANSITION_CONFIG: PageTransitionConfig = {
   parentOpacity: 0.9, // 轻微降低透明度
   childInitialX: '24px', // 子页面从相同的偏移距离开始（与主页左移距离一致）
   duration: 350, // iOS 标准转场时长
-  easing: 'cubic-bezier(0.4, 0, 0.2, 1)', // Material Design 标准缓动 - 最平滑自然
+  easing: 'cubic-bezier(0.32, 0.72, 0, 1)', // iOS 风格的快速减速曲线
 };
+
+const REDUCED_MOTION_DURATION = 200;
+const REDUCED_MOTION_EASING = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
 // 可选配置方案（可以试试这些）:
 // 1. iOS 原生风格: duration: 350, easing: 'cubic-bezier(0.36, 0, 0.66, -0.56)'
@@ -68,6 +71,34 @@ class PageStackManager {
 
 export const pageStackManager = new PageStackManager();
 
+let skipNextChildExitTransition = false;
+let skipNextParentExitTransition = false;
+
+export function skipNextPageExitTransition() {
+  skipNextChildExitTransition = true;
+  skipNextParentExitTransition = true;
+}
+
+export function skipNextParentPageExitTransition() {
+  skipNextParentExitTransition = true;
+}
+
+function clearNextChildExitTransitionSkip() {
+  skipNextChildExitTransition = false;
+}
+
+function consumeChildExitTransitionSkip(isVisible: boolean) {
+  if (isVisible || !skipNextChildExitTransition) return false;
+  skipNextChildExitTransition = false;
+  return true;
+}
+
+function consumeParentExitTransitionSkip(hasModal: boolean) {
+  if (hasModal || !skipNextParentExitTransition) return false;
+  skipNextParentExitTransition = false;
+  return true;
+}
+
 /**
  * 应用唯一响应式断点（768px）
  * <768: 移动态
@@ -88,6 +119,12 @@ export const LG_BREAKPOINT = APP_LAYOUT_BREAKPOINT;
 export function isLargeScreen(): boolean {
   if (typeof window === 'undefined') return false;
   return window.innerWidth >= LG_BREAKPOINT;
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /**
@@ -136,17 +173,31 @@ export function getParentPageStyle(
   config: PageTransitionConfig = IOS_TRANSITION_CONFIG,
   disableOnLargeScreen = false
 ): React.CSSProperties {
+  const skipTransition = consumeParentExitTransitionSkip(hasModal);
+  const reducedMotion = prefersReducedMotion();
+
   // 仅当明确指定时，才在大屏幕禁用转场动画
   if (disableOnLargeScreen && isLargeScreen()) {
     return {};
+  }
+
+  if (reducedMotion) {
+    return {
+      opacity: hasModal ? config.parentOpacity : 1,
+      transform: 'translateX(0) scale(1)',
+      transition: skipTransition
+        ? 'none'
+        : `opacity ${REDUCED_MOTION_DURATION}ms ${REDUCED_MOTION_EASING}`,
+    };
   }
 
   return {
     transform: hasModal
       ? `translateX(${config.parentTranslateX}) scale(${config.parentScale})`
       : 'translateX(0) scale(1)',
-    transition: `transform ${config.duration}ms ${config.easing}`,
-    willChange: 'transform',
+    transition: skipTransition
+      ? 'none'
+      : `transform ${config.duration}ms ${config.easing}`,
   };
 }
 
@@ -161,11 +212,27 @@ export function getChildPageStyle(
   config: PageTransitionConfig = IOS_TRANSITION_CONFIG,
   disableOnLargeScreen = false
 ): React.CSSProperties {
+  const skipTransition = consumeChildExitTransitionSkip(isVisible);
+  const reducedMotion = prefersReducedMotion();
+
+  if (reducedMotion) {
+    return {
+      opacity: isVisible ? 1 : 0,
+      transform: 'translate3d(0, 0, 0)',
+      transition: skipTransition
+        ? 'none'
+        : `opacity ${REDUCED_MOTION_DURATION}ms ${REDUCED_MOTION_EASING}`,
+      isolation: 'isolate',
+    };
+  }
+
   // 仅当明确指定时，才在大屏幕禁用转场动画（如咖啡豆/笔记详情页作为右侧面板）
   if (disableOnLargeScreen && isLargeScreen()) {
     return {
       opacity: isVisible ? 1 : 0,
-      transition: `opacity ${config.duration}ms ${config.easing}`,
+      transition: skipTransition
+        ? 'none'
+        : `opacity ${config.duration}ms ${config.easing}`,
     };
   }
 
@@ -178,10 +245,62 @@ export function getChildPageStyle(
       : `translate3d(${config.childInitialX}, 0, 0)`,
     // 从半透明渐变到完全不透明
     opacity: isVisible ? 1 : 0,
-    transition: `transform ${config.duration}ms ${config.easing}, opacity ${config.duration}ms ${config.easing}`,
+    transition: skipTransition
+      ? 'none'
+      : `transform ${config.duration}ms ${config.easing}, opacity ${config.duration}ms ${config.easing}`,
     // 确保使用独立的变换上下文，不受父容器影响
     isolation: 'isolate',
   };
+}
+
+export function usePageTransitionState(
+  isOpen: boolean,
+  duration = IOS_TRANSITION_CONFIG.duration
+) {
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(isOpen);
+  const skipExitRef = useRef(false);
+
+  const skipNextExitAnimation = useCallback(() => {
+    skipExitRef.current = true;
+    clearNextChildExitTransitionSkip();
+    skipNextParentPageExitTransition();
+  }, []);
+
+  useEffect(() => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    if (isOpen) {
+      skipExitRef.current = false;
+      setShouldRender(true);
+      firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => {
+          setIsVisible(true);
+        });
+      });
+    } else if (skipExitRef.current) {
+      skipExitRef.current = false;
+      setIsVisible(false);
+      setShouldRender(false);
+    } else {
+      setIsVisible(false);
+      closeTimer = setTimeout(() => {
+        setShouldRender(false);
+      }, duration);
+    }
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+      }
+    };
+  }, [duration, isOpen]);
+
+  return { shouldRender, isVisible, skipNextExitAnimation };
 }
 
 /**

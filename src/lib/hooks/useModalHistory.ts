@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { modalHistory, ModalEntry } from '@/lib/navigation/modalHistory';
+import {
+  modalHistory,
+  type ModalEntry,
+  type ModalCloseEvent,
+} from '@/lib/navigation/modalHistory';
+import { skipNextPageExitTransition } from '@/lib/navigation/pageTransition';
 
 export interface UseModalHistoryOptions {
   /**
@@ -18,7 +23,7 @@ export interface UseModalHistoryOptions {
    * 当用户点击返回或调用 modalHistory.back() 时触发
    * 组件应该在此回调中设置 isOpen = false，动画由组件自己通过状态控制
    */
-  onClose: () => void;
+  onClose: (event: ModalCloseEvent) => void;
 
   /**
    * 是否使用 replace 模式（可选）
@@ -26,6 +31,12 @@ export interface UseModalHistoryOptions {
    * 适用于"从详情页进入编辑页"这类场景
    */
   replace?: boolean;
+
+  /**
+   * 系统历史返回时跳过页面退出转场。
+   * 用于 iOS 手势返回已经提供交互动画的全屏页，避免 WebView 恢复后复播。
+   */
+  skipPageExitTransitionOnHistory?: boolean;
 }
 
 /**
@@ -62,7 +73,13 @@ export interface UseModalHistoryOptions {
  * ```
  */
 export function useModalHistory(options: UseModalHistoryOptions): void {
-  const { id, isOpen, onClose, replace = false } = options;
+  const {
+    id,
+    isOpen,
+    onClose,
+    replace = false,
+    skipPageExitTransitionOnHistory = false,
+  } = options;
 
   // 使用 ref 保存最新的回调
   const onCloseRef = useRef(onClose);
@@ -98,9 +115,12 @@ export function useModalHistory(options: UseModalHistoryOptions): void {
 
       const entry: ModalEntry = {
         id,
-        onClose: () => {
+        onClose: event => {
           closedByPopstateRef.current = true;
-          onCloseRef.current();
+          if (skipPageExitTransitionOnHistory && event.source === 'history') {
+            skipNextPageExitTransition();
+          }
+          onCloseRef.current(event);
         },
       };
 
@@ -131,7 +151,7 @@ export function useModalHistory(options: UseModalHistoryOptions): void {
         }, 0);
       }
     };
-  }, [id, isOpen, replace]);
+  }, [id, isOpen, replace, skipPageExitTransitionOnHistory]);
 }
 
 /**
@@ -176,7 +196,7 @@ export interface UseMultiStepModalHistoryOptions {
   /** 步骤变化回调，浏览器返回时会调用 */
   onStepChange: (step: number) => void;
   /** 关闭回调，在第一步返回时调用（组件自己控制动画） */
-  onClose: () => void;
+  onClose: (event: ModalCloseEvent) => void;
 }
 
 export function useMultiStepModalHistory(
@@ -220,9 +240,9 @@ export function useMultiStepModalHistory(
             id,
             nextStep,
             newStep => onStepChangeRef.current(newStep),
-            () => {
+            event => {
               closedByPopstateRef.current = true;
-              onCloseRef.current();
+              onCloseRef.current(event);
             }
           );
         }
@@ -252,9 +272,9 @@ export function useMultiStepModalHistory(
 
     modalHistory.updateTopCallbacks(
       newStep => onStepChangeRef.current(newStep),
-      () => {
+      event => {
         closedByPopstateRef.current = true;
-        onCloseRef.current();
+        onCloseRef.current(event);
       }
     );
   }, [isOpen]);

@@ -18,6 +18,7 @@ import ActionMenu from '@/components/coffee-bean/ui/action-menu';
 import { useFlavorDimensions } from '@/lib/hooks/useFlavorDimensions';
 import {
   getChildPageStyle,
+  usePageTransitionState,
   useIsLargeScreen,
 } from '@/lib/navigation/pageTransition';
 import { ChevronLeft, ChevronRight, Pen } from 'lucide-react';
@@ -406,9 +407,8 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
   // 是否有多图
   const hasMultiImages = noteImages.length > 1;
 
-  // 控制滑入动画
-  const [shouldRender, setShouldRender] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  const { shouldRender, isVisible, skipNextExitAnimation } =
+    usePageTransitionState(isOpen);
 
   // 标题可见性状态
   const [titleVisibilityState, setTitleVisibilityState] = useState({
@@ -450,24 +450,6 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
     loadBeans,
     loadEquipments,
   ]);
-
-  // 处理显示/隐藏动画
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(isOpen);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsVisible(true);
-        });
-      });
-    } else {
-      setIsVisible(isOpen);
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-      }, 350);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   // 使用 ResizeObserver 只监听当前可见图片页，避免隐藏页参与高度反馈
   useEffect(() => {
@@ -587,7 +569,10 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
   useModalHistory({
     id: 'note-detail',
     isOpen,
-    onClose: () => {
+    onClose: event => {
+      if (event.source === 'history') {
+        skipNextExitAnimation();
+      }
       // 先触发子页面的退出动画
       onClose();
       // 延迟通知父页面开始恢复动画，避免两个动画重叠造成闪烁
@@ -763,15 +748,14 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
 
           {/* 居中标题 - 当原标题不可见时显示 */}
           <div
-            className={`flex min-w-0 flex-1 justify-center transition-all duration-300 ${
+            className={`flex min-w-0 flex-1 justify-center transition-[opacity,filter] duration-300 ${
               isTitleVisible
                 ? 'pointer-events-none opacity-0 blur-xs'
                 : 'blur-0 opacity-100'
             }`}
             style={{
-              transitionProperty: 'opacity, filter, transform',
+              transitionProperty: 'opacity, filter',
               transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
-              willChange: 'opacity, filter, transform',
             }}
           >
             {titleText && (
@@ -826,7 +810,6 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
               className="relative mb-4 overflow-hidden"
               style={{
                 height: currentHeight === 'auto' ? 'auto' : currentHeight,
-                transition: 'height 350ms cubic-bezier(0.32, 0.72, 0, 1)',
               }}
             >
               {/* 第一页：默认图片展示 */}

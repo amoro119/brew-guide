@@ -62,6 +62,7 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
     id: 'bean-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   const handleClose = () => {

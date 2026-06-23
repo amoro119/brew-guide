@@ -93,6 +93,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
     id: 'notification-settings',
     isOpen: true,
     onClose: handleCloseWithAnimation,
+    skipPageExitTransitionOnHistory: true,
   });
 
   // UI 返回按钮点击处理
