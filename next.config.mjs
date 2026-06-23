@@ -33,6 +33,9 @@ const nextConfig = {
   // ponytail: disabled until the codebase is React Compiler clean; re-enable after fixing react-hooks-js diagnostics.
   reactCompiler: false,
   env: buildInfoEnv,
+  logging: {
+    browserToTerminal: false,
+  },
   // 为 Capacitor 启用静态导出模式
   output: 'export',
   // 图像配置
