@@ -5,6 +5,11 @@ import { ChevronRight } from 'lucide-react';
 import { DataManager as DataManagerUtil } from '@/lib/core/dataManager';
 import { BackupReminderUtils } from '@/lib/utils/backupReminderUtils';
 import { exportDataAsJsonFile } from '@/lib/utils/dataExportUtils';
+import {
+  recordCrashOperationComplete,
+  recordCrashOperationStart,
+  recordCrashOperationStep,
+} from '@/lib/app/crashDiagnostics';
 
 interface DataManagementSectionProps {
   onDataChange?: () => void;
@@ -31,9 +36,25 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     }
 
     setIsExporting(true);
+    const operationId = recordCrashOperationStart('settings:data-export', {
+      entry: 'settings:data-management',
+    });
     try {
-      const jsonData = await DataManagerUtil.exportAllData();
+      const jsonData = await DataManagerUtil.exportAllData({
+        collectDiagnostics: true,
+      });
+      recordCrashOperationStep('data-export:before-save', {
+        jsonLength: jsonData.length,
+      });
       const exportResult = await exportDataAsJsonFile(jsonData);
+      recordCrashOperationComplete(
+        {
+          status: 'success',
+          mode: exportResult.mode,
+          jsonLength: jsonData.length,
+        },
+        operationId
+      );
 
       if (exportResult.mode === 'native-share') {
         setStatus({
@@ -52,6 +73,13 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
         console.error('标记备份完成失败:', error);
       }
     } catch (_error) {
+      recordCrashOperationComplete(
+        {
+          status: 'error',
+          message: (_error as Error).message,
+        },
+        operationId
+      );
       setStatus({
         type: 'error',
         message: `导出失败: ${(_error as Error).message}`,
