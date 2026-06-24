@@ -177,7 +177,6 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   const [isRequestingPersist, setIsRequestingPersist] = useState(false);
   const [isNativePlatform, setIsNativePlatform] = useState(false);
   const [isPWA, setIsPWA] = useState(false);
-  const [showStorageDetails, setShowStorageDetails] = useState(false);
   const [supportsPullToSync, setSupportsPullToSync] = useState(false);
 
   // 云同步类型选择
@@ -611,27 +610,6 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     }
   };
 
-  // 刷新存储信息
-  const handleRefreshStorage = async () => {
-    if (!isNativePlatform && !isPWA) return;
-
-    try {
-      if (!isNativePlatform && isPWA) {
-        const persisted = await PersistentStorageManager.checkPersisted(true);
-        setIsPersisted(persisted);
-      }
-
-      const estimate = await PersistentStorageManager.getEstimate(true);
-      setStorageEstimate(estimate);
-
-      if (settings.hapticFeedback) {
-        hapticsUtils.light();
-      }
-    } catch (error) {
-      console.error('刷新存储信息失败:', error);
-    }
-  };
-
   return (
     <SettingPage title="数据与备份" isVisible={isVisible} onClose={handleClose}>
       {/* 云同步设置组 */}
@@ -778,158 +756,78 @@ const DataSettings: React.FC<DataSettingsProps> = ({
         </div>
       )}
 
-      {/* 持久化存储设置组 */}
-      <div className="px-6 py-4">
-        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-          数据持久化
-        </h3>
+      {!isPersisted && (
+        <div className="px-6 py-4">
+          <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
+            数据持久化
+          </h3>
 
-        <div className="space-y-3">
-          {!isPWA && !isNativePlatform ? (
-            // 浏览器访问但非 PWA - 显示开关
-            <div className="rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                  持久化存储
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={false}
-                    disabled={true}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] dark:bg-neutral-700"></div>
-                </label>
-              </div>
-
-              {/* 分割线 */}
-              <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
-
-              <div className="text-xs text-neutral-600 dark:text-neutral-400">
-                <p>
-                  请将本应用添加到主屏幕以启用 PWA
-                  模式，即可使用持久化存储功能。
-                </p>
-              </div>
-            </div>
-          ) : isPersisted ? (
-            // 已启用（包括原生应用和 PWA 已开启）- 显示为按钮样式
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowStorageDetails(!showStorageDetails)}
-                className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              >
-                <span>持久化存储</span>
-                <div className="flex items-center gap-2">
-                  {storageEstimate && (
-                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                      已使用 {storageEstimate.usageFormatted} /{' '}
-                      {storageEstimate.quotaFormatted}
-                    </span>
-                  )}
-                  <ChevronRight
-                    className={`h-4 w-4 text-neutral-400 transition-transform ${showStorageDetails ? 'rotate-90' : ''}`}
-                  />
-                </div>
-              </button>
-
-              {/* 展开的详情 */}
-              {showStorageDetails && storageEstimate && (
-                <div className="mt-2 space-y-2 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                      存储使用详情
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleRefreshStorage}
-                      className="text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
-                    >
-                      刷新
-                    </button>
+          <div className="space-y-3">
+            {!isPWA && !isNativePlatform ? (
+              <div className="rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    持久化存储
                   </div>
-
-                  {/* 进度条 */}
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                    <div
-                      className={`h-full transition-all ${
-                        storageEstimate.usagePercent < 70
-                          ? 'bg-green-500'
-                          : storageEstimate.usagePercent < 90
-                            ? 'bg-orange-500'
-                            : 'bg-red-500'
-                      }`}
-                      style={{
-                        width: `${Math.min(storageEstimate.usagePercent, 100)}%`,
-                      }}
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      aria-label="持久化存储不可用"
+                      checked={false}
+                      disabled={true}
+                      readOnly
+                      className="peer sr-only"
                     />
-                  </div>
-
-                  {/* 存储详情 */}
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                      <span>可用空间</span>
-                      <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                        {storageEstimate.availableFormatted}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                      <span>已使用</span>
-                      <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                        {storageEstimate.usageFormatted}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t border-neutral-200/50 pt-1 dark:border-neutral-700">
-                      <span className="text-neutral-500 dark:text-neutral-500">
-                        使用率
-                      </span>
-                      <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                        {storageEstimate.usagePercent.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
+                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] dark:bg-neutral-700"></div>
+                  </label>
                 </div>
-              )}
-            </div>
-          ) : (
-            // PWA 但未启用 - 显示开关
-            <div className="rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                  持久化存储
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={isPersisted}
-                    onChange={handleRequestPersist}
-                    disabled={isRequestingPersist}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
 
-              {/* 分割线 */}
-              <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
+                <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
 
-              <div className="text-xs text-neutral-600 dark:text-neutral-400">
-                <p>
-                  开启后可保护应用数据不被浏览器自动清理。建议经常使用本应用的用户开启此功能，以确保数据安全。
-                </p>
-                {storageEstimate && (
-                  <p className="mt-2">
-                    当前已使用 {storageEstimate.usageFormatted} /{' '}
-                    {storageEstimate.quotaFormatted}
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p>
+                    请将本应用添加到主屏幕以启用 PWA
+                    模式，即可使用持久化存储功能。
                   </p>
-                )}
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    持久化存储
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      aria-label="开启持久化存储"
+                      checked={false}
+                      onChange={handleRequestPersist}
+                      disabled={isRequestingPersist}
+                      className="peer sr-only"
+                    />
+                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
+                  </label>
+                </div>
+
+                <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
+
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p>
+                    开启后可保护应用数据不被浏览器自动清理。建议经常使用本应用的用户开启此功能，以确保数据安全。
+                  </p>
+                  {storageEstimate && (
+                    <p className="mt-2">
+                      当前已使用 {storageEstimate.usageFormatted} /{' '}
+                      {storageEstimate.quotaFormatted}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 备份提醒设置组 */}
       {backupReminderSettings && (
