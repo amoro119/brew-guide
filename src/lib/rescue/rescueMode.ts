@@ -6,28 +6,20 @@ import { stripBrewingNoteImages } from '@/lib/notes/imageRecords';
 export const RESCUE_MODE_OPEN_EVENT = 'brewGuide:rescue-mode-open';
 
 export interface RescueModeSnapshot {
-  appVersion: string;
   beans: number;
   beanImages: number;
-  beanThumbnails: number;
   notes: number;
   noteImages: number;
-  noteThumbnails: number;
   customEquipments: number;
   customMethods: number;
   grinders: number;
-  localStorageKeys: number;
   storageUsage?: number;
-  storageQuota?: number;
 }
 
 interface RescueExportData {
   exportDate: string;
   appVersion: string;
   timeZone: string;
-  rescueMode: true;
-  imageDataOmitted: true;
-  snapshot: RescueModeSnapshot;
   data: Record<string, unknown>;
 }
 
@@ -53,10 +45,8 @@ export async function getRescueModeSnapshot(): Promise<RescueModeSnapshot> {
   const [
     beans,
     beanImages,
-    beanThumbnails,
     notes,
     noteImages,
-    noteThumbnails,
     customEquipments,
     customMethods,
     grinders,
@@ -64,10 +54,8 @@ export async function getRescueModeSnapshot(): Promise<RescueModeSnapshot> {
   ] = await Promise.all([
     db.coffeeBeans.count(),
     db.coffeeBeanImages.count(),
-    db.coffeeBeanImageThumbnails.count(),
     db.brewingNotes.count(),
     db.brewingNoteImages.count(),
-    db.brewingNoteImageThumbnails.count(),
     db.customEquipments.count(),
     db.customMethods.count(),
     db.grinders.count(),
@@ -77,29 +65,20 @@ export async function getRescueModeSnapshot(): Promise<RescueModeSnapshot> {
   ]);
 
   return {
-    appVersion: APP_VERSION,
     beans,
     beanImages,
-    beanThumbnails,
     notes,
     noteImages,
-    noteThumbnails,
     customEquipments,
     customMethods,
     grinders,
-    localStorageKeys:
-      typeof localStorage === 'undefined' ? 0 : localStorage.length,
     storageUsage: storageEstimate.usage,
-    storageQuota: storageEstimate.quota,
   };
 }
 
 export async function exportRescueData(): Promise<string> {
-  const [{ getRoasterConfigsSync, getSettingsStore }, snapshot] =
-    await Promise.all([
-      import('@/lib/stores/settingsStore'),
-      getRescueModeSnapshot(),
-    ]);
+  const { getRoasterConfigsSync, getSettingsStore } =
+    await import('@/lib/stores/settingsStore');
 
   const [coffeeBeans, brewingNotes, customEquipments, customMethods, grinders] =
     await Promise.all([
@@ -159,9 +138,6 @@ export async function exportRescueData(): Promise<string> {
     exportDate: formatDateWithTimezone(new Date()),
     appVersion: APP_VERSION,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    rescueMode: true,
-    imageDataOmitted: true,
-    snapshot,
     data,
   };
 
