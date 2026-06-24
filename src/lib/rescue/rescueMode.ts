@@ -1,0 +1,169 @@
+import { APP_VERSION } from '@/lib/core/config';
+import { db } from '@/lib/core/db';
+import { stripCoffeeBeanImages } from '@/lib/coffee-beans/imageRecords';
+import { stripBrewingNoteImages } from '@/lib/notes/imageRecords';
+
+export const RESCUE_MODE_OPEN_EVENT = 'brewGuide:rescue-mode-open';
+
+export interface RescueModeSnapshot {
+  appVersion: string;
+  beans: number;
+  beanImages: number;
+  beanThumbnails: number;
+  notes: number;
+  noteImages: number;
+  noteThumbnails: number;
+  customEquipments: number;
+  customMethods: number;
+  grinders: number;
+  localStorageKeys: number;
+  storageUsage?: number;
+  storageQuota?: number;
+}
+
+interface RescueExportData {
+  exportDate: string;
+  appVersion: string;
+  timeZone: string;
+  rescueMode: true;
+  imageDataOmitted: true;
+  snapshot: RescueModeSnapshot;
+  data: Record<string, unknown>;
+}
+
+const CUSTOM_PRESETS_PREFIX = 'brew-guide:custom-presets:';
+const CUSTOM_PRESETS_KEYS = ['origins', 'estates', 'processes', 'varieties'];
+
+const formatDateWithTimezone = (date: Date): string => {
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? '+' : '-';
+  const offsetHours = pad(Math.floor(Math.abs(offset) / 60));
+  const offsetMinutes = pad(Math.abs(offset) % 60);
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, '0')}${sign}${offsetHours}:${offsetMinutes}`;
+};
+
+export function openRescueMode(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(RESCUE_MODE_OPEN_EVENT));
+}
+
+export async function getRescueModeSnapshot(): Promise<RescueModeSnapshot> {
+  const [
+    beans,
+    beanImages,
+    beanThumbnails,
+    notes,
+    noteImages,
+    noteThumbnails,
+    customEquipments,
+    customMethods,
+    grinders,
+    storageEstimate,
+  ] = await Promise.all([
+    db.coffeeBeans.count(),
+    db.coffeeBeanImages.count(),
+    db.coffeeBeanImageThumbnails.count(),
+    db.brewingNotes.count(),
+    db.brewingNoteImages.count(),
+    db.brewingNoteImageThumbnails.count(),
+    db.customEquipments.count(),
+    db.customMethods.count(),
+    db.grinders.count(),
+    typeof navigator !== 'undefined' && navigator.storage?.estimate
+      ? navigator.storage.estimate()
+      : Promise.resolve({} as StorageEstimate),
+  ]);
+
+  return {
+    appVersion: APP_VERSION,
+    beans,
+    beanImages,
+    beanThumbnails,
+    notes,
+    noteImages,
+    noteThumbnails,
+    customEquipments,
+    customMethods,
+    grinders,
+    localStorageKeys:
+      typeof localStorage === 'undefined' ? 0 : localStorage.length,
+    storageUsage: storageEstimate.usage,
+    storageQuota: storageEstimate.quota,
+  };
+}
+
+export async function exportRescueData(): Promise<string> {
+  const [{ getRoasterConfigsSync, getSettingsStore }, snapshot] =
+    await Promise.all([
+      import('@/lib/stores/settingsStore'),
+      getRescueModeSnapshot(),
+    ]);
+
+  const [coffeeBeans, brewingNotes, customEquipments, customMethods, grinders] =
+    await Promise.all([
+      db.coffeeBeans.toArray(),
+      db.brewingNotes.toArray(),
+      db.customEquipments.toArray(),
+      db.customMethods.toArray(),
+      db.grinders.toArray(),
+    ]);
+
+  const customMethodsByEquipment: Record<string, unknown> = {};
+  for (const { equipmentId, methods } of customMethods) {
+    if (Array.isArray(methods) && methods.length > 0) {
+      customMethodsByEquipment[equipmentId] = methods;
+    }
+  }
+
+  const data: Record<string, unknown> = {
+    brewGuideSettings: getSettingsStore().settings,
+    coffeeBeans: coffeeBeans.map(stripCoffeeBeanImages),
+    brewingNotes: brewingNotes.map(note => {
+      const strippedNote = {
+        ...stripBrewingNoteImages(note),
+      } as Record<string, unknown>;
+      delete strippedNote.coffeeBean;
+      return strippedNote;
+    }),
+    customEquipments,
+    customMethodsByEquipment,
+    grinders,
+  };
+
+  const roasterConfigs = getRoasterConfigsSync();
+  if (roasterConfigs.length > 0) {
+    data.roasterConfigs = roasterConfigs;
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    const customPresets: Record<string, unknown> = {};
+    for (const key of CUSTOM_PRESETS_KEYS) {
+      const presetJson = localStorage.getItem(`${CUSTOM_PRESETS_PREFIX}${key}`);
+      if (!presetJson) continue;
+
+      try {
+        customPresets[key] = JSON.parse(presetJson);
+      } catch {
+        customPresets[key] = presetJson;
+      }
+    }
+
+    if (Object.keys(customPresets).length > 0) {
+      data.customPresets = customPresets;
+    }
+  }
+
+  const exportData: RescueExportData = {
+    exportDate: formatDateWithTimezone(new Date()),
+    appVersion: APP_VERSION,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    rescueMode: true,
+    imageDataOmitted: true,
+    snapshot,
+    data,
+  };
+
+  return JSON.stringify(exportData);
+}

@@ -48,6 +48,7 @@ import ConfirmDrawer from '@/components/common/ui/ConfirmDrawer';
 import ImageViewer from '@/components/common/ui/ImageViewer';
 import type { ImageViewerPayload } from '@/lib/ui/imageViewer';
 import { createCapacityAdjustmentRecordIfNeeded } from '@/lib/coffee-beans/capacityAdjustment';
+import RescueModeDrawer from '@/components/layout/RescueModeDrawer';
 
 interface ExtendedCoffeeBean extends CoffeeBean {
   blendComponents?: {
@@ -1295,6 +1296,8 @@ const AppModals: React.FC<AppModalsProps> = ({
           onExitComplete={() => setImageViewerData(null)}
         />
       )}
+
+      <RescueModeDrawer />
     </>
   );
 };
