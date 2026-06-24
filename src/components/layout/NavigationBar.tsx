@@ -70,6 +70,7 @@ import {
   SIMPLIFIED_VIEW_LABELS,
   VIEW_OPTIONS,
 } from '@/components/coffee-bean/List/constants';
+import { openRescueMode } from '@/lib/rescue/rescueMode';
 
 // 统一类型定义
 type MainTabType = '冲煮' | '咖啡豆' | '笔记';
@@ -673,6 +674,44 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
   const [pullSyncStatus, setPullSyncStatus] = useState<PullSyncStatus>('idle');
   const touchStartY = useRef<number>(0);
   const isTrackingPull = useRef(false);
+  const lastRescueTapAt = useRef(0);
+
+  const isRescueModeBlankTarget = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false;
+
+    return !target.closest(
+      'button,a,input,textarea,select,[role="button"],[data-tab],[data-rescue-ignore]'
+    );
+  }, []);
+
+  const handleRescueDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isRescueModeBlankTarget(event.target)) return;
+      openRescueMode();
+    },
+    [isRescueModeBlankTarget]
+  );
+
+  const handleRescuePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === 'mouse') return;
+      if (!isRescueModeBlankTarget(event.target) || pullDistance > 8) {
+        lastRescueTapAt.current = 0;
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastRescueTapAt.current <= 400) {
+        lastRescueTapAt.current = 0;
+        event.preventDefault();
+        openRescueMode();
+        return;
+      }
+
+      lastRescueTapAt.current = now;
+    },
+    [isRescueModeBlankTarget, pullDistance]
+  );
 
   // 重置下拉状态
   const resetPullState = useCallback(() => {
@@ -1170,6 +1209,8 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
         width: width ? `${width}px` : undefined,
       }}
       transition={{ duration: 0.3 }}
+      onDoubleClick={handleRescueDoubleClick}
+      onPointerUp={handleRescuePointerUp}
       onTouchStart={handlePullTouchStart}
       onTouchMove={handlePullTouchMove}
       onTouchEnd={handlePullTouchEnd}
