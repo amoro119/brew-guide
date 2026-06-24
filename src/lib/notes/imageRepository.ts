@@ -1,6 +1,11 @@
 import { db } from '@/lib/core/db';
 import type { BrewingNote } from '@/lib/core/config';
 import {
+  NOTE_IMAGE_COMPRESSION_OPTIONS,
+  NOTE_IMAGE_MAX_SIZE_BYTES,
+} from '@/lib/images/imageProcessing';
+import { compressBase64Image } from '@/lib/utils/imageCompression';
+import {
   type BrewingNoteImageRecord,
   mergeBrewingNoteImages,
   mergeBrewingNotesWithImages,
@@ -18,6 +23,99 @@ const getRecordImages = (record: {
   images?: string[];
 }): string[] =>
   record.images?.length ? record.images : record.image ? [record.image] : [];
+
+export interface RecompressBrewingNoteImagesStats {
+  scannedCount: number;
+  candidateCount: number;
+  compressedCount: number;
+  failedCount: number;
+  savedBytes: number;
+}
+
+const getDataUrlBytes = (dataUrl: string): number | null => {
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1 || !dataUrl.slice(0, commaIndex).includes(';base64')) {
+    return null;
+  }
+
+  const payload = dataUrl.slice(commaIndex + 1);
+  const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
+  return Math.floor((payload.length * 3) / 4) - padding;
+};
+
+const shouldRecompressNoteImage = (image: string): boolean => {
+  if (!image.startsWith('data:image/')) return false;
+
+  const bytes = getDataUrlBytes(image);
+  return bytes !== null && bytes > NOTE_IMAGE_MAX_SIZE_BYTES;
+};
+
+export async function recompressOversizedBrewingNoteImages(): Promise<RecompressBrewingNoteImagesStats> {
+  const stats: RecompressBrewingNoteImagesStats = {
+    scannedCount: 0,
+    candidateCount: 0,
+    compressedCount: 0,
+    failedCount: 0,
+    savedBytes: 0,
+  };
+  const noteIds = (await db.brewingNoteImages.toCollection().primaryKeys()).map(
+    String
+  );
+
+  for (const noteId of noteIds) {
+    const record = await db.brewingNoteImages.get(noteId);
+    if (!record) continue;
+
+    stats.scannedCount += 1;
+    const images = getRecordImages(record);
+    let changed = false;
+
+    const nextImages: string[] = [];
+    for (const image of images) {
+      if (!shouldRecompressNoteImage(image)) {
+        nextImages.push(image);
+        continue;
+      }
+
+      stats.candidateCount += 1;
+      const beforeBytes = getDataUrlBytes(image) || image.length;
+
+      try {
+        const compressed = await compressBase64Image(
+          image,
+          NOTE_IMAGE_COMPRESSION_OPTIONS
+        );
+        const afterBytes = getDataUrlBytes(compressed) || compressed.length;
+
+        if (afterBytes >= beforeBytes) {
+          nextImages.push(image);
+          continue;
+        }
+
+        changed = true;
+        stats.compressedCount += 1;
+        stats.savedBytes += beforeBytes - afterBytes;
+        nextImages.push(compressed);
+      } catch (error) {
+        stats.failedCount += 1;
+        console.error('笔记图片补压失败:', { noteId, error });
+        nextImages.push(image);
+      }
+    }
+
+    if (!changed) continue;
+
+    await db.brewingNoteImages.put({
+      ...record,
+      image: nextImages[0],
+      images: nextImages,
+      updatedAt: Date.now(),
+    });
+    await db.brewingNoteImageThumbnails.delete(record.noteId);
+  }
+
+  return stats;
+}
 
 export async function persistBrewingNoteImagesFromNote(
   note: BrewingNote,

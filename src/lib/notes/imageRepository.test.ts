@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const notes = new Map<string, BrewingNote>();
   const images = new Map<string, BrewingNoteImageRecord>();
   const thumbnails = new Map<string, BrewingNoteImageThumbnailRecord>();
+  const compressBase64Image = vi.fn();
 
   const table = <T extends object>(records: Map<string, T>, key: keyof T) => ({
     get: vi.fn((id: string) => Promise.resolve(records.get(id))),
@@ -52,6 +53,7 @@ const mocks = vi.hoisted(() => {
     notes,
     images,
     thumbnails,
+    compressBase64Image,
     db: {
       brewingNotes: table(notes, 'id'),
       brewingNoteImages: table(images, 'noteId'),
@@ -65,11 +67,21 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@/lib/core/db', () => ({ db: mocks.db }));
+vi.mock('@/lib/utils/imageCompression', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/utils/imageCompression')
+  >('@/lib/utils/imageCompression');
+  return {
+    ...actual,
+    compressBase64Image: mocks.compressBase64Image,
+  };
+});
 
 import {
   getBrewingNoteImageCounts,
   getBrewingNoteImageNoteIds,
   getBrewingNoteImages,
+  recompressOversizedBrewingNoteImages,
   replaceBrewingNotesWithSplitImages,
 } from './imageRepository';
 
@@ -86,6 +98,7 @@ describe('brewing note image repository', () => {
     mocks.notes.clear();
     mocks.images.clear();
     mocks.thumbnails.clear();
+    mocks.compressBase64Image.mockReset();
     vi.clearAllMocks();
   });
 
@@ -140,5 +153,40 @@ describe('brewing note image repository', () => {
     await replaceBrewingNotesWithSplitImages([{ ...baseNote, timestamp: 2 }]);
 
     expect(mocks.images.get('note-1')?.image).toBe('original');
+  });
+
+  it('recompresses oversized note images and expires thumbnails', async () => {
+    const oversizedImage = `data:image/jpeg;base64,${'a'.repeat(160 * 1024)}`;
+    const smallImage = 'data:image/jpeg;base64,abcd';
+    const compressedImage = `data:image/webp;base64,${'b'.repeat(40 * 1024)}`;
+
+    mocks.images.set('note-1', {
+      noteId: 'note-1',
+      image: oversizedImage,
+      images: [oversizedImage, smallImage],
+      updatedAt: 1,
+    });
+    mocks.thumbnails.set('note-1', {
+      noteId: 'note-1',
+      imageThumbnail: 'thumbnail',
+      updatedAt: 1,
+    });
+    mocks.compressBase64Image.mockResolvedValue(compressedImage);
+
+    const stats = await recompressOversizedBrewingNoteImages();
+
+    expect(mocks.compressBase64Image).toHaveBeenCalledTimes(1);
+    expect(mocks.images.get('note-1')).toMatchObject({
+      image: compressedImage,
+      images: [compressedImage, smallImage],
+    });
+    expect(mocks.thumbnails.has('note-1')).toBe(false);
+    expect(stats).toMatchObject({
+      scannedCount: 1,
+      candidateCount: 1,
+      compressedCount: 1,
+      failedCount: 0,
+    });
+    expect(stats.savedBytes).toBeGreaterThan(0);
   });
 });

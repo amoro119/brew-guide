@@ -26,6 +26,7 @@ import {
 import { IMAGE_FILE_ACCEPT } from '@/lib/images/imageFormat';
 import {
   getImageProcessingErrorMessage,
+  NOTE_IMAGE_COMPRESSION_OPTIONS,
   processImageFiles,
 } from '@/lib/images/imageProcessing';
 import {
@@ -102,12 +103,6 @@ const EMPTY_METHOD_PARAMS = {
   ratio: '',
   grindSize: '',
   temp: '',
-};
-
-const NOTE_IMAGE_COMPRESSION_OPTIONS = {
-  maxSizeMB: 0.1,
-  maxWidthOrHeight: 1200,
-  initialQuality: 0.8,
 };
 
 interface BrewingNoteFormProps {
