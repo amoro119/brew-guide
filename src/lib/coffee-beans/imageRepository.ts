@@ -164,10 +164,11 @@ export async function getCoffeeBeanImageBeanIds(
   beanIds?: string[]
 ): Promise<string[]> {
   if (!beanIds) {
-    const keys = await db.coffeeBeanImageThumbnails
-      .toCollection()
-      .primaryKeys();
-    return keys.map(String);
+    const [thumbnailKeys, imageKeys] = await Promise.all([
+      db.coffeeBeanImageThumbnails.toCollection().primaryKeys(),
+      db.coffeeBeanImages.toCollection().primaryKeys(),
+    ]);
+    return Array.from(new Set([...thumbnailKeys, ...imageKeys].map(String)));
   }
 
   const uniqueBeanIds = Array.from(new Set(beanIds.filter(Boolean)));
@@ -175,11 +176,14 @@ export async function getCoffeeBeanImageBeanIds(
     return [];
   }
 
-  const keys = await db.coffeeBeanImageThumbnails
-    .where('beanId')
-    .anyOf(uniqueBeanIds)
-    .primaryKeys();
-  return keys.map(String);
+  const [thumbnailKeys, imageKeys] = await Promise.all([
+    db.coffeeBeanImageThumbnails
+      .where('beanId')
+      .anyOf(uniqueBeanIds)
+      .primaryKeys(),
+    db.coffeeBeanImages.where('beanId').anyOf(uniqueBeanIds).primaryKeys(),
+  ]);
+  return Array.from(new Set([...thumbnailKeys, ...imageKeys].map(String)));
 }
 
 export async function getCoffeeBeanImageSource(
@@ -200,7 +204,28 @@ export async function getCoffeeBeanImageSource(
       return thumbnail;
     }
 
-    return undefined;
+    const record = await getCoffeeBeanImageRecord(beanId);
+    const original = record?.[imageKey];
+    if (!original) return undefined;
+
+    const nextThumbnail = await createCoffeeBeanImageThumbnail(original);
+    if (nextThumbnail) {
+      await putOrDeleteThumbnailRecord({
+        beanId,
+        imageThumbnail:
+          side === 'front'
+            ? nextThumbnail
+            : getUsableThumbnail(thumbnailRecord?.imageThumbnail),
+        backImageThumbnail:
+          side === 'back'
+            ? nextThumbnail
+            : getUsableThumbnail(thumbnailRecord?.backImageThumbnail),
+        updatedAt: record.updatedAt || Date.now(),
+      });
+      return nextThumbnail;
+    }
+
+    return original;
   }
 
   const record = await getCoffeeBeanImageRecord(beanId);
@@ -255,12 +280,19 @@ export async function replaceCoffeeBeansWithSplitImages(
 
   const strippedBeans: CoffeeBean[] = [];
   const imageRecords: CoffeeBeanImageRecord[] = [];
+  const explicitEmptyImageBeanIds: string[] = [];
+  const incomingBeanIds = beans.map(bean => bean.id).filter(Boolean);
 
   for (const bean of beans) {
     const split = splitCoffeeBeanImages(bean);
     strippedBeans.push(split.bean);
     if (split.imageRecord) {
       imageRecords.push(split.imageRecord);
+    } else if (
+      Object.prototype.hasOwnProperty.call(bean, 'image') ||
+      Object.prototype.hasOwnProperty.call(bean, 'backImage')
+    ) {
+      explicitEmptyImageBeanIds.push(bean.id);
     }
   }
 
@@ -270,15 +302,32 @@ export async function replaceCoffeeBeansWithSplitImages(
     db.coffeeBeanImages,
     db.coffeeBeanImageThumbnails,
     async () => {
+      const existingImageIds = (
+        await db.coffeeBeanImages.toCollection().primaryKeys()
+      ).map(String);
+      const incomingIdSet = new Set(incomingBeanIds);
+      const staleImageIds = existingImageIds.filter(
+        beanId => !incomingIdSet.has(beanId)
+      );
+      const imageIdsToDelete = Array.from(
+        new Set([...staleImageIds, ...explicitEmptyImageBeanIds])
+      );
+
       await db.coffeeBeans.clear();
-      await db.coffeeBeanImages.clear();
-      await db.coffeeBeanImageThumbnails.clear();
 
       if (strippedBeans.length > 0) {
         await db.coffeeBeans.bulkPut(strippedBeans);
       }
 
+      if (imageIdsToDelete.length > 0) {
+        await db.coffeeBeanImages.bulkDelete(imageIdsToDelete);
+        await db.coffeeBeanImageThumbnails.bulkDelete(imageIdsToDelete);
+      }
+
       if (imageRecords.length > 0) {
+        await db.coffeeBeanImageThumbnails.bulkDelete(
+          imageRecords.map(record => record.beanId)
+        );
         await db.coffeeBeanImages.bulkPut(imageRecords);
       }
     }

@@ -10,6 +10,13 @@ import {
 } from '@/lib/utils/imageCompression';
 
 const DEFAULT_MAX_IMAGE_SIZE_BYTES = 50 * 1024 * 1024;
+export const NOTE_IMAGE_COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.1,
+  maxWidthOrHeight: 1200,
+  initialQuality: 0.8,
+} satisfies Base64CompressionOptions;
+export const NOTE_IMAGE_MAX_SIZE_BYTES =
+  NOTE_IMAGE_COMPRESSION_OPTIONS.maxSizeMB * 1024 * 1024;
 
 type ImageProcessingErrorCode =
   | 'unsupported-type'

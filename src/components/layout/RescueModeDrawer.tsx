@@ -60,6 +60,7 @@ interface RescueModeDrawerState {
   snapshot: RescueModeSnapshot | null;
   isLoading: boolean;
   isExporting: boolean;
+  isRecompressing: boolean;
   includeImages: boolean;
   lastExportSize: string | null;
 }
@@ -73,13 +74,17 @@ type RescueModeDrawerAction =
   | { type: 'includeImagesChanged'; includeImages: boolean }
   | { type: 'exportStarted' }
   | { type: 'exportSucceeded'; size: string }
-  | { type: 'exportFailed' };
+  | { type: 'exportFailed' }
+  | { type: 'recompressStarted' }
+  | { type: 'recompressSucceeded' }
+  | { type: 'recompressFailed' };
 
 const initialState: RescueModeDrawerState = {
   isOpen: false,
   snapshot: null,
   isLoading: false,
   isExporting: false,
+  isRecompressing: false,
   includeImages: true,
   lastExportSize: null,
 };
@@ -115,6 +120,18 @@ const rescueModeDrawerReducer = (
       };
     case 'exportFailed':
       return { ...state, isExporting: false };
+    case 'recompressStarted':
+      return {
+        ...state,
+        isRecompressing: true,
+      };
+    case 'recompressSucceeded':
+      return {
+        ...state,
+        isRecompressing: false,
+      };
+    case 'recompressFailed':
+      return { ...state, isRecompressing: false };
   }
 };
 
@@ -125,6 +142,7 @@ const RescueModeDrawer: React.FC = () => {
     snapshot,
     isLoading,
     isExporting,
+    isRecompressing,
     includeImages,
     lastExportSize,
   } = state;
@@ -188,6 +206,33 @@ const RescueModeDrawer: React.FC = () => {
     }
   };
 
+  const handleRecompressImages = async () => {
+    if (isRecompressing) return;
+
+    dispatch({ type: 'recompressStarted' });
+    try {
+      const { recompressOversizedBrewingNoteImages } =
+        await import('@/lib/notes/imageRepository');
+      const stats = await recompressOversizedBrewingNoteImages();
+
+      dispatch({ type: 'recompressSucceeded' });
+      showToast({
+        type: stats.failedCount > 0 ? 'warning' : 'success',
+        title:
+          stats.failedCount > 0
+            ? `补压完成，${stats.failedCount} 张失败`
+            : stats.compressedCount > 0
+              ? `已补压 ${stats.compressedCount} 张图片`
+              : '没有需要补压的图片',
+      });
+      void refreshSnapshot();
+    } catch (error) {
+      console.error('笔记图片补压失败:', error);
+      dispatch({ type: 'recompressFailed' });
+      showToast({ type: 'error', title: '图片补压失败' });
+    }
+  };
+
   return (
     <ActionDrawer
       isOpen={isOpen}
@@ -205,7 +250,7 @@ const RescueModeDrawer: React.FC = () => {
             </p>
           </div>
 
-          <div className="space-y-3 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-900/60">
+          <div className="space-y-3 rounded-lg border border-neutral-200/60 bg-neutral-50 p-3 dark:border-neutral-700/70 dark:bg-neutral-800/70">
             {isLoading || !snapshot ? (
               <p className="text-neutral-500 dark:text-neutral-400">
                 正在读取预览...
@@ -264,9 +309,15 @@ const RescueModeDrawer: React.FC = () => {
         >
           关闭
         </ActionDrawer.SecondaryButton>
+        <ActionDrawer.SecondaryButton
+          onClick={handleRecompressImages}
+          disabled={isRecompressing || isExporting}
+        >
+          {isRecompressing ? '补压中' : '图片补压'}
+        </ActionDrawer.SecondaryButton>
         <ActionDrawer.PrimaryButton
           onClick={handleExport}
-          disabled={isExporting}
+          disabled={isExporting || isRecompressing}
         >
           {isExporting ? '正在导出' : '导出数据'}
         </ActionDrawer.PrimaryButton>
