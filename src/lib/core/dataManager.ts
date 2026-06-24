@@ -17,6 +17,7 @@ import {
   exportCoffeeBeansWithImages,
   replaceCoffeeBeansWithSplitImages,
 } from '@/lib/coffee-beans/imageRepository';
+import { recordCrashOperationStep } from '@/lib/app/crashDiagnostics';
 
 // 检查是否在浏览器环境中
 const isBrowser = typeof window !== 'undefined';
@@ -45,6 +46,7 @@ interface ImportData {
 
 interface ExportAllDataOptions {
   pretty?: boolean;
+  collectDiagnostics?: boolean;
 }
 
 type LegacyCoffeeBeanRecord = _CoffeeBean & {
@@ -126,7 +128,7 @@ export const DataManager = {
    */
   async exportAllData(options: ExportAllDataOptions = {}): Promise<string> {
     try {
-      const { pretty = false } = options;
+      const { pretty = false, collectDiagnostics = false } = options;
       const now = new Date();
       const exportData: ExportData = {
         exportDate: this.formatDateWithTimezone(now),
@@ -154,6 +156,21 @@ export const DataManager = {
 
         // 特殊处理 coffeeBeans - 从 IndexedDB 获取
         if (key === 'coffeeBeans') {
+          if (collectDiagnostics) {
+            const [beanCount, imageRecordCount, thumbnailRecordCount] =
+              await Promise.all([
+                db.coffeeBeans.count(),
+                db.coffeeBeanImages.count(),
+                db.coffeeBeanImageThumbnails.count(),
+              ]);
+
+            recordCrashOperationStep('coffee-beans:image-preflight', {
+              beanCount,
+              imageRecordCount,
+              thumbnailRecordCount,
+            });
+          }
+
           exportData.data[key] = await exportCoffeeBeansWithImages();
           continue;
         }
@@ -166,6 +183,12 @@ export const DataManager = {
 
         // 特殊处理 brewingNotes - 从 IndexedDB 获取
         if (key === 'brewingNotes') {
+          if (collectDiagnostics) {
+            recordCrashOperationStep('brewing-notes:preflight', {
+              noteCount: await db.brewingNotes.count(),
+            });
+          }
+
           const notes = await db.brewingNotes.toArray();
           exportData.data[key] = this.cleanBrewingNotesForExport(notes);
           continue;
@@ -280,11 +303,25 @@ export const DataManager = {
         console.error('导出烘焙商配置失败:', error);
       }
 
-      return pretty
+      const jsonData = pretty
         ? JSON.stringify(exportData, null, 2)
         : JSON.stringify(exportData);
+
+      if (collectDiagnostics) {
+        recordCrashOperationStep('data-export:stringified', {
+          jsonLength: jsonData.length,
+          dataKeys: Object.keys(exportData.data),
+        });
+      }
+
+      return jsonData;
     } catch (error) {
       console.error('导出数据失败:', error);
+      if (options.collectDiagnostics) {
+        recordCrashOperationStep('data-export:error', {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
       throw new Error(
         error instanceof Error
           ? `导出数据失败: ${error.message}`

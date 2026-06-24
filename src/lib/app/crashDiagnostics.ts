@@ -3,6 +3,7 @@ import { Preferences } from '@capacitor/preferences';
 
 const CURRENT_SESSION_KEY = 'brew-guide:crash-diagnostics:current-session';
 const LAST_REPORT_KEY = 'brew-guide:crash-diagnostics:last-report';
+const ACTIVE_OPERATION_KEY = 'brew-guide:crash-diagnostics:active-operation';
 const MAX_CHECKPOINTS = 24;
 const NON_FATAL_BROWSER_ERROR_PHASES = new Set([
   'window-error',
@@ -33,6 +34,16 @@ export interface CrashErrorRecord {
   at: string;
 }
 
+export interface CrashDiagnosticOperation {
+  id: string;
+  name: string;
+  state: 'started';
+  startedAt: string;
+  updatedAt: string;
+  meta?: Record<string, JsonValue>;
+  lastStep?: CrashCheckpoint;
+}
+
 export interface NativeCrashRecord {
   platform: 'android' | 'ios';
   reason: string;
@@ -50,6 +61,7 @@ export interface CrashDiagnosticSession {
   lastCheckpoint?: CrashCheckpoint;
   fatalError?: CrashErrorRecord;
   nativeCrash?: NativeCrashRecord;
+  activeOperation?: CrashDiagnosticOperation;
 }
 
 export interface CrashDiagnosticReport {
@@ -60,6 +72,7 @@ export interface CrashDiagnosticReport {
 }
 
 let activeSession: CrashDiagnosticSession | null = null;
+let activeOperation: CrashDiagnosticOperation | null = null;
 let installPromise: Promise<void> | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 
@@ -139,6 +152,18 @@ const readStorageValue = async <T>(key: string): Promise<T | null> => {
   return parseJson<T>(window.localStorage.getItem(key));
 };
 
+const readBrowserStorageValueSync = <T>(key: string): T | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return parseJson<T>(window.localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+};
+
 const writeStorageValue = async (
   key: string,
   value: unknown
@@ -157,6 +182,18 @@ const writeStorageValue = async (
   window.localStorage.setItem(key, serialized);
 };
 
+const writeBrowserStorageValueSync = (key: string, value: unknown): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // 诊断写入不能影响用户的实际操作。
+  }
+};
+
 const removeStorageValue = async (key: string): Promise<void> => {
   if (isNativePlatform()) {
     await Preferences.remove({ key });
@@ -168,6 +205,18 @@ const removeStorageValue = async (key: string): Promise<void> => {
   }
 
   window.localStorage.removeItem(key);
+};
+
+const removeBrowserStorageValueSync = (key: string): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // 诊断清理失败不应影响用户流程。
+  }
 };
 
 const queuePersist = (session: CrashDiagnosticSession | null) => {
@@ -213,6 +262,61 @@ const isUnexpectedPreviousSession = (
   return session.startupState !== 'ready';
 };
 
+const getBrowserContextMeta = (): Record<string, unknown> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  const navigatorWithStandalone = window.navigator as Navigator & {
+    standalone?: boolean;
+  };
+
+  return {
+    route: `${window.location.pathname}${window.location.hash}`,
+    userAgent: window.navigator.userAgent,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    devicePixelRatio: window.devicePixelRatio || 1,
+    standalone:
+      navigatorWithStandalone.standalone === true ||
+      window.matchMedia?.('(display-mode: standalone)').matches === true,
+  };
+};
+
+const buildSessionWithOperation = (
+  session: CrashDiagnosticSession | null,
+  operation: CrashDiagnosticOperation
+): CrashDiagnosticSession => {
+  const operationCheckpoint =
+    operation.lastStep ||
+    ({
+      name: `operation:${operation.name}:start`,
+      at: operation.startedAt,
+      meta: operation.meta,
+    } satisfies CrashCheckpoint);
+
+  if (!session) {
+    return {
+      sessionId: `operation-${operation.id}`,
+      startedAt: operation.startedAt,
+      updatedAt: operation.updatedAt,
+      startupState: 'ready',
+      checkpoints: [operationCheckpoint],
+      lastCheckpoint: operationCheckpoint,
+      activeOperation: operation,
+    };
+  }
+
+  return {
+    ...session,
+    updatedAt: operation.updatedAt,
+    lastCheckpoint: operationCheckpoint,
+    checkpoints: [...session.checkpoints, operationCheckpoint].slice(
+      -MAX_CHECKPOINTS
+    ),
+    activeOperation: operation,
+  };
+};
+
 export const shouldShowCrashDiagnosticReport = (
   report: CrashDiagnosticReport | null
 ): boolean => {
@@ -238,7 +342,9 @@ const buildInferredReport = (
     ? session.nativeCrash.reason
     : session.fatalError
       ? `${session.fatalError.phase}: ${session.fatalError.message}`
-      : '应用在启动完成前中断，可能是内存压力、WebView 崩溃或系统强杀',
+      : session.activeOperation
+        ? `应用在执行「${session.activeOperation.name}」时中断，可能是内存压力、WebView 崩溃或系统强杀`
+        : '应用在启动完成前中断，可能是内存压力、WebView 崩溃或系统强杀',
   session,
   detectedAt: nowIso(),
 });
@@ -283,10 +389,12 @@ export async function installCrashDiagnostics(): Promise<void> {
   }
 
   installPromise = (async () => {
-    const [previousSession, storedReport] = await Promise.all([
-      readStorageValue<CrashDiagnosticSession>(CURRENT_SESSION_KEY),
-      readStorageValue<CrashDiagnosticReport>(LAST_REPORT_KEY),
-    ]);
+    const [previousSession, storedReport, interruptedOperation] =
+      await Promise.all([
+        readStorageValue<CrashDiagnosticSession>(CURRENT_SESSION_KEY),
+        readStorageValue<CrashDiagnosticReport>(LAST_REPORT_KEY),
+        readStorageValue<CrashDiagnosticOperation>(ACTIVE_OPERATION_KEY),
+      ]);
     const existingReport = shouldShowCrashDiagnosticReport(storedReport)
       ? storedReport
       : null;
@@ -295,7 +403,14 @@ export async function installCrashDiagnostics(): Promise<void> {
       await removeStorageValue(LAST_REPORT_KEY);
     }
 
-    if (
+    if (!existingReport && interruptedOperation) {
+      await writeStorageValue(
+        LAST_REPORT_KEY,
+        buildInferredReport(
+          buildSessionWithOperation(previousSession, interruptedOperation)
+        )
+      );
+    } else if (
       !existingReport &&
       previousSession &&
       isUnexpectedPreviousSession(previousSession)
@@ -304,6 +419,10 @@ export async function installCrashDiagnostics(): Promise<void> {
         LAST_REPORT_KEY,
         buildInferredReport(previousSession)
       );
+    }
+
+    if (interruptedOperation) {
+      await removeStorageValue(ACTIVE_OPERATION_KEY);
     }
 
     activeSession = {
@@ -358,6 +477,111 @@ export function recordCrashCheckpoint(
       checkpoints,
     };
   });
+}
+
+export function recordCrashOperationStart(
+  name: string,
+  meta?: Record<string, unknown>
+): string {
+  const at = nowIso();
+  const operation: CrashDiagnosticOperation = {
+    id: createSessionId(),
+    name,
+    state: 'started',
+    startedAt: at,
+    updatedAt: at,
+    meta: sanitizeMeta({
+      ...getBrowserContextMeta(),
+      ...meta,
+    }),
+  };
+  const checkpoint: CrashCheckpoint = {
+    name: `operation:${name}:start`,
+    at,
+    meta: operation.meta,
+  };
+
+  activeOperation = operation;
+  writeBrowserStorageValueSync(ACTIVE_OPERATION_KEY, operation);
+
+  updateActiveSession(session => ({
+    ...session,
+    updatedAt: at,
+    activeOperation: operation,
+    lastCheckpoint: checkpoint,
+    checkpoints: [...session.checkpoints, checkpoint].slice(-MAX_CHECKPOINTS),
+  }));
+
+  return operation.id;
+}
+
+export function recordCrashOperationStep(
+  name: string,
+  meta?: Record<string, unknown>
+): void {
+  const operation =
+    activeOperation ||
+    readBrowserStorageValueSync<CrashDiagnosticOperation>(ACTIVE_OPERATION_KEY);
+
+  if (!operation) {
+    return;
+  }
+
+  const at = nowIso();
+  const checkpoint: CrashCheckpoint = {
+    name: `operation:${operation.name}:${name}`,
+    at,
+    meta: sanitizeMeta(meta),
+  };
+  const nextOperation: CrashDiagnosticOperation = {
+    ...operation,
+    updatedAt: at,
+    lastStep: checkpoint,
+  };
+
+  activeOperation = nextOperation;
+  writeBrowserStorageValueSync(ACTIVE_OPERATION_KEY, nextOperation);
+
+  updateActiveSession(session => ({
+    ...session,
+    updatedAt: at,
+    activeOperation: nextOperation,
+    lastCheckpoint: checkpoint,
+    checkpoints: [...session.checkpoints, checkpoint].slice(-MAX_CHECKPOINTS),
+  }));
+}
+
+export function recordCrashOperationComplete(
+  meta?: Record<string, unknown>,
+  operationId?: string
+): void {
+  const operation =
+    activeOperation ||
+    readBrowserStorageValueSync<CrashDiagnosticOperation>(ACTIVE_OPERATION_KEY);
+
+  if (operationId && operation?.id !== operationId) {
+    return;
+  }
+
+  const at = nowIso();
+  const checkpoint: CrashCheckpoint = {
+    name: operation
+      ? `operation:${operation.name}:complete`
+      : 'operation:complete',
+    at,
+    meta: sanitizeMeta(meta),
+  };
+
+  activeOperation = null;
+  removeBrowserStorageValueSync(ACTIVE_OPERATION_KEY);
+
+  updateActiveSession(session => ({
+    ...session,
+    updatedAt: at,
+    activeOperation: undefined,
+    lastCheckpoint: checkpoint,
+    checkpoints: [...session.checkpoints, checkpoint].slice(-MAX_CHECKPOINTS),
+  }));
 }
 
 export function markCrashDiagnosticsReady(
@@ -463,6 +687,24 @@ export const formatCrashDiagnosticReport = (
       ]
     : [];
 
+  const activeOperation = session.activeOperation
+    ? [
+        '',
+        '中断操作:',
+        `${session.activeOperation.name} @ ${session.activeOperation.startedAt}`,
+        `更新时间: ${session.activeOperation.updatedAt}`,
+        session.activeOperation.meta
+          ? safelyStringify(session.activeOperation.meta)
+          : '',
+        session.activeOperation.lastStep
+          ? `最后步骤: ${session.activeOperation.lastStep.name} @ ${session.activeOperation.lastStep.at}`
+          : '',
+        session.activeOperation.lastStep?.meta
+          ? safelyStringify(session.activeOperation.lastStep.meta)
+          : '',
+      ]
+    : [];
+
   const fatalError = session.fatalError
     ? [
         '',
@@ -492,6 +734,7 @@ export const formatCrashDiagnosticReport = (
 
   return [
     ...header,
+    ...activeOperation,
     ...lastCheckpoint,
     ...fatalError,
     ...nativeCrash,
