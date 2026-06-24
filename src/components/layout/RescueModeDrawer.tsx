@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useReducer } from 'react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import { showToast } from '@/components/common/feedback/LightToast';
+import SettingToggle from '@/components/settings/atomic/SettingToggle';
 import {
   exportRescueData,
   getRescueModeSnapshot,
@@ -28,15 +29,11 @@ const snapshotRows = (
   snapshot: RescueModeSnapshot
 ): Array<[string, React.ReactNode]> => [
   ['咖啡豆', snapshot.beans],
-  ['咖啡豆原图', snapshot.beanImages],
-  ['咖啡豆缩略图', snapshot.beanThumbnails],
   ['冲煮笔记', snapshot.notes],
-  ['笔记原图', snapshot.noteImages],
-  ['笔记缩略图', snapshot.noteThumbnails],
   ['自定义器具', snapshot.customEquipments],
   ['自定义方案', snapshot.customMethods],
   ['磨豆机', snapshot.grinders],
-  ['本地键', snapshot.localStorageKeys],
+  ['图片', snapshot.beanImages + snapshot.noteImages],
 ];
 
 const RescueInfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({
@@ -56,6 +53,7 @@ interface RescueModeDrawerState {
   snapshot: RescueModeSnapshot | null;
   isLoading: boolean;
   isExporting: boolean;
+  includeImages: boolean;
   lastExportSize: string | null;
 }
 
@@ -65,6 +63,7 @@ type RescueModeDrawerAction =
   | { type: 'previewStarted' }
   | { type: 'previewSucceeded'; snapshot: RescueModeSnapshot }
   | { type: 'previewFailed' }
+  | { type: 'includeImagesChanged'; includeImages: boolean }
   | { type: 'exportStarted' }
   | { type: 'exportSucceeded'; size: string }
   | { type: 'exportFailed' };
@@ -74,6 +73,7 @@ const initialState: RescueModeDrawerState = {
   snapshot: null,
   isLoading: false,
   isExporting: false,
+  includeImages: true,
   lastExportSize: null,
 };
 
@@ -92,6 +92,12 @@ const rescueModeDrawerReducer = (
       return { ...state, isLoading: false, snapshot: action.snapshot };
     case 'previewFailed':
       return { ...state, isLoading: false };
+    case 'includeImagesChanged':
+      return {
+        ...state,
+        includeImages: action.includeImages,
+        lastExportSize: null,
+      };
     case 'exportStarted':
       return { ...state, isExporting: true };
     case 'exportSucceeded':
@@ -107,7 +113,14 @@ const rescueModeDrawerReducer = (
 
 const RescueModeDrawer: React.FC = () => {
   const [state, dispatch] = useReducer(rescueModeDrawerReducer, initialState);
-  const { isOpen, snapshot, isLoading, isExporting, lastExportSize } = state;
+  const {
+    isOpen,
+    snapshot,
+    isLoading,
+    isExporting,
+    includeImages,
+    lastExportSize,
+  } = state;
 
   const refreshSnapshot = useCallback(async () => {
     dispatch({ type: 'previewStarted' });
@@ -140,11 +153,18 @@ const RescueModeDrawer: React.FC = () => {
     try {
       const [{ exportJsonFile }, jsonData] = await Promise.all([
         import('@/lib/utils/jsonExport'),
-        exportRescueData(),
+        includeImages
+          ? import('@/lib/core/dataManager').then(({ DataManager }) =>
+              DataManager.exportAllData({ collectDiagnostics: true })
+            )
+          : exportRescueData(),
       ]);
+      const date = new Date().toISOString().slice(0, 10);
       await exportJsonFile({
         jsonData,
-        fileName: `brew-guide-rescue-${new Date().toISOString().slice(0, 10)}.json`,
+        fileName: includeImages
+          ? `brew-guide-rescue-${date}.json`
+          : `brew-guide-rescue-no-images-${date}.json`,
         title: '导出抢救数据',
         text: '请选择保存位置',
         dialogTitle: '导出抢救数据',
@@ -174,7 +194,7 @@ const RescueModeDrawer: React.FC = () => {
               抢救模式
             </p>
             <p className="leading-5 text-neutral-500 dark:text-neutral-400">
-              仅读取计数和存储估算。导出核心数据，不加载原图。
+              打开时只读取计数。关闭图片可降低导出内存。
             </p>
           </div>
 
@@ -196,17 +216,33 @@ const RescueModeDrawer: React.FC = () => {
                     label="存储占用"
                     value={formatBytes(snapshot.storageUsage)}
                   />
-                  <RescueInfoRow
-                    label="存储上限"
-                    value={formatBytes(snapshot.storageQuota)}
-                  />
-                  <RescueInfoRow label="应用版本" value={snapshot.appVersion} />
                   {lastExportSize !== null ? (
-                    <RescueInfoRow label="上次导出" value={lastExportSize} />
+                    <RescueInfoRow label="导出大小" value={lastExportSize} />
                   ) : null}
                 </div>
               </>
             )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-neutral-200/60 pt-3 dark:border-neutral-800/70">
+            <div className="space-y-0.5">
+              <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                包含图片
+              </p>
+              <p className="text-neutral-500 dark:text-neutral-400">
+                关闭后只导出文字数据
+              </p>
+            </div>
+            <SettingToggle
+              checked={includeImages}
+              onChange={checked =>
+                dispatch({
+                  type: 'includeImagesChanged',
+                  includeImages: checked,
+                })
+              }
+              disabled={isExporting}
+            />
           </div>
         </div>
       </ActionDrawer.Content>
