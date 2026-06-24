@@ -22,11 +22,13 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
   const [status, setStatus] = useState<{
     type: 'success' | 'error' | 'info' | null;
     message: string;
+    scope?: 'data' | 'image';
   }>({
     type: null,
     message: '',
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [isRecompressing, setIsRecompressing] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
   // 数据导出
@@ -233,88 +235,138 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     }
   };
 
+  const handleRecompressImages = async () => {
+    if (isRecompressing) return;
+
+    setIsRecompressing(true);
+    setStatus({ type: 'info', message: '正在补压图片...', scope: 'image' });
+    try {
+      const { recompressOversizedBrewingNoteImages } =
+        await import('@/lib/notes/imageRepository');
+      const stats = await recompressOversizedBrewingNoteImages();
+
+      setStatus({
+        type: stats.failedCount > 0 ? 'error' : 'success',
+        scope: 'image',
+        message:
+          stats.failedCount > 0
+            ? `补压完成，${stats.failedCount} 张失败`
+            : stats.compressedCount > 0
+              ? `已补压 ${stats.compressedCount} 张图片`
+              : '没有需要补压的图片',
+      });
+    } catch (_error) {
+      console.error('笔记图片补压失败:', _error);
+      setStatus({ type: 'error', message: '图片补压失败', scope: 'image' });
+    } finally {
+      setIsRecompressing(false);
+    }
+  };
+
+  const recompressImageLabel =
+    isRecompressing || status.scope === 'image' ? status.message : '图片补压';
+
   return (
-    <div className="px-6 py-4">
-      <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-        数据管理
-      </h3>
+    <>
+      <div className="px-6 py-4">
+        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
+          数据管理
+        </h3>
 
-      {status.type && (
-        <div
-          className={`mb-4 rounded-md p-3 text-sm ${
-            status.type === 'success'
-              ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : status.type === 'error'
-                ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-          }`}
-        >
-          {status.message}
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={isExporting}
-          className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-        >
-          <span>{isExporting ? '导出中...' : '导出数据'}</span>
-          <ChevronRight className="size-4 text-neutral-400" />
-        </button>
-
-        <div>
-          <button
-            type="button"
-            onClick={handleImportClick}
-            className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+        {status.type && status.scope !== 'image' && (
+          <div
+            className={`mb-4 rounded-md p-3 text-sm ${
+              status.type === 'success'
+                ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                : status.type === 'error'
+                  ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                  : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+            }`}
           >
-            <span>导入数据</span>
-            <ChevronRight className="size-4 text-neutral-400" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
-
-        {!showConfirmReset ? (
-          <button
-            type="button"
-            onClick={() => setShowConfirmReset(true)}
-            className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-          >
-            <span>重置数据</span>
-            <ChevronRight className="size-4 text-neutral-400" />
-          </button>
-        ) : (
-          <div className="space-y-3 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
-            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              确认重置数据？此操作无法撤销
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-1 rounded bg-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
-              >
-                确认重置
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowConfirmReset(false)}
-                className="flex-1 rounded bg-neutral-800 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-900 dark:bg-neutral-600 dark:hover:bg-neutral-500"
-              >
-                取消
-              </button>
-            </div>
+            {status.message}
           </div>
         )}
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+          >
+            <span>{isExporting ? '导出中...' : '导出数据'}</span>
+            <ChevronRight className="size-4 text-neutral-400" />
+          </button>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+            >
+              <span>导入数据</span>
+              <ChevronRight className="size-4 text-neutral-400" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              aria-label="导入数据文件"
+              accept=".json"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+
+          {!showConfirmReset ? (
+            <button
+              type="button"
+              onClick={() => setShowConfirmReset(true)}
+              className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+            >
+              <span>重置数据</span>
+              <ChevronRight className="size-4 text-neutral-400" />
+            </button>
+          ) : (
+            <div className="space-y-3 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
+              <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                确认重置数据？此操作无法撤销
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="flex-1 rounded bg-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+                >
+                  确认重置
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmReset(false)}
+                  className="flex-1 rounded bg-neutral-800 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-900 dark:bg-neutral-600 dark:hover:bg-neutral-500"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <div className="px-6 py-4">
+        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
+          数据操作
+        </h3>
+
+        <button
+          type="button"
+          onClick={handleRecompressImages}
+          disabled={isRecompressing}
+          className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+        >
+          <span>{recompressImageLabel}</span>
+          <ChevronRight className="size-4 text-neutral-400" />
+        </button>
+      </div>
+    </>
   );
 };
