@@ -120,7 +120,7 @@ interface InventoryViewProps {
   onBeanReducedToZero?: () => void;
   isSearching?: boolean;
   searchQuery?: string;
-  beanImageIds?: Set<string>;
+  beanFrontImageIds?: Set<string>;
   isImageFlowMode?: boolean;
   // 新增显示模式 prop，优先级高于 isImageFlowMode
   displayMode?: DisplayMode;
@@ -165,7 +165,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
   onBeanReducedToZero,
   isSearching = false,
   searchQuery = '',
-  beanImageIds = EMPTY_BEAN_IMAGE_IDS,
+  beanFrontImageIds = EMPTY_BEAN_IMAGE_IDS,
   isImageFlowMode = false,
   displayMode: externalDisplayMode,
   tableVisibleColumns,
@@ -371,7 +371,9 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                   onDetailClick={handleDetailClick}
                   searchQuery={isSearching ? searchQuery : ''}
                   imageSourceHint={
-                    beanImageIds.has(item.bean.id) ? 'coffeeBean' : undefined
+                    beanFrontImageIds.has(item.bean.id)
+                      ? 'coffeeBeanFront'
+                      : undefined
                   }
                   isNotesExpanded={expandedNotes[item.bean.id]}
                   onNotesExpandToggle={onNotesExpandToggle}

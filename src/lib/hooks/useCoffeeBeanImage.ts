@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type CoffeeBeanImageSide,
   type CoffeeBeanImageSourceMode,
@@ -175,14 +175,24 @@ export function useCoffeeBeanImage(
   return imageSource;
 }
 
-export function useCoffeeBeanImageIds(beanIds: string[]): Set<string> {
+export function useCoffeeBeanImageIds(
+  beanIds: string[],
+  options: {
+    side?: CoffeeBeanImageSide | 'any';
+  } = {}
+): Set<string> {
+  const { side = 'any' } = options;
   const [imageIds, setImageIds] = useState<Set<string>>(new Set());
   const idsKey = beanIds.join('\u0001');
+  const imageBeanIds = useMemo(
+    () => (idsKey ? idsKey.split('\u0001') : []),
+    [idsKey]
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    getCoffeeBeanImageBeanIds(beanIds)
+    getCoffeeBeanImageBeanIds(imageBeanIds, { side })
       .then(ids => {
         if (!cancelled) {
           setImageIds(new Set(ids));
@@ -197,7 +207,7 @@ export function useCoffeeBeanImageIds(beanIds: string[]): Set<string> {
     return () => {
       cancelled = true;
     };
-  }, [idsKey]);
+  }, [imageBeanIds, side]);
 
   return imageIds;
 }

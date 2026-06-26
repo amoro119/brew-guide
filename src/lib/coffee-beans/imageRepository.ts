@@ -23,6 +23,33 @@ type CoffeeBeanImageSourceOptions = {
   preferThumbnail?: boolean;
 };
 
+type CoffeeBeanImageIdsOptions = {
+  side?: CoffeeBeanImageSide | 'any';
+};
+
+const getUsableThumbnail = (
+  thumbnail: string | undefined
+): string | undefined => getUsableThumbnailDataUrl(thumbnail);
+
+const hasImageForSide = (
+  record: CoffeeBeanImageRecord | CoffeeBeanImageThumbnailRecord | undefined,
+  side: CoffeeBeanImageSide
+): boolean => {
+  if (!record) return false;
+
+  if (side === 'front') {
+    return Boolean(
+      ('image' in record ? record.image : undefined) ||
+      getUsableThumbnail(record.imageThumbnail)
+    );
+  }
+
+  return Boolean(
+    ('backImage' in record ? record.backImage : undefined) ||
+    getUsableThumbnail(record.backImageThumbnail)
+  );
+};
+
 const resolveImageSourceMode = ({
   mode,
   preferThumbnail,
@@ -43,10 +70,6 @@ export async function createCoffeeBeanImageThumbnail(
 ): Promise<string | undefined> {
   return createImageThumbnailDataUrl(dataUrl, options);
 }
-
-const getUsableThumbnail = (
-  thumbnail: string | undefined
-): string | undefined => getUsableThumbnailDataUrl(thumbnail);
 
 const shouldDeleteImageRecord = (record: CoffeeBeanImageRecord): boolean =>
   !record.image && !record.backImage;
@@ -161,9 +184,29 @@ export async function getCoffeeBeanImageRecords(
 }
 
 export async function getCoffeeBeanImageBeanIds(
-  beanIds?: string[]
+  beanIds?: string[],
+  options: CoffeeBeanImageIdsOptions = {}
 ): Promise<string[]> {
+  const { side = 'any' } = options;
+
   if (!beanIds) {
+    if (side !== 'any') {
+      const [thumbnailRecords, imageRecords] = await Promise.all([
+        db.coffeeBeanImageThumbnails.toArray(),
+        db.coffeeBeanImages.toArray(),
+      ]);
+      const ids = new Set<string>();
+
+      thumbnailRecords.forEach(record => {
+        if (hasImageForSide(record, side)) ids.add(record.beanId);
+      });
+      imageRecords.forEach(record => {
+        if (hasImageForSide(record, side)) ids.add(record.beanId);
+      });
+
+      return Array.from(ids);
+    }
+
     const [thumbnailKeys, imageKeys] = await Promise.all([
       db.coffeeBeanImageThumbnails.toCollection().primaryKeys(),
       db.coffeeBeanImages.toCollection().primaryKeys(),
@@ -174,6 +217,23 @@ export async function getCoffeeBeanImageBeanIds(
   const uniqueBeanIds = Array.from(new Set(beanIds.filter(Boolean)));
   if (uniqueBeanIds.length === 0) {
     return [];
+  }
+
+  if (side !== 'any') {
+    const [thumbnailRecords, imageRecords] = await Promise.all([
+      db.coffeeBeanImageThumbnails.bulkGet(uniqueBeanIds),
+      db.coffeeBeanImages.bulkGet(uniqueBeanIds),
+    ]);
+
+    return uniqueBeanIds.filter((beanId, index) => {
+      const thumbnailRecord = thumbnailRecords[index];
+      const imageRecord = imageRecords[index];
+
+      return (
+        hasImageForSide(thumbnailRecord, side) ||
+        hasImageForSide(imageRecord, side)
+      );
+    });
   }
 
   const [thumbnailKeys, imageKeys] = await Promise.all([

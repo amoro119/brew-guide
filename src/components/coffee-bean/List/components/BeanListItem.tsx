@@ -27,7 +27,7 @@ interface BeanListItemProps {
   onRemainingClick: (bean: ExtendedCoffeeBean, event: React.MouseEvent) => void;
   onDetailClick?: (bean: ExtendedCoffeeBean) => void;
   searchQuery?: string;
-  imageSourceHint?: 'coffeeBean';
+  imageSourceHint?: 'coffeeBeanFront';
   // 外部控制的备注展开状态
   isNotesExpanded?: boolean;
   onNotesExpandToggle?: (beanId: string, expanded: boolean) => void;
@@ -97,13 +97,17 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
   );
   const configuredRoasterLogo = useRoasterLogo(roasterName);
 
-  const beanImage = useCoffeeBeanImage(bean.id, {
+  const frontBeanImage = useCoffeeBeanImage(bean.id, {
     preferThumbnail: true,
   });
-  const hasStoredBeanImage = imageSourceHint === 'coffeeBean';
+  const backBeanImage = useCoffeeBeanImage(bean.id, {
+    side: 'back',
+    preferThumbnail: true,
+  });
+  const hasStoredFrontImage = imageSourceHint === 'coffeeBeanFront';
 
   const roasterLogo = useMemo(() => {
-    if (!bean.name || beanImage || hasStoredBeanImage) {
+    if (!bean.name || frontBeanImage || hasStoredFrontImage) {
       return null;
     }
 
@@ -114,12 +118,14 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
     return null;
   }, [
     bean.name,
-    beanImage,
+    frontBeanImage,
     configuredRoasterLogo,
-    hasStoredBeanImage,
+    hasStoredFrontImage,
     roasterName,
   ]);
 
+  const beanImage = frontBeanImage || (roasterLogo ? undefined : backBeanImage);
+  const beanImageSide = frontBeanImage ? 'front' : beanImage ? 'back' : null;
   const imageSource = beanImage || roasterLogo;
   const hasImageError = imageError.source === imageSource && imageError.failed;
 
@@ -132,28 +138,50 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
       const sourceElement = event.currentTarget;
 
       void (async () => {
-        const isBeanImage = Boolean(beanImage);
-        const [frontImage, backImage] = isBeanImage
-          ? await Promise.all([
-              getCoffeeBeanImageSource(bean.id, { preferThumbnail: false }),
-              getCoffeeBeanImageSource(bean.id, {
-                side: 'back',
-                preferThumbnail: false,
-              }),
-            ])
-          : [undefined, undefined];
+        const [frontImage, backImage] = await Promise.all([
+          getCoffeeBeanImageSource(bean.id, { preferThumbnail: false }),
+          getCoffeeBeanImageSource(bean.id, {
+            side: 'back',
+            preferThumbnail: false,
+          }),
+        ]);
+        const originalFrontImage = frontImage || frontBeanImage;
+        const originalBackImage = backImage || backBeanImage;
+        const isRoasterLogoImage = imageSource === roasterLogo;
+        const isBackBeanImage = beanImageSide === 'back';
 
         openImageViewer({
-          url: frontImage || imageSource,
-          alt: isBeanImage
-            ? bean.name || '咖啡豆图片'
-            : `${roasterName} 烘焙商图标`,
-          backUrl: backImage,
+          url:
+            (isRoasterLogoImage
+              ? roasterLogo
+              : isBackBeanImage
+                ? originalBackImage
+                : originalFrontImage) || imageSource,
+          alt: isRoasterLogoImage
+            ? roasterName
+              ? `${roasterName} 烘焙商图标`
+              : '烘焙商图标'
+            : isBackBeanImage
+              ? bean.name
+                ? `${bean.name} 背面`
+                : '咖啡豆背面'
+              : bean.name || '咖啡豆图片',
+          backUrl: isBackBeanImage ? originalFrontImage : originalBackImage,
           sourceElement,
         });
       })();
     },
-    [bean.id, bean.name, beanImage, hasImageError, imageSource, roasterName]
+    [
+      backBeanImage,
+      bean.id,
+      bean.name,
+      beanImageSide,
+      frontBeanImage,
+      hasImageError,
+      imageSource,
+      roasterLogo,
+      roasterName,
+    ]
   );
 
   // 设置默认值
@@ -445,7 +473,13 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
             {beanImage && !hasImageError ? (
               <Image
                 src={beanImage}
-                alt={bean.name || '咖啡豆图片'}
+                alt={
+                  beanImageSide === 'back'
+                    ? bean.name
+                      ? `${bean.name} 背面`
+                      : '咖啡豆背面'
+                    : bean.name || '咖啡豆图片'
+                }
                 height={48}
                 width={48}
                 unoptimized

@@ -114,6 +114,33 @@ describe('coffee bean image repository records', () => {
     await expect(getCoffeeBeanImageSource('bean-1')).resolves.toBe('original');
   });
 
+  it('filters image ids by requested side', async () => {
+    mocks.images.set('front-only', {
+      beanId: 'front-only',
+      image: 'front-original',
+      updatedAt: 1,
+    });
+    mocks.images.set('back-only', {
+      beanId: 'back-only',
+      backImage: 'back-original',
+      updatedAt: 1,
+    });
+
+    await expect(
+      getCoffeeBeanImageBeanIds(['front-only', 'back-only'], {
+        side: 'front',
+      })
+    ).resolves.toEqual(['front-only']);
+    await expect(
+      getCoffeeBeanImageBeanIds(['front-only', 'back-only'], {
+        side: 'back',
+      })
+    ).resolves.toEqual(['back-only']);
+    await expect(
+      getCoffeeBeanImageBeanIds(['front-only', 'back-only'])
+    ).resolves.toEqual(expect.arrayContaining(['front-only', 'back-only']));
+  });
+
   it('preserves stored images when replacing lightweight beans', async () => {
     mocks.images.set('bean-1', {
       beanId: 'bean-1',
