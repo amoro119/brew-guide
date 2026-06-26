@@ -15,13 +15,16 @@ import {
   resolveNoteEquipmentName,
 } from '@/lib/notes/noteDisplay';
 
+const formatTasteRatingValue = (value: number): string =>
+  Number.isInteger(value) ? String(value) : value.toFixed(1);
+
 // 标准列表样式的笔记项组件
 const NoteItemStandard: React.FC<NoteItemProps> = ({
   note,
   equipmentNames,
-  onEdit,
-  onDelete,
-  onCopy,
+  onEdit: _onEdit,
+  onDelete: _onDelete,
+  onCopy: _onCopy,
   isShareMode = false,
   isSelected = false,
   onToggleSelect,
@@ -254,21 +257,34 @@ const NoteItemStandard: React.FC<NoteItemProps> = ({
         {hasTasteRatings ? (
           <div className="grid grid-cols-2 gap-4">
             {validTasteRatings.map(rating => (
-              <div key={rating.id} className="space-y-1">
+              <div
+                key={rating.id}
+                className="space-y-1"
+                data-taste-rating="true"
+                data-taste-label={rating.label}
+                data-taste-value={rating.value}
+              >
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
                     {rating.label}
                   </div>
-                  <div className="text-xs font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
-                    {rating.value}
+                  <div
+                    className="text-xs font-medium tracking-wide text-neutral-600 dark:text-neutral-400"
+                    data-taste-value-label="true"
+                  >
+                    {formatTasteRatingValue(rating.value)}
                   </div>
                 </div>
-                <div className="h-px w-full overflow-hidden bg-neutral-200/50 dark:bg-neutral-800">
+                <div
+                  className="h-px w-full overflow-hidden bg-neutral-200/50 dark:bg-neutral-800"
+                  data-taste-track="true"
+                >
                   <div
                     style={{
                       width: `${rating.value === 0 ? 0 : (rating.value / 5) * 100}%`,
                     }}
                     className="h-full bg-neutral-600 dark:bg-neutral-400"
+                    data-taste-fill="true"
                   />
                 </div>
               </div>

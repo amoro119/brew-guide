@@ -278,6 +278,8 @@ export interface AppSettings {
   showNoteTimeInNote: boolean;
   showCapacityAdjustmentRecords: boolean;
   useClassicNotesListStyle?: boolean;
+  artisticShareRatingStyle?: 'number' | 'dots' | 'bar';
+  artisticShareTags?: string;
 
   // 生豆库设置
   enableGreenBeanInventory?: boolean;

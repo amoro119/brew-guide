@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
+import { ChevronLeft } from 'lucide-react';
 import { BrewingNote, equipmentList, CustomEquipment } from '@/lib/core/config';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { loadCustomEquipments } from '@/lib/stores/customEquipmentStore';
@@ -23,17 +24,70 @@ interface ArtisticShareDrawerProps {
 }
 
 type Tab = 'text' | 'bean-image' | 'note-image';
+type ShareRatingStyle = 'number' | 'dots' | 'bar';
+
+const DEFAULT_TAB_LABELS: Record<Tab, string> = {
+  text: '文案',
+  'note-image': '记录图片',
+  'bean-image': '豆子图片',
+};
+
+const DEFAULT_SHARE_TAGS = '#咖啡 #手冲咖啡 #咖啡笔记 #BrewGuide';
+const HEADER_ICON_BUTTON_CLASS =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition-colors hover:text-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100';
+const HEADER_TEXT_BUTTON_CLASS =
+  'inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 px-4 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100';
+
+const RATING_STYLE_OPTIONS: Array<{
+  value: ShareRatingStyle;
+  label: string;
+}> = [
+  { value: 'number', label: '数字' },
+  { value: 'dots', label: '圆点' },
+  { value: 'bar', label: '刻度' },
+];
+
+const formatTasteRatingValue = (value: number): string => {
+  const normalized = Math.max(0, Math.min(5, value));
+  return Number.isInteger(normalized)
+    ? normalized.toString()
+    : normalized.toFixed(1);
+};
+
+const renderTasteRatingValue = (
+  value: number,
+  style: ShareRatingStyle
+): string => {
+  const normalized = Math.max(0, Math.min(5, value));
+  const formattedValue = formatTasteRatingValue(normalized);
+
+  if (style === 'dots') {
+    const filled = Math.round(normalized);
+    return `${'●'.repeat(filled)}${'○'.repeat(5 - filled)}`;
+  }
+
+  if (style === 'bar') {
+    const filled = Math.round((normalized / 5) * 10);
+    return `${'■'.repeat(filled)}${'□'.repeat(10 - filled)} ${formattedValue}`;
+  }
+
+  return formattedValue;
+};
 
 const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
   isOpen,
   onClose,
   note,
 }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('text');
+  const [viewState, setViewState] = useState({
+    activeTab: 'text' as Tab,
+    isSettingsOpen: false,
+  });
   const [equipmentName, setEquipmentName] = useState(note.equipment || '');
   const [isEspresso, setIsEspresso] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
+  const { activeTab, isSettingsOpen } = viewState;
 
   // 统一的复制功能
   const { copyText, failureDrawerProps } = useCopy({
@@ -65,9 +119,47 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
   const roasterSeparator = useSettingsStore(
     state => state.settings.roasterSeparator
   );
+  const shareRatingStyle =
+    useSettingsStore(state => state.settings.artisticShareRatingStyle) ??
+    'dots';
+  const shareTags =
+    useSettingsStore(state => state.settings.artisticShareTags) ??
+    DEFAULT_SHARE_TAGS;
+  const updateSettings = useSettingsStore(state => state.updateSettings);
 
   // 获取风味评分维度
   const { getValidTasteRatings } = useFlavorDimensions();
+
+  const handleOpenSettings = React.useCallback(() => {
+    setViewState(current => ({ ...current, isSettingsOpen: true }));
+  }, []);
+
+  const handleCloseSettings = React.useCallback(() => {
+    setViewState(current => ({ ...current, isSettingsOpen: false }));
+  }, []);
+
+  const handleRatingStyleChange = React.useCallback(
+    (style: ShareRatingStyle) => {
+      void updateSettings({ artisticShareRatingStyle: style });
+    },
+    [updateSettings]
+  );
+
+  const handleShareTagsChange = React.useCallback(
+    (value: string) => {
+      void updateSettings({
+        artisticShareTags: value,
+      });
+    },
+    [updateSettings]
+  );
+
+  const handleResetShareSettings = React.useCallback(() => {
+    void updateSettings({
+      artisticShareRatingStyle: 'dots',
+      artisticShareTags: DEFAULT_SHARE_TAGS,
+    });
+  }, [updateSettings]);
 
   const handleTextClick = () => {
     if (textRef.current) {
@@ -116,15 +208,27 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
   useEffect(() => {
     if (!isOpen) {
       // Reset to text tab when closed
-      const resetTimer = window.setTimeout(() => setActiveTab('text'), 300);
+      const resetTimer = window.setTimeout(() => {
+        setViewState({ activeTab: 'text', isSettingsOpen: false });
+      }, 300);
       return () => window.clearTimeout(resetTimer);
     }
   }, [isOpen]);
 
   const tabs = useMemo(() => {
-    const list: { id: Tab; label: string }[] = [{ id: 'text', label: '文案' }];
-    if (noteImage) list.push({ id: 'note-image', label: '记录图片' });
-    if (beanImage) list.push({ id: 'bean-image', label: '豆子图片' });
+    const list: { id: Tab; label: string }[] = [
+      { id: 'text', label: DEFAULT_TAB_LABELS.text },
+    ];
+    if (noteImage)
+      list.push({
+        id: 'note-image',
+        label: DEFAULT_TAB_LABELS['note-image'],
+      });
+    if (beanImage)
+      list.push({
+        id: 'bean-image',
+        label: DEFAULT_TAB_LABELS['bean-image'],
+      });
     return list;
   }, [beanImage, noteImage]);
 
@@ -293,16 +397,24 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
       if (validRatings.length > 0) {
         parts.push(''); // 在参数和风味之间加空行分组
 
-        // 每两个评分一行
-        for (let i = 0; i < validRatings.length; i += 2) {
-          const first = validRatings[i];
-          const second = validRatings[i + 1];
+        if (shareRatingStyle === 'bar') {
+          validRatings.forEach(rating => {
+            parts.push(
+              `${rating.label} ${renderTasteRatingValue(rating.value, shareRatingStyle)}`
+            );
+          });
+        } else {
+          // 非刻度模式保持紧凑排版：每两个评分一行
+          for (let i = 0; i < validRatings.length; i += 2) {
+            const first = validRatings[i];
+            const second = validRatings[i + 1];
 
-          let line = `${first.label} ${'●'.repeat(first.value)}${'○'.repeat(5 - first.value)}`;
-          if (second) {
-            line += `   ${second.label} ${'●'.repeat(second.value)}${'○'.repeat(5 - second.value)}`;
+            let line = `${first.label} ${renderTasteRatingValue(first.value, shareRatingStyle)}`;
+            if (second) {
+              line += `   ${second.label} ${renderTasteRatingValue(second.value, shareRatingStyle)}`;
+            }
+            parts.push(line);
           }
-          parts.push(line);
         }
       }
     }
@@ -318,8 +430,11 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
       parts.push(note.notes.trim());
     }
 
-    parts.push('');
-    parts.push('#咖啡 #手冲咖啡 #咖啡笔记 #BrewGuide');
+    const normalizedTags = shareTags.trim();
+    if (normalizedTags) {
+      parts.push('');
+      parts.push(normalizedTags);
+    }
 
     return parts.join('\n');
   };
@@ -346,15 +461,29 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
   return (
     <ActionDrawer isOpen={isOpen} onClose={onClose} historyId="artistic-share">
       <>
-        {/* Tabs */}
-        {tabs.length > 1 && (
-          <div className="mb-4 flex justify-start">
+        <div className="relative mb-4 flex items-center justify-between gap-3">
+          {isSettingsOpen ? (
+            <button
+              type="button"
+              onClick={handleCloseSettings}
+              className={HEADER_ICON_BUTTON_CLASS}
+              title="返回"
+              aria-label="返回"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          ) : tabs.length > 1 ? (
             <div className="inline-flex rounded-full bg-neutral-100 p-1 dark:bg-neutral-800">
               {tabs.map(tab => (
                 <button
                   type="button"
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() =>
+                    setViewState(current => ({
+                      ...current,
+                      activeTab: tab.id,
+                    }))
+                  }
                   className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
@@ -365,44 +494,136 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Content */}
-        <ActionDrawer.Switcher activeKey={activeTab}>
-          {activeTab === 'text' ? (
-            <div
-              ref={textRef}
-              onClick={handleTextClick}
-              data-vaul-no-drag
-              className="max-h-[300px] w-full cursor-text overflow-y-auto rounded-2xl bg-neutral-50 p-5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-neutral-600 select-text dark:bg-neutral-800/50 dark:text-neutral-400"
-            >
-              {generateShareText()}
-            </div>
-          ) : activeTab === 'bean-image' ? (
-            renderImagePreview(beanImage)
           ) : (
-            renderImagePreview(noteImage)
+            <div className="inline-flex rounded-full bg-neutral-100 p-1 dark:bg-neutral-800">
+              <button
+                type="button"
+                aria-disabled="true"
+                tabIndex={-1}
+                className="cursor-default rounded-full bg-white px-4 py-1.5 text-xs font-medium text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+              >
+                {tabs[0]?.label ?? DEFAULT_TAB_LABELS.text}
+              </button>
+            </div>
           )}
-        </ActionDrawer.Switcher>
 
-        {/* Actions */}
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <ActionDrawer.SecondaryButton onClick={onClose} className="w-full">
-            取消
-          </ActionDrawer.SecondaryButton>
-          <ActionDrawer.PrimaryButton
-            onClick={activeTab === 'text' ? handleCopyText : handleSaveImage}
-            disabled={isGenerating}
-            className="w-full"
-          >
-            {isGenerating
-              ? '生成中...'
-              : activeTab === 'text'
-                ? '复制文案'
-                : '保存图片'}
-          </ActionDrawer.PrimaryButton>
+          {isSettingsOpen && (
+            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              分享设置
+            </div>
+          )}
+
+          {isSettingsOpen ? (
+            <button
+              type="button"
+              onClick={handleResetShareSettings}
+              className={HEADER_TEXT_BUTTON_CLASS}
+              title="恢复默认"
+              aria-label="恢复默认"
+            >
+              还原
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenSettings}
+              className={HEADER_TEXT_BUTTON_CLASS}
+            >
+              设置
+            </button>
+          )}
         </div>
+
+        {isSettingsOpen ? (
+          <div className="space-y-5">
+            <div>
+              <div className="mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400">
+                风味评分
+              </div>
+              <div className="grid grid-cols-3 rounded-full bg-neutral-100 p-1 dark:bg-neutral-800">
+                {RATING_STYLE_OPTIONS.map(option => {
+                  const isActive = shareRatingStyle === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleRatingStyleChange(option.value)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        isActive
+                          ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                          : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400">
+                标签文本
+              </div>
+              <input
+                aria-label="标签文本"
+                value={shareTags}
+                onChange={event => handleShareTagsChange(event.target.value)}
+                placeholder={DEFAULT_SHARE_TAGS}
+                className="h-9 w-full rounded-lg bg-neutral-100 px-3 text-sm text-neutral-800 transition-colors outline-none placeholder:text-neutral-400 focus:bg-neutral-200/70 dark:bg-neutral-800/70 dark:text-neutral-100 dark:focus:bg-neutral-800"
+              />
+            </div>
+
+            <ActionDrawer.PrimaryButton
+              onClick={handleCloseSettings}
+              className="w-full"
+            >
+              完成
+            </ActionDrawer.PrimaryButton>
+          </div>
+        ) : (
+          <>
+            <ActionDrawer.Switcher activeKey={activeTab}>
+              {activeTab === 'text' ? (
+                <div
+                  ref={textRef}
+                  onClick={handleTextClick}
+                  data-vaul-no-drag
+                  className="max-h-[300px] w-full cursor-text overflow-y-auto rounded-2xl bg-neutral-50 p-5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-neutral-600 select-text dark:bg-neutral-800/50 dark:text-neutral-400"
+                >
+                  {generateShareText()}
+                </div>
+              ) : activeTab === 'bean-image' ? (
+                renderImagePreview(beanImage)
+              ) : (
+                renderImagePreview(noteImage)
+              )}
+            </ActionDrawer.Switcher>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <ActionDrawer.SecondaryButton
+                onClick={onClose}
+                className="w-full"
+              >
+                取消
+              </ActionDrawer.SecondaryButton>
+              <ActionDrawer.PrimaryButton
+                onClick={
+                  activeTab === 'text' ? handleCopyText : handleSaveImage
+                }
+                disabled={isGenerating}
+                className="w-full"
+              >
+                {isGenerating
+                  ? '生成中...'
+                  : activeTab === 'text'
+                    ? '复制文案'
+                    : '保存图片'}
+              </ActionDrawer.PrimaryButton>
+            </div>
+          </>
+        )}
       </>
 
       {/* 复制失败抽屉 */}

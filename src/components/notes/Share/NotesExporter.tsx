@@ -12,6 +12,52 @@ interface NotesExporterProps {
   onComplete: () => void;
 }
 
+const clampRating = (value: number): number => Math.max(0, Math.min(5, value));
+
+const formatTasteRatingValue = (value: number): string => {
+  const normalized = clampRating(value);
+  return Number.isInteger(normalized)
+    ? normalized.toString()
+    : normalized.toFixed(1);
+};
+
+const enhanceTasteRatingsForExport = (
+  clone: HTMLElement,
+  isDarkMode: boolean
+) => {
+  const ratings = clone.querySelectorAll<HTMLElement>('[data-taste-rating]');
+
+  ratings.forEach(ratingElement => {
+    const value = Number(ratingElement.dataset.tasteValue ?? 0);
+    if (!Number.isFinite(value)) return;
+
+    const normalized = clampRating(value);
+    const valueLabel = ratingElement.querySelector<HTMLElement>(
+      '[data-taste-value-label]'
+    );
+    const track =
+      ratingElement.querySelector<HTMLElement>('[data-taste-track]');
+    const fill = ratingElement.querySelector<HTMLElement>('[data-taste-fill]');
+
+    if (valueLabel) {
+      valueLabel.textContent = `${formatTasteRatingValue(normalized)}/5`;
+      valueLabel.style.fontVariantNumeric = 'tabular-nums';
+    }
+
+    if (track) {
+      const trackColor = isDarkMode
+        ? 'rgba(64, 64, 64, 0.55)'
+        : 'rgba(212, 212, 212, 0.7)';
+      track.style.cssText += `;height:2px;border-radius:999px;background-color:${trackColor}`;
+    }
+
+    if (fill) {
+      const fillColor = isDarkMode ? '#d4d4d4' : '#525252';
+      fill.style.cssText += `;width:${(normalized / 5) * 100}%;border-radius:999px;background-color:${fillColor}`;
+    }
+  });
+};
+
 /**
  * 笔记导出组件，专门用于处理将选中的笔记导出为图片
  */
@@ -186,6 +232,7 @@ export async function exportSelectedNotes({
       });
 
       // 评分显示已经在界面上处理，不需要额外添加"总体评分"字样
+      enhanceTasteRatingsForExport(clone, isDarkMode);
 
       // 如果是最后一条笔记，移除下边框
       if (index === selectedNoteElements.length - 1) {

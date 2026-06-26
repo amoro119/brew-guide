@@ -165,6 +165,8 @@ export const defaultSettings: AppSettings = {
   showNoteTimeInNote: true,
   showCapacityAdjustmentRecords: true,
   useClassicNotesListStyle: false,
+  artisticShareRatingStyle: 'dots',
+  artisticShareTags: '#咖啡 #手冲咖啡 #咖啡笔记 #BrewGuide',
 
   // 生豆库设置
   enableGreenBeanInventory: false,
