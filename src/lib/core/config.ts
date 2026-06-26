@@ -228,11 +228,7 @@ export interface BrewingNote {
   };
   notes: string;
   totalTime?: number;
-  source?:
-    | 'quick-decrement'
-    | 'capacity-adjustment'
-    | 'roasting'
-    | 'beanconqueror-import'; // 笔记来源：快捷扣除、容量调整、烘焙、导入
+  source?: 'quick-decrement' | 'capacity-adjustment' | 'roasting'; // 笔记来源：快捷扣除、容量调整、烘焙
   beanId?: string; // 关联的咖啡豆ID
 
   // 变动记录详细信息

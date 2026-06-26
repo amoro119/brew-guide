@@ -108,84 +108,13 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
         try {
           const jsonString = event.target?.result as string;
 
-          const { isBeanconquerorData, importBeanconquerorData } =
-            await import('@/lib/utils/beanconquerorImporter');
+          const result = await DataManagerUtil.importAllData(jsonString);
 
-          if (isBeanconquerorData(jsonString)) {
-            setStatus({
-              type: 'info',
-              message: '检测到 Beanconqueror 数据，正在转换...',
-            });
-
-            const importResult = await importBeanconquerorData(jsonString);
-
-            if (importResult.success && importResult.data) {
-              const [{ Storage }, { db }, { getCoffeeBeanStore }] =
-                await Promise.all([
-                  import('@/lib/core/storage'),
-                  import('@/lib/core/db'),
-                  import('@/lib/stores/coffeeBeanStore'),
-                ]);
-
-              await Promise.all([
-                Storage.set('coffeeBeans', JSON.stringify([])),
-                db.coffeeBeans.clear(),
-                db.coffeeBeanImages.clear(),
-                db.coffeeBeanImageThumbnails.clear(),
-                Storage.set('brewingNotes', JSON.stringify([])),
-                db.brewingNotes.clear(),
-                db.brewingNoteImages.clear(),
-                db.brewingNoteImageThumbnails.clear(),
-              ]);
-
-              const store = getCoffeeBeanStore();
-              await store.refreshBeans();
-
-              try {
-                // 顺序导入可避免大量图片同时压缩/写入导致移动端内存峰值过高。
-                for (const bean of importResult.data.coffeeBeans) {
-                  const { id: _id, timestamp: _timestamp, ...beanData } = bean;
-                  await store.addBean(beanData);
-                }
-              } catch (error) {
-                throw error;
-              }
-
-              if (importResult.data.brewingNotes.length > 0) {
-                await Storage.set(
-                  'brewingNotes',
-                  JSON.stringify(importResult.data.brewingNotes)
-                );
-
-                try {
-                  const { globalCache, calculateTotalCoffeeConsumption } =
-                    await import('@/components/notes/List/globalCache');
-                  type BrewingNote = import('@/lib/core/config').BrewingNote;
-                  globalCache.notes = importResult.data
-                    .brewingNotes as unknown as BrewingNote[];
-                  globalCache.totalConsumption =
-                    calculateTotalCoffeeConsumption(
-                      importResult.data.brewingNotes as unknown as BrewingNote[]
-                    );
-                } catch (cacheError) {
-                  console.error('更新笔记缓存失败:', cacheError);
-                }
-              }
-
-              onDataChange?.();
-              window.location.reload();
-            } else {
-              setStatus({ type: 'error', message: importResult.message });
-            }
+          if (result.success) {
+            onDataChange?.();
+            window.location.reload();
           } else {
-            const result = await DataManagerUtil.importAllData(jsonString);
-
-            if (result.success) {
-              onDataChange?.();
-              window.location.reload();
-            } else {
-              setStatus({ type: 'error', message: result.message });
-            }
+            setStatus({ type: 'error', message: result.message });
           }
         } catch (_error) {
           setStatus({
