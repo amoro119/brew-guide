@@ -69,7 +69,7 @@ export const PRINT_TEXT_FIELD_PLACEHOLDERS: Record<PrintTextFieldKey, string> =
     roastLevel: '烘焙度',
     process: '例如：水洗、日晒',
     variety: '例如：卡杜拉、瑰夏',
-    weight: '例如：250',
+    weight: '例如：15',
   };
 
 const hasValue = (value: string): boolean => value.trim().length > 0;
