@@ -365,10 +365,12 @@ const NoteItem: React.FC<NoteItemProps> = ({
                     key={img || `${note.id}-image-placeholder-${index}`}
                     type="button"
                     className={`relative cursor-pointer overflow-hidden rounded-[3px] border border-neutral-200/50 dark:border-neutral-800/50 ${
-                      isSingleNoteImage ? 'inline-flex' : 'block aspect-square'
+                      isSingleNoteImage
+                        ? 'inline-flex max-h-45 max-w-35'
+                        : 'block aspect-square'
                     } appearance-none bg-transparent p-0`}
                     style={
-                      isSingleNoteImage
+                      isSingleNoteImage && (!img || noteImageError)
                         ? {
                             width: SINGLE_IMAGE_MAX_WIDTH,
                             height: SINGLE_IMAGE_MAX_WIDTH,
@@ -393,11 +395,11 @@ const NoteItem: React.FC<NoteItemProps> = ({
                       <img
                         src={img}
                         alt={`笔记图片 ${index + 1}`}
-                        width={isSingleNoteImage ? SINGLE_IMAGE_MAX_WIDTH : 96}
-                        height={isSingleNoteImage ? SINGLE_IMAGE_MAX_WIDTH : 96}
+                        width={isSingleNoteImage ? undefined : 96}
+                        height={isSingleNoteImage ? undefined : 96}
                         className={
                           isSingleNoteImage
-                            ? 'block h-full w-full object-cover'
+                            ? 'block h-auto max-h-45 w-auto max-w-35'
                             : 'block h-full w-full object-cover'
                         }
                         onError={() => setNoteImageError(true)}
