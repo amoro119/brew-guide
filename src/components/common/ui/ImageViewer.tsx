@@ -52,8 +52,28 @@ const DEFAULT_IMAGE_SIZE: ImageSize = {
   height: 1200,
 };
 
-const FLIP_DURATION = 0.5;
-const FLIP_EASE = 'sine.inOut';
+type FlipStageRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type FlipStageElements = {
+  stage: HTMLDivElement;
+  card: HTMLDivElement;
+  shadow: HTMLDivElement;
+};
+
+const FLIP_DURATION = 0.64;
+const FLIP_LIFT_Y = -6;
+const FLIP_Z = 32;
+const FLIP_SCALE = 1.01;
+const FLIP_ROTATE_Z = 0.4;
+const FLIP_EDGE_SWITCH = 0.48;
+const FLIP_EDGE_PRE_ANGLE = 87;
+const FLIP_EDGE_POST_ANGLE = 93;
+const FLIP_SIZE_MORPH_DURATION = 0.2;
 
 const imageSizeCache = new Map<string, Promise<ImageSize>>();
 
@@ -254,6 +274,75 @@ const applyDualSideImage = (
   return element;
 };
 
+const getFlipStageRect = (
+  element: HTMLImageElement,
+  root: HTMLElement
+): FlipStageRect | null => {
+  const imageRect = element.getBoundingClientRect();
+  const rootRect = root.getBoundingClientRect();
+
+  if (imageRect.width < 1 || imageRect.height < 1) {
+    return null;
+  }
+
+  return {
+    left: imageRect.left - rootRect.left,
+    top: imageRect.top - rootRect.top,
+    width: imageRect.width,
+    height: imageRect.height,
+  };
+};
+
+const setFlipStageRect = (stage: HTMLDivElement, rect: FlipStageRect) => {
+  stage.style.left = `${rect.left}px`;
+  stage.style.top = `${rect.top}px`;
+  stage.style.width = `${rect.width}px`;
+  stage.style.height = `${rect.height}px`;
+};
+
+const createFlipFaceImage = (image: DualSideImage) => {
+  const element = new window.Image();
+  element.src = image.url;
+  element.alt = image.alt;
+  element.decoding = 'async';
+  element.draggable = false;
+
+  return element;
+};
+
+const createFlipStage = (
+  root: HTMLElement,
+  currentImage: DualSideImage,
+  nextImage: DualSideImage,
+  rect: FlipStageRect
+): FlipStageElements => {
+  const stage = document.createElement('div');
+  stage.className = 'brew-image-viewer-flip-stage';
+  stage.setAttribute('aria-hidden', 'true');
+  setFlipStageRect(stage, rect);
+
+  const shadow = document.createElement('div');
+  shadow.className = 'brew-image-viewer-flip-shadow';
+
+  const card = document.createElement('div');
+  card.className = 'brew-image-viewer-flip-card';
+
+  const frontFace = document.createElement('div');
+  frontFace.className = 'brew-image-viewer-flip-face';
+  frontFace.appendChild(createFlipFaceImage(currentImage));
+
+  const backFace = document.createElement('div');
+  backFace.className =
+    'brew-image-viewer-flip-face brew-image-viewer-flip-back';
+  backFace.appendChild(createFlipFaceImage(nextImage));
+
+  card.append(frontFace, backFace);
+  stage.append(shadow, card);
+  root.appendChild(stage);
+
+  return { stage, card, shadow };
+};
+
 const flipDualSideImage = async (
   instance: PhotoSwipe,
   images: DualSideImages,
@@ -265,23 +354,28 @@ const flipDualSideImage = async (
 
   const slide = instance.currSlide;
   const element = slide?.content.element;
+  const root = instance.element;
 
-  if (!slide || !(element instanceof HTMLImageElement)) {
+  if (!slide || !root || !(element instanceof HTMLImageElement)) {
     return;
   }
 
   const nextSide = state.side === 'front' ? 'back' : 'front';
+  const currentImage = images[state.side];
   const nextImage = images[nextSide];
 
   state.isFlipping = true;
   slide.content.placeholder?.destroy();
   slide.content.placeholder = undefined;
 
-  const previousTransformOrigin = element.style.transformOrigin;
-  const previousBackfaceVisibility = element.style.backfaceVisibility;
+  const previousVisibility = element.style.visibility;
+  const previousPointerEvents = element.style.pointerEvents;
   const reduceMotion = window.matchMedia(
     '(prefers-reduced-motion: reduce)'
   ).matches;
+  let stageElements: FlipStageElements | null = null;
+  let finishAnimation: (() => void) | null = null;
+  const handleFlipCancel = () => finishAnimation?.();
 
   try {
     if (reduceMotion) {
@@ -291,52 +385,162 @@ const flipDualSideImage = async (
       return;
     }
 
+    const initialRect = getFlipStageRect(element, root);
+    if (!initialRect) {
+      if (applyDualSideImage(instance, nextImage)) {
+        state.side = nextSide;
+      }
+      return;
+    }
+
+    const direction = state.side === 'front' ? 1 : -1;
+    stageElements = createFlipStage(root, currentImage, nextImage, initialRect);
+    element.style.visibility = 'hidden';
+    element.style.pointerEvents = 'none';
+
     await new Promise<void>(resolve => {
-      gsap.set(element, {
-        transformOrigin: 'center center',
-        backfaceVisibility: 'hidden',
+      const { stage, card, shadow } = stageElements!;
+      let isFinished = false;
+      let timeline: ReturnType<typeof gsap.timeline> | null = null;
+      const finish = () => {
+        if (isFinished) return;
+
+        isFinished = true;
+        timeline?.kill();
+        gsap.killTweensOf([stage, card, shadow]);
+        resolve();
+      };
+
+      finishAnimation = finish;
+      instance.on('close', handleFlipCancel);
+      instance.on('destroy', handleFlipCancel);
+
+      gsap.set(card, {
         rotateY: 0,
+        rotateZ: 0,
+        scale: 1,
+        y: 0,
+        z: 0,
       });
 
-      gsap.to(element, {
-        rotateY: 90,
-        duration: FLIP_DURATION / 2,
-        ease: FLIP_EASE,
-        onComplete: () => {
-          if (instance.currSlide !== slide) {
-            resolve();
+      timeline = gsap.timeline({ onComplete: finish });
+      timeline.to(
+        card,
+        {
+          rotateY: direction * FLIP_EDGE_PRE_ANGLE,
+          duration: FLIP_DURATION * FLIP_EDGE_SWITCH,
+          ease: 'power2.in',
+        },
+        0
+      );
+      timeline.set(
+        card,
+        {
+          rotateY: direction * FLIP_EDGE_POST_ANGLE,
+        },
+        FLIP_DURATION * FLIP_EDGE_SWITCH
+      );
+      timeline.to(
+        card,
+        {
+          rotateY: direction * 180,
+          duration: FLIP_DURATION * (1 - FLIP_EDGE_SWITCH),
+          ease: 'power2.out',
+        },
+        FLIP_DURATION * FLIP_EDGE_SWITCH
+      );
+      timeline.to(
+        card,
+        {
+          rotateZ: direction * FLIP_ROTATE_Z,
+          scale: FLIP_SCALE,
+          y: FLIP_LIFT_Y,
+          z: FLIP_Z,
+          duration: FLIP_DURATION / 2,
+          ease: 'power2.out',
+        },
+        0
+      );
+      timeline.to(
+        card,
+        {
+          rotateZ: 0,
+          scale: 1,
+          y: 0,
+          z: 0,
+          duration: FLIP_DURATION / 2,
+          ease: 'power2.inOut',
+        },
+        FLIP_DURATION / 2
+      );
+      timeline.to(
+        shadow,
+        {
+          opacity: 0.34,
+          scaleX: 0.82,
+          scaleY: 0.88,
+          duration: FLIP_DURATION / 2,
+          ease: 'power2.out',
+        },
+        0
+      );
+      timeline.to(
+        shadow,
+        {
+          opacity: 0.16,
+          scaleX: 1,
+          scaleY: 1,
+          duration: FLIP_DURATION / 2,
+          ease: 'power2.inOut',
+        },
+        FLIP_DURATION / 2
+      );
+      timeline.call(
+        () => {
+          if (instance.currSlide !== slide || instance.isDestroying) {
+            finish();
             return;
           }
 
           const nextElement = applyDualSideImage(instance, nextImage);
           if (!nextElement) {
-            resolve();
+            finish();
             return;
           }
 
           state.side = nextSide;
-          gsap.set(nextElement, {
-            transformOrigin: 'center center',
-            backfaceVisibility: 'hidden',
-            rotateY: -90,
-          });
+          nextElement.style.visibility = 'hidden';
+          nextElement.style.pointerEvents = 'none';
 
-          gsap.to(nextElement, {
-            rotateY: 0,
-            duration: FLIP_DURATION / 2,
-            ease: FLIP_EASE,
-            onComplete: resolve,
-          });
+          const nextRect = getFlipStageRect(nextElement, root);
+          if (nextRect) {
+            gsap.to(stage, {
+              left: nextRect.left,
+              top: nextRect.top,
+              width: nextRect.width,
+              height: nextRect.height,
+              duration: FLIP_SIZE_MORPH_DURATION,
+              ease: 'power2.out',
+            });
+          }
         },
-      });
+        [],
+        FLIP_DURATION * FLIP_EDGE_SWITCH
+      );
     });
   } finally {
+    instance.off('close', handleFlipCancel);
+    instance.off('destroy', handleFlipCancel);
+    finishAnimation = null;
+    stageElements?.stage.remove();
+
     const currentElement = instance.currSlide?.content.element;
+    element.style.visibility = previousVisibility;
+    element.style.pointerEvents = previousPointerEvents;
+
     if (currentElement instanceof HTMLImageElement) {
-      gsap.killTweensOf(currentElement);
-      gsap.set(currentElement, { rotateY: 0 });
-      currentElement.style.transformOrigin = previousTransformOrigin;
-      currentElement.style.backfaceVisibility = previousBackfaceVisibility;
+      currentElement.style.visibility = previousVisibility;
+      currentElement.style.pointerEvents = previousPointerEvents;
     }
     state.isFlipping = false;
   }
