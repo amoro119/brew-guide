@@ -25,13 +25,8 @@ export const BUILD_INFO = {
   buildTimeLabel: formatBuildTime(APP_BUILD_TIME),
 } as const;
 
-export function getVersionLabel(isBundledNativeApp: boolean): string {
-  if (isBundledNativeApp) {
-    return `v${BUILD_INFO.appVersion}`;
-  }
-
-  const sha = BUILD_INFO.gitShaShort || 'unknown';
-  return `Web 实时版(${sha})`;
+export function getVersionLabel(): string {
+  return `v${BUILD_INFO.appVersion}`;
 }
 
 export function getWebBuildDetail(): string {

@@ -5,9 +5,11 @@ import { Capacitor } from '@capacitor/core';
 import { X } from 'lucide-react';
 import Image from 'next/image';
 import PWAInstallGuideDrawer from '@/components/layout/PWAInstallGuideDrawer';
+import { isBundledNativeApp } from '@/lib/app/capacitor';
+import { APP_VERSION } from '@/lib/core/config';
 import {
   getDesktopDownloadUrl,
-  getOnlineAndroidDownloadUrl,
+  getOfflineAndroidDownloadUrl,
 } from '@/lib/utils/downloadUrls';
 
 const DISMISS_KEY = 'pwa_install_banner_dismissed_v1';
@@ -15,6 +17,15 @@ const DISMISS_KEY = 'pwa_install_banner_dismissed_v1';
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
+
+type NavigatorWithStandalone = Navigator & {
+  standalone?: boolean;
+};
+
+type BrewGuideWindow = Window & {
+  __onboardingOpen?: boolean;
+  __pwaInstallBannerVisible?: boolean;
 };
 
 const getIsIOS = () => {
@@ -31,7 +42,8 @@ const getIsStandalone = () => {
   const isStandaloneMode = window.matchMedia?.(
     '(display-mode: standalone)'
   )?.matches;
-  const isIOSStandalone = (navigator as any).standalone === true;
+  const isIOSStandalone =
+    (navigator as NavigatorWithStandalone).standalone === true;
   return Boolean(isStandaloneMode || isIOSStandalone);
 };
 
@@ -56,7 +68,7 @@ const getIsDesktop = () => {
 
 const getOnboardingOpen = () => {
   if (typeof window === 'undefined') return false;
-  return (window as any).__onboardingOpen === true;
+  return (window as BrewGuideWindow).__onboardingOpen === true;
 };
 
 export default function PWAInstallBanner() {
@@ -64,21 +76,26 @@ export default function PWAInstallBanner() {
     useState<BeforeInstallPromptEvent | null>(null);
   const [isVisible, setIsVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
-    if (Capacitor.isNativePlatform?.() === true) return false;
     if (getIsStandalone()) return false;
     try {
       if (localStorage.getItem(DISMISS_KEY) === '1') return false;
     } catch {
       // ignore
     }
+    if (Capacitor.isNativePlatform?.() === true) {
+      return !isBundledNativeApp() && getIsAndroid();
+    }
     return getIsIOS() || getIsAndroid();
   });
   const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
   const isNative = useMemo(() => Capacitor.isNativePlatform?.() === true, []);
+  const isBundledNative = useMemo(() => isBundledNativeApp(), []);
   const isIOS = useMemo(() => getIsIOS(), []);
   const isWeChat = useMemo(() => getIsWeChat(), []);
   const isAndroid = useMemo(() => getIsAndroid(), []);
   const isDesktop = useMemo(() => getIsDesktop(), []);
+  const showOnlineNativeMigration =
+    isNative && !isBundledNative && isAndroid && !isWeChat;
   const [onboardingStatus, setOnboardingStatus] = useState<
     'unknown' | 'open' | 'closed'
   >(() => {
@@ -121,12 +138,15 @@ export default function PWAInstallBanner() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const visible = !isNative && isVisible && onboardingStatus === 'closed';
-    (window as any).__pwaInstallBannerVisible = visible;
+    const visible =
+      isVisible &&
+      onboardingStatus === 'closed' &&
+      (!isNative || showOnlineNativeMigration);
+    (window as BrewGuideWindow).__pwaInstallBannerVisible = visible;
     window.dispatchEvent(
       new CustomEvent('pwa-install-banner', { detail: { visible } })
     );
-  }, [isVisible, onboardingStatus, isNative]);
+  }, [isVisible, onboardingStatus, isNative, showOnlineNativeMigration]);
 
   const handleDismiss = useCallback(() => {
     try {
@@ -136,6 +156,10 @@ export default function PWAInstallBanner() {
     }
     setIsInstallGuideOpen(false);
     setIsVisible(false);
+  }, []);
+
+  const handleInstallGuideClose = useCallback(() => {
+    setIsInstallGuideOpen(false);
   }, []);
 
   const handleInstall = useCallback(async () => {
@@ -161,17 +185,29 @@ export default function PWAInstallBanner() {
     }
   }, [deferredPrompt, isIOS]);
 
-  if (isNative || !isVisible || onboardingStatus !== 'closed') return null;
+  if (
+    (!showOnlineNativeMigration && isNative) ||
+    !isVisible ||
+    onboardingStatus !== 'closed'
+  ) {
+    return null;
+  }
 
-  const description = isWeChat
-    ? '不建议在微信内打开，请点右上角“…”选择“在浏览器打开”'
-    : '添加到主屏，离线可用';
+  const description = showOnlineNativeMigration
+    ? '长期稳定版已发布，可安装离线版继续使用'
+    : isWeChat
+      ? '不建议在微信内打开，请点右上角“…”选择“在浏览器打开”'
+      : '添加到主屏，离线可用';
 
-  const showPwaInstallButton = !isWeChat && (isIOS || Boolean(deferredPrompt));
+  const showPwaInstallButton =
+    !showOnlineNativeMigration &&
+    !isWeChat &&
+    (isIOS || Boolean(deferredPrompt));
   const showDesktopDownloads = isDesktop && !isWeChat;
-  const showAndroidDownload = isAndroid && !isWeChat;
+  const showAndroidDownload =
+    (isAndroid || showOnlineNativeMigration) && !isWeChat;
   const desktopDownloadUrl = getDesktopDownloadUrl();
-  const androidOnlineDownloadUrl = getOnlineAndroidDownloadUrl();
+  const androidDownloadUrl = getOfflineAndroidDownloadUrl(APP_VERSION);
 
   return (
     <div className="relative z-50 mx-auto w-full max-w-6xl border-b border-neutral-200/50 bg-neutral-50 px-6 py-3 dark:border-neutral-800/50 dark:bg-neutral-900">
@@ -225,10 +261,10 @@ export default function PWAInstallBanner() {
           )}
           {showAndroidDownload && (
             <a
-              href={androidOnlineDownloadUrl}
+              href={androidDownloadUrl}
               className="rounded-full bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-800 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
             >
-              Android APK
+              {showOnlineNativeMigration ? '下载离线版' : 'Android APK'}
             </a>
           )}
           <button
@@ -243,7 +279,7 @@ export default function PWAInstallBanner() {
       </div>
       <PWAInstallGuideDrawer
         isOpen={isInstallGuideOpen}
-        onClose={() => setIsInstallGuideOpen(false)}
+        onClose={handleInstallGuideClose}
       />
     </div>
   );

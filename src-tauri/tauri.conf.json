@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Brew Guide",
-  "version": "1.5.15",
+  "version": "1.6.0",
   "identifier": "com.brewguide.desktop",
   "build": {
-    "frontendDist": "https://coffee.chu3.top",
+    "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": ""
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "withGlobalTauri": true,

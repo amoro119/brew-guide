@@ -210,6 +210,11 @@ const Settings: React.FC<SettingsProps> = ({
 
   // 获取主题相关方法
   const { theme, systemTheme } = useTheme();
+  const [runningDays] = useState(() =>
+    Math.floor(
+      (Date.now() - new Date('2025-02-01').getTime()) / (1000 * 60 * 60 * 24)
+    )
+  );
 
   const { shouldRender, isVisible } = usePageTransitionState(isOpen);
 
@@ -659,7 +664,7 @@ const Settings: React.FC<SettingsProps> = ({
                   icon: Info,
                   label: '关于',
                   settingId: 'about-settings',
-                  value: getVersionLabel(bundledNativeApp),
+                  value: getVersionLabel(),
                   onClick: subSettingsHandlers.onOpenAboutSettings,
                 },
               ]}
@@ -671,10 +676,7 @@ const Settings: React.FC<SettingsProps> = ({
                 <p className="font-medium text-neutral-800 dark:text-neutral-200">
                   感谢各位一直以来的支持，自 2025 年 2 月 1
                   日首次发布至今，项目已持续运行{' '}
-                  {Math.floor(
-                    (Date.now() - new Date('2025-02-01').getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  )}{' '}
+                  {runningDays}{' '}
                   天，你们的每一次鼓励与贡献，都是它不断成长的重要动力。
                 </p>
                 <SponsorList />
