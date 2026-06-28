@@ -13,6 +13,7 @@ import { X, AlignLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useInputFocus } from '@/lib/hooks/useInputFocus';
 import { useHorizontalWheelScroll } from '@/lib/hooks/useHorizontalWheelScroll';
+import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
 
 // Apple风格动画配置
 const FILTER_ANIMATION = {
@@ -490,6 +491,8 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
   hasImageNotes = true,
   searchHistory,
   onSearchHistoryClick,
+  searchAllScopeLabel,
+  onSearchAllClick,
   tableColumnOptions = [],
   tableVisibleColumns = [],
   onTableColumnsChange,
@@ -907,7 +910,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
           !searchQuery.trim() &&
           searchHistory &&
           searchHistory.length > 0 && (
-            <div className="border-t border-neutral-200/50 dark:border-neutral-700/50">
+            <div className="border-t border-neutral-200/50 dark:border-neutral-800/50">
               <div className="px-6 py-3">
                 <div
                   className="flex flex-wrap items-center gap-2 overflow-hidden"
@@ -931,12 +934,18 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
             </div>
           )}
 
+        <SearchAllSuggestion
+          scopeLabel={searchAllScopeLabel}
+          query={searchQuery}
+          onClick={onSearchAllClick}
+        />
+
         {/* 展开式筛选栏 - 在同一个容器内 */}
         <AnimatePresence>
           {isFilterExpanded && sortOption && onSortChange && (
             <>
               {/* 固定的半透明分割线 - 只在展开时显示 */}
-              <div className="border-t border-neutral-200/50 dark:border-neutral-700/50"></div>
+              <div className="border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
 
               <motion.div
                 ref={filterDropdownRef}

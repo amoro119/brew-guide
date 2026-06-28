@@ -30,21 +30,6 @@ export const DATE_GROUPING_LABELS: Record<DateGroupingMode, string> = {
   day: '按日',
 };
 
-// 排序选项的显示名称
-const SORT_LABELS: Record<SortOption, string> = {
-  [SORT_OPTIONS.TIME_DESC]: '时间',
-  [SORT_OPTIONS.TIME_ASC]: '时间',
-  [SORT_OPTIONS.RATING_DESC]: '评分',
-  [SORT_OPTIONS.RATING_ASC]: '评分',
-};
-
-// 消息提示状态接口
-interface ToastState {
-  visible: boolean;
-  message: string;
-  type: 'success' | 'error' | 'info';
-}
-
 // 笔记历史组件属性
 export interface BrewingHistoryProps {
   isOpen: boolean;
@@ -120,6 +105,8 @@ export interface FilterTabsProps {
   // 搜索历史相关props
   searchHistory?: string[];
   onSearchHistoryClick?: (query: string) => void;
+  searchAllScopeLabel?: string;
+  onSearchAllClick?: () => void;
   tableColumnOptions?: NotesTableColumnConfig[];
   tableVisibleColumns?: NotesTableColumnKey[];
   onTableColumnsChange?: (columns: NotesTableColumnKey[]) => void;
@@ -130,21 +117,9 @@ export interface AddNoteButtonProps {
   onAddNote: (draft?: Partial<BrewingNoteData>) => void;
 }
 
-// 分享笔记按钮属性
-interface ShareButtonsProps {
-  selectedNotes: BrewingNote[];
-  onCancel: () => void;
-  onSave: () => void;
-}
-
 // 消息提示组件属性
 export interface ToastProps {
   visible: boolean;
   message: string;
   type: 'success' | 'error' | 'info';
-}
-
-// 编辑笔记数据类型
-interface EditingNoteData extends Partial<BrewingNoteData> {
-  coffeeBean?: CoffeeBean | null;
 }

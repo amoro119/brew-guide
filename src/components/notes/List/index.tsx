@@ -129,6 +129,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   // 搜索相关状态
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchAllScope, setIsSearchAllScope] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // 删除确认抽屉状态
@@ -402,14 +403,16 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     setNotesScrollEl(el);
   }, []);
 
-  //  简化：直接用 useMemo 筛选和排序，不需要复杂的 hook
-  const filteredNotes = useMemo(() => {
+  const sortedNotes = useMemo(() => {
     if (!notes || notes.length === 0) return [];
 
-    // 1. 先排序
-    const sortedNotes = sortNotes(notes, sortOption);
+    return sortNotes(notes, sortOption);
+  }, [notes, sortOption]);
 
-    // 2. 再筛选
+  //  简化：直接用 useMemo 筛选和排序，不需要复杂的 hook
+  const filteredNotes = useMemo(() => {
+    if (sortedNotes.length === 0) return [];
+
     if (filterMode === 'equipment' && selectedEquipment) {
       return sortedNotes.filter((note: BrewingNote) => {
         return isSameEquipment(
@@ -458,8 +461,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
 
     return sortedNotes;
   }, [
-    notes,
-    sortOption,
+    sortedNotes,
     filterMode,
     selectedEquipment,
     selectedDate,
@@ -516,11 +518,87 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     [filteredNotes, coffeeBeanLookup]
   );
 
-  // 搜索过滤逻辑 - 在Hook之后定义以避免循环依赖
-  const searchFilteredNotes = useMemo(() => {
+  const currentScopeSearchFilteredNotes = useMemo(() => {
     if (!isSearching || !searchQuery.trim()) return filteredNotes;
     return filterSearchableNotes(searchableFilteredNotes, searchQuery);
   }, [isSearching, searchQuery, filteredNotes, searchableFilteredNotes]);
+
+  const searchableAllScopeNotes = useMemo(
+    () =>
+      sortedNotes.map(note => ({
+        note,
+        searchableTexts: buildNoteSearchableTexts(note, coffeeBeanLookup),
+      })),
+    [sortedNotes, coffeeBeanLookup]
+  );
+
+  const searchAllFilteredNotes = useMemo(() => {
+    if (!isSearchAllScope) return sortedNotes;
+    if (!isSearching || !searchQuery.trim()) return sortedNotes;
+    return filterSearchableNotes(searchableAllScopeNotes, searchQuery);
+  }, [
+    isSearchAllScope,
+    isSearching,
+    searchQuery,
+    searchableAllScopeNotes,
+    sortedNotes,
+  ]);
+
+  const activeSearchScopeLabel = useMemo(() => {
+    if (filterMode === 'equipment' && selectedEquipment) {
+      return equipmentNames[selectedEquipment] || selectedEquipment;
+    }
+
+    if (filterMode !== 'date' || !selectedDate) {
+      return '';
+    }
+
+    if (selectedDate === 'today') return '今天';
+    if (selectedDate === 'yesterday') return '昨天';
+    if (selectedDate === 'dayBeforeYesterday') return '前天';
+    if (dateGroupingMode === 'year') return `${selectedDate}年`;
+    if (dateGroupingMode === 'month') {
+      const [year, month] = selectedDate.split('-');
+      return `${year}年${Number(month)}月`;
+    }
+
+    return selectedDate;
+  }, [
+    dateGroupingMode,
+    equipmentNames,
+    filterMode,
+    selectedDate,
+    selectedEquipment,
+  ]);
+
+  const searchAllScopeLabel = useMemo(() => {
+    if (
+      !isSearching ||
+      !searchQuery.trim() ||
+      !activeSearchScopeLabel ||
+      isSearchAllScope ||
+      currentScopeSearchFilteredNotes.length > 0
+    ) {
+      return undefined;
+    }
+
+    return filterSearchableNotes(searchableAllScopeNotes, searchQuery).length >
+      0
+      ? activeSearchScopeLabel
+      : undefined;
+  }, [
+    activeSearchScopeLabel,
+    currentScopeSearchFilteredNotes.length,
+    isSearching,
+    isSearchAllScope,
+    searchQuery,
+    searchableAllScopeNotes,
+  ]);
+
+  // 搜索过滤逻辑 - 在Hook之后定义以避免循环依赖
+  const searchFilteredNotes = isSearchAllScope
+    ? searchAllFilteredNotes
+    : currentScopeSearchFilteredNotes;
 
   // 计算总咖啡消耗量
   const totalCoffeeConsumption = useRef(0);
@@ -802,6 +880,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
 
   // 处理过滤模式变化
   const handleFilterModeChange = (mode: 'equipment' | 'date') => {
+    setIsSearchAllScope(false);
     setFilterMode(mode);
     saveFilterModePreference(mode);
     // 已保存到本地存储
@@ -817,24 +896,27 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   // 处理设备选择变化
   const handleEquipmentClick = useCallback(
     (equipment: string | null) => {
+      setIsSearchAllScope(false);
       setSelectedEquipment(equipment);
       saveSelectedEquipmentPreference(equipment);
     },
-    [setSelectedEquipment]
+    [setIsSearchAllScope, setSelectedEquipment]
   );
 
   // 处理日期选择变化
   const handleDateClick = useCallback(
     (date: string | null) => {
+      setIsSearchAllScope(false);
       setSelectedDate(date);
       saveSelectedDatePreference(date);
     },
-    [setSelectedDate]
+    [setIsSearchAllScope, setSelectedDate]
   );
 
   // 处理日期分组模式变化
   const handleDateGroupingModeChange = useCallback(
     (mode: DateGroupingMode) => {
+      setIsSearchAllScope(false);
       setDateGroupingMode(mode);
       saveDateGroupingModePreference(mode);
       setSelectedDate(null);
@@ -842,7 +924,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
       globalCache.dateGroupingMode = mode;
       globalCache.selectedDate = null;
     },
-    [setDateGroupingMode, setSelectedDate]
+    [setDateGroupingMode, setIsSearchAllScope, setSelectedDate]
   );
 
   // 处理笔记选择/取消选择
@@ -911,11 +993,13 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     setIsSearching(!isSearching);
     if (isSearching) {
       setSearchQuery('');
+      setIsSearchAllScope(false);
     }
   };
 
   // 处理搜索输入变化
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsSearchAllScope(false);
     setSearchQuery(e.target.value);
   };
 
@@ -924,13 +1008,19 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     if (e.key === 'Escape') {
       setIsSearching(false);
       setSearchQuery('');
+      setIsSearchAllScope(false);
     }
   };
 
   // 处理搜索历史点击
   const handleSearchHistoryClick = (query: string) => {
+    setIsSearchAllScope(false);
     setSearchQuery(query);
   };
+
+  const handleSearchAllClick = useCallback(() => {
+    setIsSearchAllScope(true);
+  }, [setIsSearchAllScope]);
 
   // 自动添加搜索历史 - 延迟1秒后添加
   useEffect(() => {
@@ -1145,6 +1235,8 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
             settings={settings}
             searchHistory={searchHistory}
             onSearchHistoryClick={handleSearchHistoryClick}
+            searchAllScopeLabel={searchAllScopeLabel}
+            onSearchAllClick={handleSearchAllClick}
             tableColumnOptions={tableColumnOptions}
             tableVisibleColumns={effectiveTableVisibleColumns}
             onTableColumnsChange={updateTableVisibleColumns}
@@ -1174,6 +1266,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
             onToggleSelect={handleToggleSelect}
             searchQuery={searchQuery}
             isSearching={isSearching}
+            emptyStateMessage={searchAllScopeLabel ? null : undefined}
             preFilteredNotes={
               isSearching && searchQuery.trim()
                 ? searchFilteredNotes

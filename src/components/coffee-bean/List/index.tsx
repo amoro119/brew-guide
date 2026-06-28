@@ -73,7 +73,10 @@ import {
 } from './preferences';
 import { useBeanOperations } from './hooks/useBeanOperations';
 import { useEnhancedBeanFiltering } from './hooks/useEnhancedBeanFiltering';
-import { FlavorPeriodStatus } from '@/lib/utils/beanVarietyUtils';
+import {
+  FlavorPeriodStatus,
+  FLAVOR_PERIOD_LABELS,
+} from '@/lib/utils/beanVarietyUtils';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import ViewSwitcher from './components/ViewSwitcher';
 import InventoryView from './components/InventoryView';
@@ -105,7 +108,11 @@ import {
   getBeanSummaryDisplayLimit,
   getBeanSummaryLimitMode,
 } from '@/lib/utils/beanSummaryDisplay';
-import { searchBeanRecords, summarizeBeanTypeStats } from './beanListPipeline';
+import {
+  createBeanInventorySnapshot,
+  searchBeanRecords,
+  summarizeBeanTypeStats,
+} from './beanListPipeline';
 import { useCoffeeBeanImageIds } from '@/lib/hooks/useCoffeeBeanImage';
 
 const CoffeeBeanRanking = _CoffeeBeanRanking;
@@ -230,19 +237,6 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     globalCache.rankingBeanType
   );
 
-  // 榜单时间筛选状态
-  const [rankingTimeFilter, setRankingTimeFilter] = useState<{
-    type: 'all' | 'year' | 'month';
-    year?: number;
-    month?: number;
-  }>({ type: 'all' });
-  const [availableTimeOptions, setAvailableTimeOptions] = useState<
-    Array<{
-      label: string;
-      filter: { type: 'all' | 'year' | 'month'; year?: number; month?: number };
-    }>
-  >([{ label: '全部时间', filter: { type: 'all' } }]);
-
   const unmountTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadingRef = useRef<boolean>(false);
   const beansContainerRef = useRef<HTMLDivElement | null>(null);
@@ -250,12 +244,9 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
   // 处理初始化参数 - 只在组件首次挂载时执行
   useEffect(() => {
-    let hasChanges = false;
-
     if (initialViewMode && initialViewMode !== viewMode) {
       // 如果传入了初始视图模式且与当前不同，更新视图模式
       setViewMode(initialViewMode);
-      hasChanges = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 空依赖数组，只在组件挂载时执行一次
@@ -351,6 +342,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
   // 使用增强的筛选Hook
   const {
+    records,
     filteredRecords,
     emptyRecords,
     tableFilteredRecords,
@@ -1187,6 +1179,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   // 添加搜索状态
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchAllScope, setIsSearchAllScope] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   const syncInventoryContext = useCallback(
@@ -1204,6 +1197,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
       if (clearSearch) {
         setIsSearching(false);
         setSearchQuery('');
+        setIsSearchAllScope(false);
       }
     },
     [
@@ -1268,6 +1262,18 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
+  const handleSearchModeChange = useCallback((value: boolean) => {
+    setIsSearching(value);
+    if (!value) {
+      setIsSearchAllScope(false);
+    }
+  }, []);
+
+  const handleSearchQueryChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    setIsSearchAllScope(false);
+  }, []);
+
   // 按显示模式选择库存数据源：
   // - list/imageFlow: 使用列表排序结果
   // - table: 仅使用筛选结果，排序交由表头控制
@@ -1291,7 +1297,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     [inventoryEmptyRecords]
   );
 
-  const searchFilteredRecords = React.useMemo(() => {
+  const currentScopeSearchFilteredRecords = React.useMemo(() => {
     if (!isSearching) {
       return inventoryFilteredRecords;
     }
@@ -1299,7 +1305,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     return searchBeanRecords(inventoryFilteredRecords, deferredSearchQuery);
   }, [deferredSearchQuery, inventoryFilteredRecords, isSearching]);
 
-  const searchFilteredEmptyRecords = React.useMemo(() => {
+  const currentScopeSearchFilteredEmptyRecords = React.useMemo(() => {
     if (!showEmptyBeans) {
       return [];
     }
@@ -1310,6 +1316,181 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
     return searchBeanRecords(inventoryEmptyRecords, deferredSearchQuery);
   }, [deferredSearchQuery, inventoryEmptyRecords, isSearching, showEmptyBeans]);
+
+  const activeCategorySearchScopeLabel = React.useMemo(() => {
+    switch (filterMode) {
+      case 'variety':
+        return selectedVariety || '';
+      case 'origin':
+        return selectedOrigin || '';
+      case 'processingMethod':
+        return selectedProcessingMethod || '';
+      case 'flavorPeriod':
+        return selectedFlavorPeriod
+          ? FLAVOR_PERIOD_LABELS[selectedFlavorPeriod]
+          : '';
+      case 'roaster':
+        return selectedRoaster || '';
+      case 'group':
+        if (!selectedBeanGroupId) return '';
+        return (
+          availableBeanGroups.find(group => group.id === selectedBeanGroupId)
+            ?.name ||
+          coffeeBeanGroups?.find(group => group.id === selectedBeanGroupId)
+            ?.name ||
+          '当前分组'
+        );
+      default:
+        return '';
+    }
+  }, [
+    availableBeanGroups,
+    coffeeBeanGroups,
+    filterMode,
+    selectedBeanGroupId,
+    selectedFlavorPeriod,
+    selectedOrigin,
+    selectedProcessingMethod,
+    selectedRoaster,
+    selectedVariety,
+  ]);
+
+  const activeSearchScopeLabel = activeCategorySearchScopeLabel;
+
+  const searchAllInventoryRecords = React.useMemo(() => {
+    if (viewMode !== VIEW_OPTIONS.INVENTORY || !activeSearchScopeLabel) {
+      return { filteredRecords: [], emptyRecords: [] };
+    }
+
+    const snapshot = createBeanInventorySnapshot(records, {
+      filterMode,
+      selectedVariety: null,
+      selectedOrigin: null,
+      selectedProcessingMethod: null,
+      selectedFlavorPeriod: null,
+      selectedRoaster: null,
+      selectedBeanGroupId: null,
+      selectedBeanType,
+      selectedBeanState,
+      showEmptyBeans,
+      sortOption,
+      coffeeBeanGroups,
+    });
+
+    if (displayMode === 'table') {
+      return {
+        filteredRecords: snapshot.tableFilteredRecords,
+        emptyRecords: snapshot.tableEmptyRecords,
+      };
+    }
+
+    return {
+      filteredRecords: snapshot.filteredRecords,
+      emptyRecords: snapshot.emptyRecords,
+    };
+  }, [
+    activeSearchScopeLabel,
+    coffeeBeanGroups,
+    displayMode,
+    filterMode,
+    records,
+    selectedBeanState,
+    selectedBeanType,
+    showEmptyBeans,
+    sortOption,
+    viewMode,
+  ]);
+
+  const searchAllScopeLabel = React.useMemo(() => {
+    if (
+      viewMode !== VIEW_OPTIONS.INVENTORY ||
+      !isSearching ||
+      !deferredSearchQuery.trim() ||
+      !activeSearchScopeLabel
+    ) {
+      return undefined;
+    }
+
+    if (
+      isSearchAllScope ||
+      currentScopeSearchFilteredRecords.length > 0 ||
+      currentScopeSearchFilteredEmptyRecords.length > 0
+    ) {
+      return undefined;
+    }
+
+    return searchBeanRecords(
+      [
+        ...searchAllInventoryRecords.filteredRecords,
+        ...searchAllInventoryRecords.emptyRecords,
+      ],
+      deferredSearchQuery
+    ).length > 0
+      ? activeSearchScopeLabel
+      : undefined;
+  }, [
+    activeSearchScopeLabel,
+    currentScopeSearchFilteredEmptyRecords.length,
+    currentScopeSearchFilteredRecords.length,
+    deferredSearchQuery,
+    isSearching,
+    isSearchAllScope,
+    searchAllInventoryRecords,
+    viewMode,
+  ]);
+
+  const searchAllFilteredRecords = React.useMemo(() => {
+    if (!isSearchAllScope) {
+      return searchAllInventoryRecords.filteredRecords;
+    }
+
+    if (!isSearching) {
+      return searchAllInventoryRecords.filteredRecords;
+    }
+
+    return searchBeanRecords(
+      searchAllInventoryRecords.filteredRecords,
+      deferredSearchQuery
+    );
+  }, [
+    deferredSearchQuery,
+    isSearching,
+    isSearchAllScope,
+    searchAllInventoryRecords,
+  ]);
+
+  const searchAllFilteredEmptyRecords = React.useMemo(() => {
+    if (!isSearchAllScope) {
+      return searchAllInventoryRecords.emptyRecords;
+    }
+
+    if (!showEmptyBeans) {
+      return [];
+    }
+
+    if (!isSearching) {
+      return searchAllInventoryRecords.emptyRecords;
+    }
+
+    return searchBeanRecords(
+      searchAllInventoryRecords.emptyRecords,
+      deferredSearchQuery
+    );
+  }, [
+    deferredSearchQuery,
+    isSearching,
+    isSearchAllScope,
+    searchAllInventoryRecords,
+    showEmptyBeans,
+  ]);
+
+  const searchFilteredRecords = isSearchAllScope
+    ? searchAllFilteredRecords
+    : currentScopeSearchFilteredRecords;
+
+  const searchFilteredEmptyRecords = isSearchAllScope
+    ? searchAllFilteredEmptyRecords
+    : currentScopeSearchFilteredEmptyRecords;
 
   const searchFilteredBeans = React.useMemo(
     () => searchFilteredRecords.map(record => record.bean),
@@ -1515,9 +1696,14 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
   // 处理搜索历史点击
   const handleSearchHistoryClick = (query: string) => {
+    setIsSearchAllScope(false);
     setSearchQuery(query);
     // 执行搜索 - 不需要添加到历史因为已经在历史中
   };
+
+  const handleSearchAllInventory = useCallback(() => {
+    setIsSearchAllScope(true);
+  }, []);
 
   // 分享模式相关处理函数
   const handleToggleSelect = (beanId: string) => {
@@ -1696,9 +1882,9 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         onToggleShowEmptyBeans={toggleShowEmptyBeans}
         availableVarieties={availableVarieties}
         isSearching={isSearching}
-        setIsSearching={setIsSearching}
+        setIsSearching={handleSearchModeChange}
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        setSearchQuery={handleSearchQueryChange}
         rankingBeansCount={rankingBeansCount}
         // 榜单各类型豆子数量
         rankingEspressoCount={rankingEspressoCount}
@@ -1750,6 +1936,8 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         // 新增搜索历史属性
         searchHistory={searchHistory}
         onSearchHistoryClick={handleSearchHistoryClick}
+        searchAllScopeLabel={searchAllScopeLabel}
+        onSearchAllClick={handleSearchAllInventory}
         // 生豆库启用设置
         enableGreenBeanInventory={enableGreenBeanInventory}
         // 预计杯数（基于搜索结果）
@@ -1794,6 +1982,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
               onBeanReducedToZero={handleBeanReducedToZero}
               isSearching={isSearching}
               searchQuery={searchQuery}
+              hideEmptyState={Boolean(searchAllScopeLabel)}
               beanFrontImageIds={beanFrontImageIds}
               isImageFlowMode={isImageFlowMode}
               displayMode={displayMode}

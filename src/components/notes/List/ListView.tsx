@@ -125,6 +125,7 @@ interface NotesListViewProps {
   onToggleSelect?: (noteId: string, enterShareMode?: boolean) => void;
   searchQuery?: string;
   isSearching?: boolean;
+  emptyStateMessage?: string | null;
   preFilteredNotes?: BrewingNote[];
   viewMode?: NotesViewMode;
   isDateImageFlowMode?: boolean;
@@ -152,6 +153,7 @@ const NotesListView: React.FC<NotesListViewProps> = ({
   onToggleSelect,
   searchQuery = '',
   isSearching = false,
+  emptyStateMessage,
   preFilteredNotes,
   viewMode = 'list',
   isDateImageFlowMode = false,
@@ -316,13 +318,16 @@ const NotesListView: React.FC<NotesListViewProps> = ({
   );
 
   if (notes.length === 0) {
-    return (
+    const fallbackEmptyStateMessage =
+      isSearching && searchQuery.trim()
+        ? `[ 没有找到匹配"${searchQuery.trim()}"的冲煮记录 ]`
+        : selectedEquipment && filterMode === 'equipment'
+          ? `[ 没有使用${equipmentNames[selectedEquipment] || selectedEquipment}的冲煮记录 ]`
+          : '[ 暂无冲煮记录，请点击下方按钮添加 ]';
+
+    return emptyStateMessage === null ? null : (
       <div className="flex h-32 items-center justify-center text-[10px] tracking-widest text-neutral-500 dark:text-neutral-400">
-        {isSearching && searchQuery.trim()
-          ? `[ 没有找到匹配"${searchQuery.trim()}"的冲煮记录 ]`
-          : selectedEquipment && filterMode === 'equipment'
-            ? `[ 没有使用${equipmentNames[selectedEquipment] || selectedEquipment}的冲煮记录 ]`
-            : '[ 暂无冲煮记录，请点击下方按钮添加 ]'}
+        {emptyStateMessage ?? fallbackEmptyStateMessage}
       </div>
     );
   }

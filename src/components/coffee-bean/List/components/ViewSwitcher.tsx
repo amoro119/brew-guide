@@ -49,6 +49,7 @@ import {
   getBeanSummaryLimitMode,
 } from '@/lib/utils/beanSummaryDisplay';
 import type { CoffeeBeanGroup } from '@/lib/core/db';
+import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
 // Apple风格动画配置
 const FILTER_ANIMATION = {
   initial: {
@@ -471,6 +472,8 @@ interface ViewSwitcherProps {
   // 新增搜索历史相关props
   searchHistory?: string[];
   onSearchHistoryClick?: (query: string) => void;
+  searchAllScopeLabel?: string;
+  onSearchAllClick?: () => void;
   // 生豆库启用设置
   enableGreenBeanInventory?: boolean;
   // 预计杯数
@@ -555,6 +558,8 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   // 新增搜索历史参数
   searchHistory = [],
   onSearchHistoryClick,
+  searchAllScopeLabel,
+  onSearchAllClick,
   // 生豆库启用设置
   enableGreenBeanInventory = false,
   // 预计杯数
@@ -1188,7 +1193,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                 !searchQuery.trim() &&
                 searchHistory &&
                 searchHistory.length > 0 && (
-                  <div className="border-t border-neutral-200/50 dark:border-neutral-700/50">
+                  <div className="border-t border-neutral-200/50 dark:border-neutral-800/50">
                     <div className="px-6 py-3">
                       <div
                         className="flex flex-wrap items-center gap-2 overflow-hidden"
@@ -1217,7 +1222,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                 {isFilterExpanded && (
                   <>
                     {/* 固定的半透明分割线 - 只在展开时显示 */}
-                    <div className="border-t border-neutral-200/50 dark:border-neutral-700/50"></div>
+                    <div className="border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
 
                     <motion.div
                       ref={filterDropdownRef}
@@ -1476,7 +1481,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
               !searchQuery.trim() &&
               searchHistory &&
               searchHistory.length > 0 && (
-                <div className="border-t border-neutral-200/50 dark:border-neutral-700/50">
+                <div className="border-t border-neutral-200/50 dark:border-neutral-800/50">
                   <div className="px-6 py-3">
                     <div
                       className="flex flex-wrap items-center gap-2 overflow-hidden"
@@ -1500,12 +1505,18 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                 </div>
               )}
 
+            <SearchAllSuggestion
+              scopeLabel={searchAllScopeLabel}
+              query={searchQuery}
+              onClick={onSearchAllClick}
+            />
+
             {/* 展开式筛选栏 - 在同一个容器内 */}
             <AnimatePresence>
               {isFilterExpanded && (
                 <>
                   {/* 固定的半透明分割线 - 只在展开时显示 */}
-                  <div className="border-t border-neutral-200/50 dark:border-neutral-700/50"></div>
+                  <div className="border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
 
                   <motion.div
                     ref={filterDropdownRef}

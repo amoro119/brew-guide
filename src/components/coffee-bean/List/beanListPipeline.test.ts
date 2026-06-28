@@ -4,6 +4,7 @@ import { FlavorPeriodStatus } from '@/lib/utils/beanVarietyUtils';
 import {
   buildBeanListRecords,
   createBeanInventorySnapshot,
+  searchBeanRecords,
   type BeanInventorySnapshotOptions,
 } from './beanListPipeline';
 
@@ -86,5 +87,51 @@ describe('beanListPipeline', () => {
       'available-optimal',
     ]);
     expect(optimalSnapshot.emptyBeans).toEqual([]);
+  });
+
+  it('can search all categories without widening bean type', () => {
+    const currentCategoryBean = buildBean({
+      id: 'current-filter',
+      name: 'Current Filter Bean',
+      beanType: 'filter',
+      blendComponents: [{ variety: 'Typica' }],
+    });
+    const matchingFilterBean = buildBean({
+      id: 'matching-filter',
+      name: '121 Filter Bean',
+      beanType: 'filter',
+      blendComponents: [{ variety: 'Bourbon' }],
+    });
+    const matchingEspressoBean = buildBean({
+      id: 'matching-espresso',
+      name: '121 Espresso Bean',
+      beanType: 'espresso',
+      blendComponents: [{ variety: 'Bourbon' }],
+    });
+    const beans = [
+      currentCategoryBean,
+      matchingFilterBean,
+      matchingEspressoBean,
+    ];
+
+    const currentCategorySnapshot = createSnapshot(beans, {
+      filterMode: 'variety',
+      selectedVariety: 'Typica',
+      selectedBeanType: 'filter',
+    });
+    expect(
+      searchBeanRecords(currentCategorySnapshot.filteredRecords, '121')
+    ).toEqual([]);
+
+    const allCategorySnapshot = createSnapshot(beans, {
+      filterMode: 'variety',
+      selectedVariety: null,
+      selectedBeanType: 'filter',
+    });
+    expect(
+      searchBeanRecords(allCategorySnapshot.filteredRecords, '121').map(
+        record => record.bean.id
+      )
+    ).toEqual(['matching-filter']);
   });
 });

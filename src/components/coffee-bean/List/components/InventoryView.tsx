@@ -120,6 +120,7 @@ interface InventoryViewProps {
   onBeanReducedToZero?: () => void;
   isSearching?: boolean;
   searchQuery?: string;
+  hideEmptyState?: boolean;
   beanFrontImageIds?: Set<string>;
   isImageFlowMode?: boolean;
   // 新增显示模式 prop，优先级高于 isImageFlowMode
@@ -165,6 +166,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
   onBeanReducedToZero,
   isSearching = false,
   searchQuery = '',
+  hideEmptyState = false,
   beanFrontImageIds = EMPTY_BEAN_IMAGE_IDS,
   isImageFlowMode = false,
   displayMode: externalDisplayMode,
@@ -338,9 +340,11 @@ const InventoryView: React.FC<InventoryViewProps> = ({
   return (
     <div className="inventory-view-container relative h-full w-full">
       {filteredBeans.length === 0 && emptyBeans.length === 0 ? (
-        <div className="flex h-32 items-center justify-center text-[10px] tracking-widest text-neutral-500 dark:text-neutral-400">
-          {emptyStateMessage}
-        </div>
+        hideEmptyState ? null : (
+          <div className="flex h-32 items-center justify-center text-[10px] tracking-widest text-neutral-500 dark:text-neutral-400">
+            {emptyStateMessage}
+          </div>
+        )
       ) : (
         <div className="pb-64">
           <Virtuoso
