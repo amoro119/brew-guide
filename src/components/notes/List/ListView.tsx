@@ -27,6 +27,91 @@ const EMPTY_SELECTED_NOTES: string[] = [];
 const EMPTY_EQUIPMENT_NAMES: Record<string, string> = {};
 const EMPTY_COFFEE_BEANS: CoffeeBean[] = [];
 const EMPTY_TABLE_COLUMNS: NotesTableColumnKey[] = [];
+const NOTES_VIRTUOSO_OVERSCAN = 200;
+const NOTES_VIRTUOSO_INCREASE_VIEWPORT_BY = { top: 200, bottom: 200 };
+
+type VirtuosoListProps = React.HTMLAttributes<HTMLDivElement> & {
+  ref?: React.Ref<HTMLDivElement>;
+};
+
+interface NotesVirtuosoContext {
+  changeRecordNotes: BrewingNote[];
+  showQuickDecrementNotes: boolean;
+  onToggleShowQuickDecrementNotes: () => void;
+  renderChangeRecordNote: (note: BrewingNote) => React.ReactNode;
+}
+
+const NotesVirtuosoList = ({
+  style,
+  children,
+  ref,
+  ...props
+}: VirtuosoListProps) => (
+  <div ref={ref} style={style} {...props}>
+    {children}
+  </div>
+);
+
+const NotesVirtuosoFooter = ({
+  context,
+}: {
+  context?: NotesVirtuosoContext;
+}) => {
+  if (!context) return <div className="mt-2" />;
+
+  const {
+    changeRecordNotes,
+    showQuickDecrementNotes,
+    onToggleShowQuickDecrementNotes,
+    renderChangeRecordNote,
+  } = context;
+
+  return (
+    <div className="mt-2">
+      {changeRecordNotes.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="relative mb-2 flex w-full cursor-pointer items-center border-0 bg-transparent p-0"
+            onClick={onToggleShowQuickDecrementNotes}
+            aria-expanded={showQuickDecrementNotes}
+          >
+            <div className="grow border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
+            <span className="mx-3 flex items-center justify-center rounded-sm px-2 py-0.5 text-xs font-medium tracking-wide text-neutral-600 transition-colors dark:text-neutral-400">
+              {changeRecordNotes.length}条变动记录
+              <svg
+                className={`ml-1 h-3 w-3 transition-transform duration-200 ${showQuickDecrementNotes ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M6 9L12 15L18 9"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div className="grow border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
+          </button>
+          {showQuickDecrementNotes && (
+            <div className="opacity-80">
+              {changeRecordNotes.map(renderChangeRecordNote)}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+const NOTES_VIRTUOSO_COMPONENTS = {
+  List: NotesVirtuosoList,
+  Footer: NotesVirtuosoFooter,
+};
+const getNoteVirtuosoItemKey = (_index: number, note: BrewingNote) => note.id;
 
 // 定义组件属性接口
 interface NotesListViewProps {
@@ -155,6 +240,21 @@ const NotesListView: React.FC<NotesListViewProps> = ({
     ]
   );
 
+  const virtuosoContext = useMemo<NotesVirtuosoContext>(
+    () => ({
+      changeRecordNotes,
+      showQuickDecrementNotes,
+      onToggleShowQuickDecrementNotes: toggleShowQuickDecrementNotes,
+      renderChangeRecordNote,
+    }),
+    [
+      changeRecordNotes,
+      renderChangeRecordNote,
+      showQuickDecrementNotes,
+      toggleShowQuickDecrementNotes,
+    ]
+  );
+
   const handleImageFlowNoteClick = useCallback(
     (note: BrewingNote) => {
       const equipmentName = resolveNoteEquipmentName(note, equipmentNames);
@@ -172,7 +272,47 @@ const NotesListView: React.FC<NotesListViewProps> = ({
         })
       );
     },
-    [coffeeBeanLookup, equipmentNames, settings]
+    [coffeeBeanLookup, equipmentNames]
+  );
+  const useClassicNotesListStyle = settings?.useClassicNotesListStyle ?? false;
+  const NoteItemComponent = useClassicNotesListStyle
+    ? NoteItemStandard
+    : NoteItem;
+  const renderRegularNoteItem = useCallback(
+    (index: number, note: BrewingNote) => (
+      <NoteItemComponent
+        key={note.id}
+        note={note}
+        equipmentNames={equipmentNames}
+        onEdit={onNoteClick}
+        onDelete={onDeleteNote}
+        onCopy={onCopyNote}
+        isShareMode={isShareMode}
+        isSelected={selectedNotes.includes(note.id)}
+        onToggleSelect={handleToggleSelect}
+        isFirst={index === 0}
+        isLast={index === regularNotes.length - 1}
+        getValidTasteRatings={getValidTasteRatings}
+        coffeeBeans={coffeeBeans}
+        coffeeBeanLookup={coffeeBeanLookup}
+        storedImageCount={noteImageCounts?.get(note.id)}
+      />
+    ),
+    [
+      NoteItemComponent,
+      coffeeBeanLookup,
+      coffeeBeans,
+      equipmentNames,
+      getValidTasteRatings,
+      handleToggleSelect,
+      isShareMode,
+      noteImageCounts,
+      onCopyNote,
+      onDeleteNote,
+      onNoteClick,
+      regularNotes.length,
+      selectedNotes,
+    ]
   );
 
   if (notes.length === 0) {
@@ -233,11 +373,6 @@ const NotesListView: React.FC<NotesListViewProps> = ({
   }
 
   // 列表模式
-  const useClassicNotesListStyle = settings?.useClassicNotesListStyle ?? false;
-  const NoteItemComponent = useClassicNotesListStyle
-    ? NoteItemStandard
-    : NoteItem;
-
   if (regularNotes.length === 0 && changeRecordNotes.length > 0) {
     return (
       <div className="pb-20 opacity-80">
@@ -251,70 +386,13 @@ const NotesListView: React.FC<NotesListViewProps> = ({
       <Virtuoso
         data={regularNotes}
         customScrollParent={scrollParentRef}
-        computeItemKey={(_index, note) => note.id}
-        // 🔥 性能优化配置
-        overscan={200}
-        increaseViewportBy={{ top: 200, bottom: 200 }}
-        components={{
-          Footer: () => (
-            <div className="mt-2">
-              {changeRecordNotes.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    className="relative mb-2 flex w-full cursor-pointer items-center border-0 bg-transparent p-0"
-                    onClick={toggleShowQuickDecrementNotes}
-                    aria-expanded={showQuickDecrementNotes}
-                  >
-                    <div className="grow border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
-                    <span className="mx-3 flex items-center justify-center rounded-sm px-2 py-0.5 text-xs font-medium tracking-wide text-neutral-600 transition-colors dark:text-neutral-400">
-                      {changeRecordNotes.length}条变动记录
-                      <svg
-                        className={`ml-1 h-3 w-3 transition-transform duration-200 ${showQuickDecrementNotes ? 'rotate-180' : ''}`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M6 9L12 15L18 9"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
-                    <div className="grow border-t border-neutral-200/50 dark:border-neutral-800/50"></div>
-                  </button>
-                  {showQuickDecrementNotes && (
-                    <div className="opacity-80">
-                      {changeRecordNotes.map(renderChangeRecordNote)}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ),
-        }}
-        itemContent={(index, note) => (
-          <NoteItemComponent
-            key={note.id}
-            note={note}
-            equipmentNames={equipmentNames}
-            onEdit={onNoteClick}
-            onDelete={onDeleteNote}
-            onCopy={onCopyNote}
-            isShareMode={isShareMode}
-            isSelected={selectedNotes.includes(note.id)}
-            onToggleSelect={handleToggleSelect}
-            isFirst={index === 0}
-            isLast={index === regularNotes.length - 1}
-            getValidTasteRatings={getValidTasteRatings}
-            coffeeBeans={coffeeBeans}
-            coffeeBeanLookup={coffeeBeanLookup}
-            storedImageCount={noteImageCounts?.get(note.id)}
-          />
-        )}
+        computeItemKey={getNoteVirtuosoItemKey}
+        overscan={NOTES_VIRTUOSO_OVERSCAN}
+        increaseViewportBy={NOTES_VIRTUOSO_INCREASE_VIEWPORT_BY}
+        components={NOTES_VIRTUOSO_COMPONENTS}
+        context={virtuosoContext}
+        skipAnimationFrameInResizeObserver
+        itemContent={renderRegularNoteItem}
       />
     </div>
   );

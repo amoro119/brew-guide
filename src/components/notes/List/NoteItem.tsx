@@ -22,6 +22,7 @@ import {
 import { useCoffeeBeanImage } from '@/lib/hooks/useCoffeeBeanImage';
 import { useBrewingNoteImages } from '@/lib/hooks/useBrewingNoteImages';
 import { getCoffeeBeanImageSource } from '@/lib/coffee-beans/imageRepository';
+import { getDataUrlImageDimensions } from '@/lib/images/dimensions';
 
 // 动态导入 RatingRadarDrawer 组件
 const RatingRadarDrawer = dynamic(
@@ -32,11 +33,134 @@ const RatingRadarDrawer = dynamic(
 );
 
 const SINGLE_IMAGE_MAX_WIDTH = 140;
+const SINGLE_IMAGE_MAX_HEIGHT = 180;
 
 const getTextInitial = (text: string | undefined): string => {
   const trimmedText = text?.trim();
   return trimmedText ? Array.from(trimmedText)[0] : '';
 };
+
+const getSingleNoteImageFrame = (
+  imageUrl: string | undefined
+): { width: number; height: number; style: React.CSSProperties } => {
+  const dimensions = getDataUrlImageDimensions(imageUrl);
+
+  if (!dimensions) {
+    return {
+      width: SINGLE_IMAGE_MAX_WIDTH,
+      height: SINGLE_IMAGE_MAX_WIDTH,
+      style: {
+        width: SINGLE_IMAGE_MAX_WIDTH,
+        height: SINGLE_IMAGE_MAX_WIDTH,
+      },
+    };
+  }
+
+  const aspectRatio = dimensions.width / dimensions.height;
+  const maxFrameRatio = SINGLE_IMAGE_MAX_WIDTH / SINGLE_IMAGE_MAX_HEIGHT;
+  const width = Math.max(
+    1,
+    aspectRatio >= maxFrameRatio
+      ? SINGLE_IMAGE_MAX_WIDTH
+      : Math.round(SINGLE_IMAGE_MAX_HEIGHT * aspectRatio)
+  );
+  const height = Math.max(
+    1,
+    aspectRatio >= maxFrameRatio
+      ? Math.round(SINGLE_IMAGE_MAX_WIDTH / aspectRatio)
+      : SINGLE_IMAGE_MAX_HEIGHT
+  );
+
+  return {
+    width,
+    height,
+    style: {
+      width,
+      height,
+      aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+    },
+  };
+};
+
+interface NoteImageGalleryProps {
+  noteId: string;
+  noteImages: string[];
+  imageSlotCount: number;
+  noteImageError: boolean;
+  onImageClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onImageError: () => void;
+}
+
+const NoteImageGallery = React.memo(function NoteImageGallery({
+  noteId,
+  noteImages,
+  imageSlotCount,
+  noteImageError,
+  onImageClick,
+  onImageError,
+}: NoteImageGalleryProps) {
+  if (imageSlotCount <= 0) return null;
+
+  const isSingleNoteImage = imageSlotCount === 1;
+  const imageSlots = Array.from({ length: imageSlotCount }, (_, position) => ({
+    key: `${noteId}-image-slot-${position + 1}`,
+    image: noteImages[position] ?? '',
+    position,
+  }));
+  const singleImageFrame = isSingleNoteImage
+    ? getSingleNoteImageFrame(imageSlots[0]?.image)
+    : null;
+
+  return (
+    <div
+      data-note-images
+      className={`mt-2 gap-1 ${
+        isSingleNoteImage
+          ? 'flex'
+          : imageSlotCount === 2 || imageSlotCount === 4
+            ? 'grid max-w-50 grid-cols-2'
+            : 'grid max-w-75 grid-cols-3'
+      }`}
+    >
+      {imageSlots.map(({ key, image, position }) => (
+        <button
+          key={key}
+          type="button"
+          className={`relative cursor-pointer overflow-hidden rounded-[3px] border border-neutral-200/50 dark:border-neutral-800/50 ${
+            isSingleNoteImage ? 'inline-flex shrink-0' : 'block aspect-square'
+          } appearance-none bg-transparent p-0`}
+          style={singleImageFrame?.style}
+          data-image-index={position}
+          onClick={onImageClick}
+          aria-label={image ? `查看笔记图片 ${position + 1}` : '笔记图片加载中'}
+        >
+          {noteImageError ? (
+            <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
+              加载失败
+            </div>
+          ) : !image ? (
+            <div className="h-full w-full bg-neutral-100 dark:bg-neutral-800/40" />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={image}
+              alt={`笔记图片 ${position + 1}`}
+              width={isSingleNoteImage ? singleImageFrame?.width : 96}
+              height={isSingleNoteImage ? singleImageFrame?.height : 96}
+              className={
+                isSingleNoteImage
+                  ? 'block h-full w-full object-contain'
+                  : 'block h-full w-full object-cover'
+              }
+              onError={onImageError}
+              loading="lazy"
+            />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+});
 
 // 优化笔记项组件以避免不必要的重渲染
 const NoteItem: React.FC<NoteItemProps> = ({
@@ -117,9 +241,6 @@ const NoteItem: React.FC<NoteItemProps> = ({
   const hasTasteRatings = validTasteRatings.length > 0;
   const hasNotes = Boolean(note.notes);
   const imageSlotCount = noteImages.length || storedImageCount;
-  const isSingleNoteImage = imageSlotCount === 1;
-  const visibleNoteImages =
-    noteImages.length > 0 ? noteImages : Array(imageSlotCount).fill('');
   const equipmentName = resolveNoteEquipmentName(note, equipmentNames);
 
   // 获取完整的咖啡豆信息（包括图片），优先使用实时关联的咖啡豆
@@ -157,6 +278,12 @@ const NoteItem: React.FC<NoteItemProps> = ({
   const roasterLogo = useRoasterLogo(roasterLogoName);
   const imageSource = beanImage || roasterLogo;
   const imageError = failedImageSource === imageSource;
+  const handleBeanImageError = React.useCallback(() => {
+    if (beanImage) setFailedImageSource(beanImage);
+  }, [beanImage]);
+  const handleRoasterLogoError = React.useCallback(() => {
+    if (roasterLogo) setFailedImageSource(roasterLogo);
+  }, [roasterLogo]);
 
   const handleBeanImageClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -205,8 +332,8 @@ const NoteItem: React.FC<NoteItemProps> = ({
       event.stopPropagation();
 
       const sourceElement = event.currentTarget;
-      const { imageUrl, imageIndex } = sourceElement.dataset;
-      if (!imageUrl || !imageIndex) {
+      const { imageIndex } = sourceElement.dataset;
+      if (!imageIndex) {
         return;
       }
 
@@ -219,6 +346,11 @@ const NoteItem: React.FC<NoteItemProps> = ({
         return;
       }
 
+      const imageUrl = noteImages[index];
+      if (!imageUrl) {
+        return;
+      }
+
       const galleryElement = event.currentTarget.closest('[data-note-images]');
       const sourceElements = galleryElement
         ? Array.from(
@@ -227,7 +359,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
         : [sourceElement];
 
       openImageViewer({
-        url: noteImages[index] || imageUrl,
+        url: imageUrl,
         alt: `笔记图片 ${index + 1}`,
         items: noteImages.map((url, itemIndex) => ({
           url,
@@ -240,9 +372,12 @@ const NoteItem: React.FC<NoteItemProps> = ({
     },
     [noteImageError, noteImages]
   );
+  const handleNoteImageError = React.useCallback(() => {
+    setNoteImageError(true);
+  }, []);
 
   // 处理笔记点击事件
-  const handleNoteClick = () => {
+  const handleNoteClick = React.useCallback(() => {
     if (isShareMode && onToggleSelect) {
       onToggleSelect(note.id);
     } else {
@@ -258,7 +393,37 @@ const NoteItem: React.FC<NoteItemProps> = ({
         })
       );
     }
-  };
+  }, [
+    beanInfo,
+    beanUnitPrice,
+    equipmentName,
+    isShareMode,
+    note,
+    onToggleSelect,
+  ]);
+  const handleShareCheckboxChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      event.stopPropagation();
+      onToggleSelect?.(note.id);
+    },
+    [note.id, onToggleSelect]
+  );
+  const handleShareCheckboxClick = React.useCallback(
+    (event: React.MouseEvent<HTMLInputElement>) => {
+      event.stopPropagation();
+    },
+    []
+  );
+  const handleRatingDimensionsClick = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      setShowRatingRadar(true);
+    },
+    []
+  );
+  const handleRatingRadarClose = React.useCallback(() => {
+    setShowRatingRadar(false);
+  }, []);
 
   return (
     <>
@@ -287,7 +452,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
                 loading="lazy"
                 placeholder="blur"
                 blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                onError={() => setFailedImageSource(beanImage)}
+                onError={handleBeanImageError}
               />
             ) : roasterLogo && !imageError ? (
               <Image
@@ -305,7 +470,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
                 sizes="48px"
                 priority={false}
                 loading="lazy"
-                onError={() => setFailedImageSource(roasterLogo)}
+                onError={handleRoasterLogoError}
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-neutral-400 dark:text-neutral-600">
@@ -329,11 +494,8 @@ const NoteItem: React.FC<NoteItemProps> = ({
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={e => {
-                        e.stopPropagation();
-                        if (onToggleSelect) onToggleSelect(note.id);
-                      }}
-                      onClick={e => e.stopPropagation()}
+                      onChange={handleShareCheckboxChange}
+                      onClick={handleShareCheckboxClick}
                       className="relative h-4 w-4 appearance-none rounded-sm border border-neutral-300 text-xs checked:bg-neutral-800 checked:after:absolute checked:after:top-1/2 checked:after:left-1/2 checked:after:-translate-x-1/2 checked:after:-translate-y-1/2 checked:after:text-white checked:after:content-['✓'] dark:border-neutral-700 dark:checked:bg-neutral-200 dark:checked:after:text-black"
                     />
                   </div>
@@ -348,68 +510,14 @@ const NoteItem: React.FC<NoteItemProps> = ({
               </div>
             )}
 
-            {/* 笔记图片 - 仿微信朋友圈九宫格 */}
-            {imageSlotCount > 0 && (
-              <div
-                data-note-images
-                className={`mt-2 gap-1 ${
-                  isSingleNoteImage
-                    ? 'flex'
-                    : imageSlotCount === 2 || imageSlotCount === 4
-                      ? 'grid max-w-50 grid-cols-2'
-                      : 'grid max-w-75 grid-cols-3'
-                }`}
-              >
-                {visibleNoteImages.map((img, index) => (
-                  <button
-                    key={img || `${note.id}-image-placeholder-${index}`}
-                    type="button"
-                    className={`relative cursor-pointer overflow-hidden rounded-[3px] border border-neutral-200/50 dark:border-neutral-800/50 ${
-                      isSingleNoteImage
-                        ? 'inline-flex max-h-45 max-w-35'
-                        : 'block aspect-square'
-                    } appearance-none bg-transparent p-0`}
-                    style={
-                      isSingleNoteImage && (!img || noteImageError)
-                        ? {
-                            width: SINGLE_IMAGE_MAX_WIDTH,
-                            height: SINGLE_IMAGE_MAX_WIDTH,
-                          }
-                        : undefined
-                    }
-                    data-image-index={index}
-                    data-image-url={img || undefined}
-                    onClick={handleNoteImageClick}
-                    aria-label={
-                      img ? `查看笔记图片 ${index + 1}` : '笔记图片加载中'
-                    }
-                  >
-                    {noteImageError ? (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
-                        加载失败
-                      </div>
-                    ) : !img ? (
-                      <div className="h-full w-full bg-neutral-100 dark:bg-neutral-800/40" />
-                    ) : (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={img}
-                        alt={`笔记图片 ${index + 1}`}
-                        width={isSingleNoteImage ? undefined : 96}
-                        height={isSingleNoteImage ? undefined : 96}
-                        className={
-                          isSingleNoteImage
-                            ? 'block h-auto max-h-45 w-auto max-w-35'
-                            : 'block h-full w-full object-cover'
-                        }
-                        onError={() => setNoteImageError(true)}
-                        loading="lazy"
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+            <NoteImageGallery
+              noteId={note.id}
+              noteImages={noteImages}
+              imageSlotCount={imageSlotCount}
+              noteImageError={noteImageError}
+              onImageClick={handleNoteImageClick}
+              onImageError={handleNoteImageError}
+            />
 
             {/* 时间和评分 */}
             <div className="mt-2 text-xs leading-tight font-medium text-neutral-500/60 dark:text-neutral-500/60">
@@ -431,10 +539,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
               >
                 <div
                   className="dark:text-neutral-00 flex cursor-pointer items-center text-xs text-neutral-500 transition-colors"
-                  onClick={e => {
-                    e.stopPropagation();
-                    setShowRatingRadar(true);
-                  }}
+                  onClick={handleRatingDimensionsClick}
                 >
                   <span className="">
                     评分维度 {validTasteRatings.length} 项
@@ -451,7 +556,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
       {hasTasteRatings && (
         <RatingRadarDrawer
           isOpen={showRatingRadar}
-          onClose={() => setShowRatingRadar(false)}
+          onClose={handleRatingRadarClose}
           ratings={validTasteRatings}
           overallRating={note.rating}
           beanName={beanName}
@@ -464,4 +569,4 @@ const NoteItem: React.FC<NoteItemProps> = ({
   );
 };
 
-export default NoteItem;
+export default React.memo(NoteItem);

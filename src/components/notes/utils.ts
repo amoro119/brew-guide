@@ -169,39 +169,29 @@ export const buildNoteSearchableTexts = (
   ]);
 };
 
-export const scoreSearchMatch = (
+const matchesSearchTerms = (
   queryTerms: string[],
   searchableTexts: WeightedSearchText[]
-): { matches: boolean; score: number } => {
-  if (queryTerms.length === 0) {
-    return { matches: true, score: 0 };
-  }
+): boolean =>
+  queryTerms.every(term =>
+    searchableTexts.some(({ text }) => text.includes(term))
+  );
 
-  let score = 0;
+export const filterSearchableNotes = (
+  entries: Array<{
+    note: BrewingNote;
+    searchableTexts: WeightedSearchText[];
+  }>,
+  query: string
+): BrewingNote[] => {
+  const queryTerms = splitSearchTerms(query);
+  if (queryTerms.length === 0) return entries.map(({ note }) => note);
 
-  for (const term of queryTerms) {
-    const matchedTexts = searchableTexts.filter(({ text }) =>
-      text.includes(term)
-    );
-
-    if (matchedTexts.length === 0) {
-      return { matches: false, score: 0 };
-    }
-
-    matchedTexts.forEach(({ text, weight }) => {
-      score += weight;
-
-      if (text === term) {
-        score += weight * 2;
-      }
-
-      if (text.startsWith(term)) {
-        score += weight;
-      }
-    });
-  }
-
-  return { matches: true, score };
+  return entries
+    .filter(({ searchableTexts }) =>
+      matchesSearchTerms(queryTerms, searchableTexts)
+    )
+    .map(({ note }) => note);
 };
 
 // 日期格式化函数
@@ -406,50 +396,6 @@ export const calculateNoteCost = async (note: BrewingNote): Promise<number> => {
   return coffeeAmount * unitPrice;
 };
 
-// 计算总花费的函数
-const calculateTotalCost = async (notes: BrewingNote[]): Promise<number> => {
-  let totalCost = 0;
-
-  for (const note of notes) {
-    // 只排除容量调整记录，快捷扣除记录需要计入统计
-    if (note.source === 'capacity-adjustment') {
-      continue;
-    }
-
-    // 处理快捷扣除记录
-    if (
-      note.source === 'quick-decrement' &&
-      note.quickDecrementAmount &&
-      (note.beanId || note.coffeeBeanInfo?.name)
-    ) {
-      const coffeeAmount = note.quickDecrementAmount;
-      if (!isNaN(coffeeAmount)) {
-        let unitPrice = 0;
-
-        if (note.beanId) {
-          const linkedBean = await db.coffeeBeans.get(note.beanId);
-          unitPrice = getBeanUnitPrice(linkedBean);
-        }
-
-        if (unitPrice <= 0 && note.coffeeBeanInfo?.name) {
-          unitPrice = await getCoffeeBeanUnitPrice(
-            note.coffeeBeanInfo.name,
-            note.coffeeBeanInfo.roaster
-          );
-        }
-
-        totalCost += coffeeAmount * unitPrice;
-      }
-    } else {
-      // 处理普通冲煮笔记
-      const cost = await calculateNoteCost(note);
-      totalCost += cost;
-    }
-  }
-
-  return totalCost;
-};
-
 /**
  * 从笔记中提取咖啡豆使用量或容量变化量
  * @param note 笔记对象
@@ -539,15 +485,6 @@ export const sortNotes = (
     default:
       return notes;
   }
-};
-
-// 异步过滤器辅助函数
-const asyncFilter = async <T>(
-  array: T[],
-  predicate: (item: T) => Promise<boolean>
-): Promise<T[]> => {
-  const results = await Promise.all(array.map(predicate));
-  return array.filter((_, index) => results[index]);
 };
 
 // 消耗量显示格式的函数

@@ -54,10 +54,9 @@ import { SortOption, DateGroupingMode, type NotesViewMode } from '../types';
 import { exportSelectedNotes } from '../Share/NotesExporter';
 import {
   buildNoteSearchableTexts,
+  filterSearchableNotes,
   getNoteDeleteDisplay,
-  scoreSearchMatch,
   sortNotes,
-  splitSearchTerms,
 } from '../utils';
 import { resolveSelectedDateTimestamp } from '@/lib/utils/dateUtils';
 import { useBrewingNoteStore } from '@/lib/stores/brewingNoteStore';
@@ -520,42 +519,8 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   // 搜索过滤逻辑 - 在Hook之后定义以避免循环依赖
   const searchFilteredNotes = useMemo(() => {
     if (!isSearching || !searchQuery.trim()) return filteredNotes;
-
-    const queryTerms = splitSearchTerms(searchQuery);
-    if (queryTerms.length === 0) return filteredNotes;
-
-    const matchingNotes = searchableFilteredNotes
-      .map(({ note, searchableTexts }) => ({
-        note,
-        ...scoreSearchMatch(queryTerms, searchableTexts),
-      }))
-      .filter(item => item.matches);
-
-    const matchedNotesOnly = matchingNotes.map(item => item.note);
-
-    const sortedByCurrentOption = sortNotes(matchedNotesOnly, sortOption);
-    const sortOrder = new Map(
-      sortedByCurrentOption.map((note, index) => [note.id, index])
-    );
-
-    return [...matchingNotes]
-      .sort((a, b) => {
-        if (b.score !== a.score) {
-          return b.score - a.score;
-        }
-
-        return (
-          (sortOrder.get(a.note.id) ?? 0) - (sortOrder.get(b.note.id) ?? 0)
-        );
-      })
-      .map(item => item.note);
-  }, [
-    isSearching,
-    searchQuery,
-    filteredNotes,
-    searchableFilteredNotes,
-    sortOption,
-  ]);
+    return filterSearchableNotes(searchableFilteredNotes, searchQuery);
+  }, [isSearching, searchQuery, filteredNotes, searchableFilteredNotes]);
 
   // 计算总咖啡消耗量
   const totalCoffeeConsumption = useRef(0);
