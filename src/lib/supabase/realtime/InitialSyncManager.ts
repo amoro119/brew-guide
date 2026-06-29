@@ -56,6 +56,7 @@ import {
 
 // 网络请求超时时间 (ms)
 const SYNC_TIMEOUT = 60000; // 增加到 60s 以适应移动端大文件传输
+const DETAIL_DOWNLOAD_IDLE_TIMEOUT = SYNC_TIMEOUT * 2;
 const SYNC_DIAGNOSTIC_TOAST_DURATION = 8000;
 const MAX_DIAGNOSTIC_ERROR_LENGTH = 500;
 
@@ -73,6 +74,57 @@ function withTimeout<T>(
       setTimeout(() => reject(new Error(errorMsg)), ms)
     ),
   ]);
+}
+
+/**
+ * 带空闲超时的 Promise 包装器：有进度时刷新计时，只在长时间无进展时失败。
+ */
+function withIdleTimeout<T>(
+  start: (refreshTimeout: () => void) => Promise<T>,
+  ms: number,
+  errorMsg: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+
+    const clearTimer = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const refreshTimeout = () => {
+      if (settled) return;
+      clearTimer();
+      timeoutId = setTimeout(() => {
+        timeoutId = null;
+        if (settled) return;
+        settled = true;
+        reject(new Error(errorMsg));
+      }, ms);
+    };
+
+    refreshTimeout();
+
+    Promise.resolve()
+      .then(() => start(refreshTimeout))
+      .then(
+        value => {
+          if (settled) return;
+          settled = true;
+          clearTimer();
+          resolve(value);
+        },
+        error => {
+          if (settled) return;
+          settled = true;
+          clearTimer();
+          reject(error);
+        }
+      );
+  });
 }
 
 /**
@@ -731,20 +783,22 @@ export class InitialSyncManager {
         console.log(
           `[InitialSync] ${table} 需要下载 ${idsToDownload.length} 条完整记录`
         );
-        const fetchResult = await withTimeout(
-          fetchRemoteRecordsByIds(this.client, table, idsToDownload, {
-            onProgress: (downloadedCount, totalCount) => {
-              this.updateProgressTask(table, {
-                status: 'downloading',
-                detail: `已下载 ${downloadedCount}/${totalCount} 条云端记录`,
-                total: totalCount,
-                completed: downloadedCount,
-                downloaded: downloadedCount,
-              });
-            },
-          }),
-          SYNC_TIMEOUT * 2, // 下载数据给予更多时间
-          `下载 ${table} 详情超时`
+        const fetchResult = await withIdleTimeout(
+          refreshDownloadTimeout =>
+            fetchRemoteRecordsByIds(this.client, table, idsToDownload, {
+              onProgress: (downloadedCount, totalCount) => {
+                refreshDownloadTimeout();
+                this.updateProgressTask(table, {
+                  status: 'downloading',
+                  detail: `已下载 ${downloadedCount}/${totalCount} 条云端记录`,
+                  total: totalCount,
+                  completed: downloadedCount,
+                  downloaded: downloadedCount,
+                });
+              },
+            }),
+          DETAIL_DOWNLOAD_IDLE_TIMEOUT,
+          `下载 ${table} 详情超时（${DETAIL_DOWNLOAD_IDLE_TIMEOUT / 1000} 秒内无进度）`
         );
 
         if (fetchResult.success && fetchResult.data) {

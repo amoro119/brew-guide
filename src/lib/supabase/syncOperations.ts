@@ -148,6 +148,8 @@ export const SYNC_TABLES = {
 
 export type SyncTableName = (typeof SYNC_TABLES)[keyof typeof SYNC_TABLES];
 
+const REMOTE_SELECT_PAGE_SIZE = 1000;
+
 // 自定义预设键（存储在 localStorage）
 export const PRESETS_PREFIX = 'brew-guide:custom-presets:';
 export const PRESETS_KEYS = [
@@ -220,25 +222,74 @@ export async function fetchRemoteAllRecords<T>(
   >
 > {
   try {
-    const { data, error } = await client
-      .from(table)
-      .select(columns)
-      .eq('user_id', DEFAULT_USER_ID);
+    const records: Array<{
+      id: string;
+      data: T;
+      updated_at: string;
+      deleted_at: string | null;
+    }> = [];
+    let expectedTotal: number | null = null;
 
-    if (error) {
-      console.error(`[SyncOps] 获取 ${table} 全部数据失败:`, error.message);
-      return createFailure(
-        createDiagnostic('fetch-all-records', table, error, { columns }),
-        0
-      );
+    while (true) {
+      const from = records.length;
+      const to = from + REMOTE_SELECT_PAGE_SIZE - 1;
+
+      const { data, error, count } = await client
+        .from(table)
+        .select(columns, { count: 'exact' })
+        .eq('user_id', DEFAULT_USER_ID)
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        console.error(`[SyncOps] 获取 ${table} 全部数据失败:`, error.message);
+        return createFailure(
+          createDiagnostic('fetch-all-records', table, error, {
+            columns,
+            recordIndex: from + 1,
+            affectedCount: records.length,
+          }),
+          records.length,
+          records
+        );
+      }
+
+      if (typeof count === 'number') {
+        expectedTotal = count;
+      }
+
+      const pageRecords = (data || []).map((row: any) => ({
+        id: row.id,
+        data: row.data, // 如果 columns 不包含 data，这里可能是 undefined
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+      }));
+
+      records.push(...pageRecords);
+
+      if (expectedTotal !== null) {
+        if (records.length >= expectedTotal) break;
+
+        if (pageRecords.length === 0) {
+          const error = new Error(
+            `分页拉取 ${table} 停止在 ${records.length}/${expectedTotal} 条，没有返回新数据`
+          );
+          return createFailure(
+            createDiagnostic('fetch-all-records', table, error, {
+              columns,
+              recordIndex: from + 1,
+              affectedCount: records.length,
+            }),
+            records.length,
+            records
+          );
+        }
+
+        continue;
+      }
+
+      if (pageRecords.length < REMOTE_SELECT_PAGE_SIZE) break;
     }
-
-    const records = (data || []).map((row: any) => ({
-      id: row.id,
-      data: row.data, // 如果 columns 不包含 data，这里可能是 undefined
-      updated_at: row.updated_at,
-      deleted_at: row.deleted_at,
-    }));
 
     return { success: true, data: records, affectedCount: records.length };
   } catch (err) {
