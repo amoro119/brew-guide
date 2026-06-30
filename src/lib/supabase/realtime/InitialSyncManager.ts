@@ -281,15 +281,15 @@ function assertValidDownloadedRecords(
   });
 }
 
-async function writeLocalRecordWithDiagnostics(
+async function writeLocalRecordWithDiagnostics<T>(
   table: RealtimeSyncTable,
   record: unknown,
   index: number,
   total: number,
-  write: () => Promise<unknown>
-): Promise<void> {
+  write: () => Promise<T>
+): Promise<T> {
   try {
-    await write();
+    return await write();
   } catch (error) {
     throw createLocalDataError({
       table,
@@ -357,6 +357,14 @@ function inferSyncFailureHint(tasks: SupabaseSyncTask[]): string {
     errorText.includes('failed to fetch')
   ) {
     return '可能是网络波动或 Supabase 请求超时。';
+  }
+
+  if (
+    errorText.includes('in-progress transaction') ||
+    errorText.includes('indexeddb') ||
+    errorText.includes('unknownerror')
+  ) {
+    return '可能是浏览器本地 IndexedDB 事务在后台恢复时失效，可优先检查本地读写事务。';
   }
 
   if (
@@ -477,6 +485,22 @@ function assertSyncSuccess<T>(
   }
 }
 
+async function runSyncTasksSequentially<T>(
+  tasks: Array<() => Promise<T>>
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+
+  for (const task of tasks) {
+    try {
+      results.push({ status: 'fulfilled', value: await task() });
+    } catch (reason) {
+      results.push({ status: 'rejected', reason });
+    }
+  }
+
+  return results;
+}
+
 /**
  * 初始同步管理器类
  *
@@ -537,14 +561,13 @@ export class InitialSyncManager {
       showToast({ type: 'info', title: '正在同步云端数据...', duration: 3000 });
     }
 
-    // 并行同步所有表
-    // 恢复并行同步：由于采用了“元数据优先”策略，初始请求非常小，并行执行不会造成带宽压力
-    // 这将显著减少总同步时间
-    const results = await Promise.allSettled([
-      this.syncTable(SYNC_TABLES.COFFEE_BEANS, lastSyncTime),
-      this.syncTable(SYNC_TABLES.BREWING_NOTES, lastSyncTime),
-      this.syncTable(SYNC_TABLES.CUSTOM_EQUIPMENTS, lastSyncTime),
-      this.syncTableMethods(lastSyncTime),
+    // iOS Safari 在应用从后台恢复时容易让重叠的 IndexedDB 事务提前失效。
+    // 顺序同步表，保留单表失败后继续后续表的容错行为。
+    const results = await runSyncTasksSequentially([
+      () => this.syncTable(SYNC_TABLES.COFFEE_BEANS, lastSyncTime),
+      () => this.syncTable(SYNC_TABLES.BREWING_NOTES, lastSyncTime),
+      () => this.syncTable(SYNC_TABLES.CUSTOM_EQUIPMENTS, lastSyncTime),
+      () => this.syncTableMethods(lastSyncTime),
     ]);
 
     // 统计结果
@@ -942,73 +965,48 @@ export class InitialSyncManager {
             `[InitialSync] ${table} 写入 ${validRecords.length} 条记录到本地 DB`
           );
           if (table === SYNC_TABLES.COFFEE_BEANS) {
-            await db.transaction(
-              'rw',
-              db.coffeeBeans,
-              db.coffeeBeanImages,
-              db.coffeeBeanImageThumbnails,
-              async () => {
-                for (let index = 0; index < validRecords.length; index++) {
-                  const record = validRecords[index] as CoffeeBean;
-                  await writeLocalRecordWithDiagnostics(
-                    table,
-                    record,
-                    index + 1,
-                    validRecords.length,
-                    async () => {
-                      const beanForStore =
-                        await persistCoffeeBeanImagesFromBean(record, {
-                          generateThumbnails: false,
-                        });
-                      await db.coffeeBeans.put(beanForStore);
-                    }
-                  );
-                }
-              }
-            );
-          } else if (table === SYNC_TABLES.BREWING_NOTES) {
-            await db.transaction(
-              'rw',
-              db.brewingNotes,
-              db.brewingNoteImages,
-              db.brewingNoteImageThumbnails,
-              async () => {
-                for (let index = 0; index < validRecords.length; index++) {
-                  const record = validRecords[index] as BrewingNote;
-                  await writeLocalRecordWithDiagnostics(
-                    table,
-                    record,
-                    index + 1,
-                    validRecords.length,
-                    async () => {
-                      const noteForStore =
-                        await persistBrewingNoteImagesFromNote(record, {
-                          generateThumbnails: false,
-                        });
-                      await db.brewingNotes.put(noteForStore);
-                    }
-                  );
-                }
-              }
-            );
-          } else {
-            const putRecord = dbTable.put.bind(dbTable) as (
-              item: unknown
-            ) => Promise<unknown>;
+            const recordsForStore: CoffeeBean[] = [];
 
-            // 批量写入以提高性能
-            await db.transaction('rw', dbTable, async () => {
-              for (let index = 0; index < validRecords.length; index++) {
-                const record = validRecords[index];
-                await writeLocalRecordWithDiagnostics(
-                  table,
-                  record,
-                  index + 1,
-                  validRecords.length,
-                  () => putRecord(record)
-                );
-              }
-            });
+            for (let index = 0; index < validRecords.length; index++) {
+              const record = validRecords[index] as CoffeeBean;
+              const beanForStore = await writeLocalRecordWithDiagnostics(
+                table,
+                record,
+                index + 1,
+                validRecords.length,
+                () =>
+                  persistCoffeeBeanImagesFromBean(record, {
+                    generateThumbnails: false,
+                  })
+              );
+              recordsForStore.push(beanForStore);
+            }
+
+            await db.coffeeBeans.bulkPut(recordsForStore);
+          } else if (table === SYNC_TABLES.BREWING_NOTES) {
+            const recordsForStore: BrewingNote[] = [];
+
+            for (let index = 0; index < validRecords.length; index++) {
+              const record = validRecords[index] as BrewingNote;
+              const noteForStore = await writeLocalRecordWithDiagnostics(
+                table,
+                record,
+                index + 1,
+                validRecords.length,
+                () =>
+                  persistBrewingNoteImagesFromNote(record, {
+                    generateThumbnails: false,
+                  })
+              );
+              recordsForStore.push(noteForStore);
+            }
+
+            await db.brewingNotes.bulkPut(recordsForStore);
+          } else {
+            const bulkPut = dbTable.bulkPut.bind(dbTable) as (
+              items: unknown[]
+            ) => Promise<unknown>;
+            await bulkPut(validRecords);
           }
         }
 
@@ -1246,20 +1244,11 @@ export class InitialSyncManager {
 
         assertValidDownloadedRecords(SYNC_TABLES.CUSTOM_METHODS, toDownload);
 
-        for (let index = 0; index < toDownload.length; index++) {
-          const item = toDownload[index];
-          await writeLocalRecordWithDiagnostics(
-            SYNC_TABLES.CUSTOM_METHODS,
-            item,
-            index + 1,
-            toDownload.length,
-            () =>
-              db.customMethods.put({
-                equipmentId: item.equipmentId,
-                methods: item.methods,
-              })
-          );
-        }
+        const recordsForStore = toDownload.map(item => ({
+          equipmentId: item.equipmentId,
+          methods: item.methods,
+        }));
+        await db.customMethods.bulkPut(recordsForStore);
 
         this.updateProgressTask(SYNC_TABLES.CUSTOM_METHODS, {
           status: 'writing',
@@ -1272,9 +1261,7 @@ export class InitialSyncManager {
 
       // 执行本地删除
       if (toDeleteLocal.length > 0) {
-        for (const id of toDeleteLocal) {
-          await db.customMethods.delete(id);
-        }
+        await db.customMethods.bulkDelete(toDeleteLocal);
       }
 
       this.updateProgressTask(SYNC_TABLES.CUSTOM_METHODS, {
