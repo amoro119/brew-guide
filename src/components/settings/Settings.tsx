@@ -297,6 +297,7 @@ const Settings: React.FC<SettingsProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     if (!bundledNativeApp) return; // 仅本地打包原生平台自动检测
+    if (settings.showUpdatePrompt === false) return;
 
     const autoCheckUpdate = async () => {
       try {
@@ -326,7 +327,12 @@ const Settings: React.FC<SettingsProps> = ({
     };
 
     autoCheckUpdate();
-  }, [isOpen, bundledNativeApp, getNativeUpdateDownloadUrl]);
+  }, [
+    isOpen,
+    bundledNativeApp,
+    getNativeUpdateDownloadUrl,
+    settings.showUpdatePrompt,
+  ]);
 
   // 点击外部关闭同步菜单
   useEffect(() => {
@@ -731,7 +737,9 @@ const Settings: React.FC<SettingsProps> = ({
       {/* 版本更新抽屉 */}
       {updateInfo && (
         <UpdateDrawer
-          isOpen={showUpdateDrawer}
+          isOpen={
+            showUpdateDrawer && settings.showUpdatePrompt !== false
+          }
           onClose={() => {
             setShowUpdateDrawer(false);
             setIsAutoCheckUpdate(false); // 关闭时重置自动检测标记

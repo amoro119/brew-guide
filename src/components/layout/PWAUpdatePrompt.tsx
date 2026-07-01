@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PWA_MANUAL_UPDATE_CHECK_EVENT } from '@/lib/utils/pwaUpdateCheck';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
 import UpdateDrawer from '@/components/settings/UpdateDrawer';
 
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -13,6 +14,9 @@ const UPDATE_RETRY_WINDOW_MS = 30 * 1000;
 export default function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const showUpdatePromptSetting = useSettingsStore(
+    state => state.settings.showUpdatePrompt !== false
+  );
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const cleanupRegistrationRef = useRef<(() => void) | null>(null);
   const reloadTriggeredRef = useRef(false);
@@ -58,6 +62,12 @@ export default function PWAUpdatePrompt() {
 
     const handleWaitingWorker = (registration: ServiceWorkerRegistration) => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
+
+      if (!showUpdatePromptSetting) {
+        setIsUpdating(false);
+        setShowPrompt(false);
+        return;
+      }
 
       if (hasRecentUpdateRetry()) {
         setIsUpdating(true);
@@ -224,7 +234,7 @@ export default function PWAUpdatePrompt() {
         window.clearTimeout(reloadTimerRef.current);
       }
     };
-  }, [isNative]);
+  }, [isNative, showUpdatePromptSetting]);
 
   const applyUpdate = () => {
     const registration = registrationRef.current;
@@ -244,7 +254,7 @@ export default function PWAUpdatePrompt() {
     window.location.reload();
   };
 
-  if (isNative || !showPrompt) return null;
+  if (isNative || !showUpdatePromptSetting || !showPrompt) return null;
 
   return (
     <UpdateDrawer

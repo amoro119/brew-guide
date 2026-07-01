@@ -3,7 +3,6 @@ import type { MainNavigationTab } from '@/lib/navigation/navigationSettings';
 type VisibleModuleMap = Record<MainNavigationTab, boolean>;
 
 export const getNotificationSettingsVisibility = ({
-  isNativeApp,
   visibleModules,
 }: {
   isNativeApp: boolean;
@@ -11,10 +10,8 @@ export const getNotificationSettingsVisibility = ({
 }) => {
   const showBrewingNotificationSound = visibleModules.brewing;
   const showCoffeeBeanNotifications = visibleModules.coffeeBean;
-  const showGeneralNotificationSection =
-    showBrewingNotificationSound || isNativeApp;
-  const hasVisibleNotificationSettings =
-    showGeneralNotificationSection || showCoffeeBeanNotifications;
+  const showGeneralNotificationSection = true;
+  const hasVisibleNotificationSettings = true;
 
   return {
     hasVisibleNotificationSettings,

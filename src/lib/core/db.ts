@@ -107,6 +107,7 @@ export interface AppSettings {
   // 通用设置
   notificationSound: boolean;
   hapticFeedback: boolean;
+  showUpdatePrompt?: boolean;
   textZoomLevel: number;
   showFlowRate: boolean;
   username: string;

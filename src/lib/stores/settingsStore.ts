@@ -41,6 +41,7 @@ export const defaultSettings: AppSettings = {
   // 通用设置
   notificationSound: true,
   hapticFeedback: true,
+  showUpdatePrompt: true,
   textZoomLevel: 1.0,
   showFlowRate: false,
   username: '',

@@ -69,6 +69,13 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
     [calendarSync, handleChange]
   );
 
+  const handleUpdatePromptChange = React.useCallback(
+    (checked: boolean) => {
+      handleChange('showUpdatePrompt', checked);
+    },
+    [handleChange]
+  );
+
   // 控制动画状态
   const [isVisible, setIsVisible] = React.useState(false);
 
@@ -115,7 +122,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
       {showGeneralNotificationSection && (
         <SettingSection title="通用" className="-mt-4">
           {showBrewingNotificationSound && (
-            <SettingRow label="提示音" isLast={!isNativeApp}>
+            <SettingRow label="提示音">
               <SettingToggle
                 checked={settings.notificationSound}
                 onChange={checked => handleChange('notificationSound', checked)}
@@ -124,13 +131,20 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
           )}
 
           {isNativeApp && (
-            <SettingRow label="震动反馈" isLast>
+            <SettingRow label="震动反馈">
               <SettingToggle
                 checked={settings.hapticFeedback}
                 onChange={checked => handleChange('hapticFeedback', checked)}
               />
             </SettingRow>
           )}
+
+          <SettingRow label="更新提示" isLast>
+            <SettingToggle
+              checked={settings.showUpdatePrompt !== false}
+              onChange={handleUpdatePromptChange}
+            />
+          </SettingRow>
         </SettingSection>
       )}
 
