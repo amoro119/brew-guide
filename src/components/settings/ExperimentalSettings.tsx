@@ -8,7 +8,9 @@ import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { showToast } from '@/components/common/feedback/LightToast';
 import { deriveNavigationSettings } from '@/lib/navigation/navigationSettings';
 import {
+  DEFAULT_BEAN_RECOGNITION_MODEL,
   DEFAULT_BEAN_RECOGNITION_PROMPT,
+  resolveBeanRecognitionModel,
   testCustomBeanRecognitionConfig,
 } from '@/lib/api/beanRecognition';
 import {
@@ -63,7 +65,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
     settings.experimentalBeanRecognitionApiKey || ''
   );
   const [model, setModel] = React.useState(
-    settings.experimentalBeanRecognitionModel || ''
+    resolveBeanRecognitionModel(settings.experimentalBeanRecognitionModel)
   );
   const [prompt, setPrompt] = React.useState(
     settings.experimentalBeanRecognitionPrompt || ''
@@ -72,7 +74,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
   React.useEffect(() => {
     setApiBaseUrl(settings.experimentalBeanRecognitionApiBaseUrl || '');
     setApiKey(settings.experimentalBeanRecognitionApiKey || '');
-    setModel(settings.experimentalBeanRecognitionModel || '');
+    setModel(resolveBeanRecognitionModel(settings.experimentalBeanRecognitionModel));
     setPrompt(settings.experimentalBeanRecognitionPrompt || '');
   }, [
     settings.experimentalBeanRecognitionApiBaseUrl,
@@ -136,7 +138,9 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
   };
 
   const saveModel = async () => {
-    await handleChange('experimentalBeanRecognitionModel', model.trim());
+    const value = resolveBeanRecognitionModel(model);
+    setModel(value);
+    await handleChange('experimentalBeanRecognitionModel', value);
   };
 
   const savePrompt = async () => {
@@ -158,7 +162,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
         enabled: true,
         apiBaseUrl: apiBaseUrl.trim(),
         apiKey: apiKey.trim(),
-        model: model.trim(),
+        model: resolveBeanRecognitionModel(model),
         prompt: prompt.trim() || DEFAULT_BEAN_RECOGNITION_PROMPT,
       });
       showToast({
@@ -268,7 +272,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
                   value={model}
                   onChange={e => setModel(e.target.value)}
                   onBlur={saveModel}
-                  placeholder="qwen-vl-max-2025-01-25"
+                  placeholder={DEFAULT_BEAN_RECOGNITION_MODEL}
                   className="w-full bg-transparent text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
                 />
               </div>

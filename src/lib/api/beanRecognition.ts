@@ -5,6 +5,10 @@ import {
   validateRecognitionImageFile,
 } from './shared/recognition';
 
+export const DEFAULT_BEAN_RECOGNITION_MODEL = 'doubao-seed-2.0-mini';
+const DEPRECATED_BEAN_RECOGNITION_MODELS = new Set([
+  'qwen-vl-max-2025-01-25',
+]);
 const BEAN_RECOGNITION_MAX_TOKENS = 1200;
 
 export const DEFAULT_BEAN_RECOGNITION_PROMPT = `任务：从咖啡豆包装图片提取可见文字信息，返回可导入JSON。
@@ -40,6 +44,14 @@ export interface CustomBeanRecognitionConfig {
   apiKey?: string;
   model: string;
   prompt: string;
+}
+
+export function resolveBeanRecognitionModel(model?: string): string {
+  const trimmed = model?.trim() || '';
+  if (!trimmed || DEPRECATED_BEAN_RECOGNITION_MODELS.has(trimmed)) {
+    return DEFAULT_BEAN_RECOGNITION_MODEL;
+  }
+  return trimmed;
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -80,9 +92,7 @@ async function recognizeBeanImageWithCustomAPI(
     if (!/^https?:\/\//i.test(baseUrl)) {
       throw new Error('实验性 API 地址必须以 http:// 或 https:// 开头');
     }
-    if (!customConfig.model?.trim()) {
-      throw new Error('实验性识别已启用，但未配置模型名称');
-    }
+    const model = resolveBeanRecognitionModel(customConfig.model);
 
     const endpoint = `${baseUrl}/chat/completions`;
     const imageUrl = await fileToDataUrl(imageFile);
@@ -96,7 +106,7 @@ async function recognizeBeanImageWithCustomAPI(
           : {}),
       },
       body: JSON.stringify({
-        model: customConfig.model.trim(),
+        model,
         messages: [
           { role: 'system', content: customConfig.prompt },
           {
@@ -238,10 +248,7 @@ export async function testCustomBeanRecognitionConfig(
     if (!/^https?:\/\//i.test(baseUrl)) {
       throw new Error('API 地址需以 http:// 或 https:// 开头');
     }
-    const model = customConfig.model.trim();
-    if (!model) {
-      throw new Error('请先填写模型名称');
-    }
+    const model = resolveBeanRecognitionModel(customConfig.model);
 
     const endpoint = `${baseUrl}/chat/completions`;
     const modelsEndpoint = `${baseUrl}/models`;
@@ -298,6 +305,9 @@ export async function testCustomBeanRecognitionConfig(
         messages: [{ role: 'user', content: 'ok' }],
         temperature: 0,
         max_tokens: 8,
+        thinking: {
+          type: 'disabled',
+        },
       }),
       timeoutMs: 60000,
     });
