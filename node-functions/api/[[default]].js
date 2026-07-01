@@ -41,23 +41,35 @@ const IMAGE_MIME_TYPE_BY_EXTENSION = {
 const IMAGE_ALLOWED_TYPE_SET = new Set(IMAGE_ALLOWED_TYPES);
 
 const QINIU_CHAT_COMPLETIONS = 'https://api.qnaigc.com/v1/chat/completions';
+const DEFAULT_VISION_RECOGNITION_MODEL = 'doubao-seed-2.0-mini';
+const BEAN_RECOGNITION_MAX_TOKENS = 1200;
 
-const BEAN_RECOGNITION_PROMPT = `你是OCR工具，提取图片中的咖啡豆信息，直接返回JSON（单豆返回对象{}，多豆返回数组[]）。
+const BEAN_RECOGNITION_PROMPT = `任务：从咖啡豆包装图片提取可见文字信息，返回可导入JSON。
+输出：单豆返回object，多豆返回array。只输出JSON，不输出解释、markdown或代码块。
 
-必填: name（豆名，如"埃塞俄比亚赏花日晒原生种"）
+允许字段：
+name 必填；roaster；capacity；remaining；price；roastDate；roastLevel；beanType；flavor；startDay；endDay；blendComponents；notes。
 
-可选（图片有明确信息才填）：
-- roaster: 烘焙商/品牌名（如"西可"）
-- capacity/remaining/price: 纯数字
-- roastDate: YYYY-MM-DD (缺年份补2026)
-- roastLevel: 极浅烘焙|浅度烘焙|中浅烘焙|中度烘焙|中深烘焙|深度烘焙
-- beanType: filter|espresso|omni（≤200g/浅烘/单品→filter，≥300g/深烘/拼配→espresso，标注全能→omni，默认filter）
-- flavor: 风味数组["橘子","荔枝"]
-- startDay/endDay: 养豆期/赏味期天数
-- blendComponents: 产地/庄园/处理法/品种 [{origin:"埃塞俄比亚",estate:"赏花",process:"日晒",variety:"原生种"}]
-- notes: 处理站/海拔/批次号等补充信息（产地和庄园信息放 blendComponents，这里只放补充信息）
+字段规则：
+- 未明确可见或无法可靠推断的字段直接省略，不要输出空字符串/null。
+- 图片里同一信息同时存在中文和英文时，优先输出中文；只有没有中文时才保留英文。
+- name 只写咖啡豆商品名/批次名；主标题同时出现英文名和中文名时都保留，例如 "Alo Chilaka 奇拉卡"；不要把产区、处理法、风味词放入 name。
+- roaster 输出品牌短名；中文品牌明显时优先短中文名，例如 "柯林"、"辛鹿"。
+- 生豆商、进口商、供应商不是 roaster；应写入 notes，例如 "生豆商：裂豆师"。
+- capacity/remaining/price/startDay/endDay 只输出数字，不带单位；capacity 从净含量、规格、克数提取，startDay/endDay 从赏味期、养豆天数提取。
+- roastDate 仅在图片明确出现烘焙日期/生产日期且能读出月日时填写 YYYY-MM-DD；缺年份补2026；看不清、默认01-01、非法日期都不要填。
+- roastLevel 只用：极浅烘焙/浅度烘焙/中浅烘焙/中度烘焙/中深烘焙/深度烘焙。
+- beanType 只用 filter/espresso/omni；拼配、深烘或大包装通常为 espresso；标注全能为 omni；否则默认 filter。
+- flavor 为字符串数组。
+- blendComponents 必须是“对象数组”，严禁输出字符串数组；每个对象字段只能是 origin/estate/process/variety。批次和海拔不要放入 blendComponents，但咖啡品种编号如 74158 可以放入 variety。严禁写 blenderComponents、components、blend_components。
+- 产地与处理法按图片表格或文本顺序一一配对；产地/处理法不要放入 notes。
+- notes 只放规范补充信息，例如批次、海拔、生豆商、系列；多条内容用 / 分隔；不要写物流、促销、包装技术、锁鲜技术、人物背书等广告信息。
+- 不编造，不输出上述字段以外的键。
 
-规则：数值不带单位/不编造/不确定不填/直接返回JSON`;
+blendComponents 形状示例：
+{"blendComponents":[{"origin":"埃塞俄比亚","estate":"博纳","process":"水洗","variety":"74158"}]}
+不要这样输出：
+{"blendComponents":["埃塞俄比亚","博纳","水洗","74158"]}`;
 
 const runtimeConfigCache = {
   allowedOriginsRaw: null,
@@ -328,9 +340,277 @@ function parseBeanResponse(aiText) {
     }
   }
 
+  const isValidDate = value => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  };
+
   const normalizeBean = bean => {
+    const allowedBeanKeys = new Set([
+      'name',
+      'roaster',
+      'capacity',
+      'remaining',
+      'price',
+      'roastDate',
+      'roastLevel',
+      'beanType',
+      'flavor',
+      'startDay',
+      'endDay',
+      'blendComponents',
+      'blenderComponents',
+      'blend_components',
+      'components',
+      'notes',
+    ]);
+    const allowedComponentKeys = new Set([
+      'origin',
+      'estate',
+      'process',
+      'variety',
+    ]);
+    const processPattern = /水洗|日晒|蜜处理|厌氧|发酵|湿刨|半水洗|自然/;
+
+    const cleanValue = (value, allowedKeys = null) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed || undefined;
+      }
+      if (Array.isArray(value)) {
+        const items = value.map(item => cleanValue(item)).filter(Boolean);
+        return items.length > 0 ? items : undefined;
+      }
+      if (!value || typeof value !== 'object') return value;
+      Object.keys(value).forEach(key => {
+        if (allowedKeys && !allowedKeys.has(key)) {
+          delete value[key];
+          return;
+        }
+        const cleaned = cleanValue(value[key]);
+        if (cleaned === undefined) {
+          delete value[key];
+        } else {
+          value[key] = cleaned;
+        }
+      });
+      return value;
+    };
+
+    const normalizeNote = note => {
+      if (Array.isArray(note)) {
+        return note.map(item => String(item).trim()).filter(Boolean).join('/');
+      }
+      return note;
+    };
+
+    const extractVarietyFromNotes = target => {
+      if (!target.notes || !Array.isArray(target.blendComponents)) return;
+      const noteText = Array.isArray(target.notes)
+        ? target.notes.join('；')
+        : String(target.notes);
+      const varietyMatch = Array.from(noteText.matchAll(/\b\d{4,6}\b/g))
+        .map(match => match[0])
+        .filter(match => !new RegExp(`${match}\\s*M`, 'i').test(noteText))
+        .pop();
+      if (varietyMatch && !target.blendComponents[0]?.variety) {
+        target.blendComponents[0] = {
+          ...target.blendComponents[0],
+          variety: varietyMatch,
+        };
+        target.notes = noteText
+          .replace(varietyMatch, '')
+          .replace(/[；/、,，\s]+/g, ' ')
+          .trim();
+      }
+    };
+
+    const normalizeAltitudeNote = note => {
+      if (typeof note !== 'string') return note;
+      return note
+        .replace(/等级\s*[:：]?\s*G1/gi, 'G1')
+        .replace(/生豆商\s*[:：]?\s*/g, '生豆商：')
+        .replace(/(?:海拔\s*)?(\d{3,4})\s*M\.?A\.?S\.?L\.?/gi, '海拔 $1m')
+        .replace(/海拔\s*海拔\s*/g, '海拔 ')
+        .replace(/\s*[；/、]\s*/g, '/')
+        .trim();
+    };
+
+    const normalizeLocationText = value => {
+      if (typeof value !== 'string') return value;
+      return value
+        .replace(/\bETHIOPIA\b/gi, '埃塞俄比亚')
+        .replace(/\bBONA STATION\b/gi, '博纳')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizeFlatComponents = components => {
+      if (!Array.isArray(components) || components.length === 0) {
+        return components;
+      }
+      if (components.every(item => item && typeof item === 'object')) {
+        return components.map(component => cleanValue(component, allowedComponentKeys));
+      }
+      const values = components
+        .filter(item => typeof item === 'string')
+        .map(item => item.trim())
+        .filter(item => item && item !== 'origin' && item !== 'process');
+
+      if (values.length === 0) return undefined;
+
+      const midpoint = values.length / 2;
+      if (
+        values.length % 2 === 0 &&
+        values.slice(0, midpoint).every(item => !processPattern.test(item)) &&
+        values.slice(midpoint).every(item => processPattern.test(item))
+      ) {
+        return values.slice(0, midpoint).map((origin, index) => ({
+          origin,
+          process: values[midpoint + index],
+        }));
+      }
+
+      const processIndex = values.findIndex(item => processPattern.test(item));
+      if (processIndex >= 0) {
+        const beforeProcess = values.slice(0, processIndex);
+        const afterProcess = values.slice(processIndex + 1);
+        const component = { process: values[processIndex] };
+
+        if (beforeProcess.length >= 1) component.origin = beforeProcess[0];
+        if (beforeProcess.length >= 2) {
+          const second = beforeProcess[1];
+          if (/站|station/i.test(second)) {
+            component.estate = normalizeLocationText(second);
+          } else {
+            component.origin = `${component.origin} ${second}`.trim();
+          }
+        }
+        if (beforeProcess.length >= 3) {
+          component.variety = beforeProcess[2];
+        }
+        if (afterProcess.length > 0 && !component.variety) {
+          component.variety = afterProcess[0];
+        }
+        return [component];
+      }
+
+      return components;
+    };
+
+    const normalizeComponentLocations = target => {
+      if (!Array.isArray(target.blendComponents)) return;
+      target.blendComponents = target.blendComponents.map(component => {
+        if (!component || typeof component !== 'object') return component;
+        return {
+          ...component,
+          origin: normalizeLocationText(component.origin),
+          estate: normalizeLocationText(component.estate),
+        };
+      });
+    };
+
+    const moveRegionalNotesToOrigin = target => {
+      if (
+        typeof target.notes !== 'string' ||
+        !Array.isArray(target.blendComponents) ||
+        !target.blendComponents[0] ||
+        !/西达摩|班莎|古吉|罕贝拉/.test(target.notes)
+      ) {
+        return;
+      }
+      const component = target.blendComponents[0];
+      component.origin = [component.origin, target.notes]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      delete target.notes;
+    };
+
+    const moveRegionFromNameToOrigin = target => {
+      if (
+        typeof target.name !== 'string' ||
+        !Array.isArray(target.blendComponents) ||
+        !target.blendComponents[0]
+      ) {
+        return;
+      }
+      const regionMatch = target.name.match(/(西达摩\s*班莎|古吉\s*罕贝拉)/);
+      if (!regionMatch) return;
+      const region = regionMatch[1].replace(/\s+/g, ' ');
+      target.name = target.name.replace(regionMatch[1], '').replace(/\s+/g, ' ').trim();
+      const component = target.blendComponents[0];
+      if (!String(component.origin || '').includes(region)) {
+        component.origin = [component.origin, region]
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    };
+
+    const dropAdvertisingNote = target => {
+      if (
+        typeof target.notes === 'string' &&
+        /锁鲜|包邮|促销|618|冠军|包装技术|技术/.test(target.notes)
+      ) {
+        delete target.notes;
+      }
+    };
+
+    const moveGreenBeanMerchantOutOfRoaster = target => {
+      if (typeof target.roaster !== 'string' || !/裂豆师/.test(target.roaster)) {
+        return;
+      }
+      const note = '生豆商：裂豆师';
+      target.notes = target.notes
+        ? `${target.notes}/${note}`
+        : note;
+      delete target.roaster;
+    };
+
+    bean = cleanValue(bean, allowedBeanKeys);
+    if (
+      !bean.blendComponents &&
+      (bean.blenderComponents || bean.blend_components || bean.components)
+    ) {
+      bean.blendComponents =
+        bean.blenderComponents || bean.blend_components || bean.components;
+      delete bean.blenderComponents;
+      delete bean.blend_components;
+      delete bean.components;
+    }
     if (bean.blendComponents && !Array.isArray(bean.blendComponents)) {
       bean.blendComponents = [bean.blendComponents];
+    }
+    if (bean.blendComponents) {
+      bean.blendComponents = normalizeFlatComponents(bean.blendComponents);
+    }
+    normalizeComponentLocations(bean);
+    extractVarietyFromNotes(bean);
+    if (bean.notes) {
+      bean.notes = normalizeAltitudeNote(normalizeNote(bean.notes));
+      if (!bean.notes) delete bean.notes;
+    }
+    moveRegionalNotesToOrigin(bean);
+    moveRegionFromNameToOrigin(bean);
+    dropAdvertisingNote(bean);
+    moveGreenBeanMerchantOutOfRoaster(bean);
+    if (!bean.beanType) {
+      bean.beanType = 'filter';
+    }
+    if (bean.roastDate && !isValidDate(bean.roastDate)) {
+      delete bean.roastDate;
     }
     if (bean.capacity === 0) delete bean.capacity;
     if (bean.price === 0) delete bean.price;
@@ -459,7 +739,7 @@ async function handleBeanRecognition(context) {
       apiKey,
       timeoutMs: 120000,
       payload: {
-        model: env.BEAN_RECOGNITION_MODEL || 'qwen-vl-max-2025-01-25',
+        model: env.BEAN_RECOGNITION_MODEL || DEFAULT_VISION_RECOGNITION_MODEL,
         messages: [
           { role: 'system', content: BEAN_RECOGNITION_PROMPT },
           {
@@ -468,7 +748,10 @@ async function handleBeanRecognition(context) {
           },
         ],
         temperature: 0,
-        max_tokens: 2000,
+        max_tokens: BEAN_RECOGNITION_MAX_TOKENS,
+        thinking: {
+          type: 'disabled',
+        },
         response_format: { type: 'json_object' },
       },
     });
@@ -518,7 +801,7 @@ async function handleMethodRecognition(context) {
       apiKey,
       timeoutMs: 120000,
       payload: {
-        model: env.METHOD_RECOGNITION_MODEL || 'qwen-vl-max-2025-01-25',
+        model: env.METHOD_RECOGNITION_MODEL || DEFAULT_VISION_RECOGNITION_MODEL,
         messages: [
           { role: 'system', content: METHOD_RECOGNITION_PROMPT },
           {
@@ -528,6 +811,9 @@ async function handleMethodRecognition(context) {
         ],
         temperature: 0,
         max_tokens: 2000,
+        thinking: {
+          type: 'disabled',
+        },
         response_format: { type: 'json_object' },
       },
     });

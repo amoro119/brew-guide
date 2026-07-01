@@ -1,19 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import onRequest from './[[default]].js';
 
-function createImageRequest(file: File) {
+function createImageRequest(file: File, pathname = '/api/recognize-bean') {
   const formData = new FormData();
   formData.append('image', file);
 
-  return new Request('https://example.com/api/recognize-bean', {
+  return new Request(`https://example.com${pathname}`, {
     method: 'POST',
     body: formData,
   });
 }
 
-function mockModelResponse() {
+function mockModelResponse(content = '{"name":"测试咖啡豆"}') {
   let payload:
     | {
+        model?: string;
+        thinking?: { type?: string };
+        response_format?: { type?: string };
         messages: Array<{
           content?: Array<{ image_url?: { url?: string } }>;
         }>;
@@ -24,7 +27,7 @@ function mockModelResponse() {
     payload = JSON.parse(String(init?.body || '{}'));
     return new Response(
       JSON.stringify({
-        choices: [{ message: { content: '{"name":"测试咖啡豆"}' } }],
+        choices: [{ message: { content } }],
       }),
       {
         status: 200,
@@ -44,6 +47,13 @@ function mockModelResponse() {
 async function callRecognizeBean(file: File) {
   return onRequest({
     request: createImageRequest(file),
+    env: { QINIU_API_KEY: 'test-key' },
+  });
+}
+
+async function callRecognizeMethod(file: File) {
+  return onRequest({
+    request: createImageRequest(file, '/api/recognize-method'),
     env: { QINIU_API_KEY: 'test-key' },
   });
 }
@@ -83,6 +93,151 @@ describe('recognition image upload validation', () => {
         'data:image/jpeg;base64,'
       )
     ).toBe(true);
+  });
+
+  it('uses the active replacement model by default', async () => {
+    const { getPayload } = mockModelResponse();
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+
+    expect(response.status).toBe(200);
+    expect(getPayload().model).toBe('doubao-seed-2.0-mini');
+    expect(getPayload().thinking).toEqual({ type: 'disabled' });
+    expect(getPayload().response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('uses the active replacement model for method recognition by default', async () => {
+    const { getPayload } = mockModelResponse(
+      '{"name":"测试方案","params":{"stages":[{"pourType":"center","label":"注水","water":"30","duration":10,"detail":""}]}}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeMethod(file);
+
+    expect(response.status).toBe(200);
+    expect(getPayload().model).toBe('doubao-seed-2.0-mini');
+    expect(getPayload().thinking).toEqual({ type: 'disabled' });
+    expect(getPayload().response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('normalizes common blend component key drift from fast vision models', async () => {
+    mockModelResponse(
+      '{"name":"测试咖啡豆","blenderComponents":{"origin":"哥伦比亚","process":"水洗"}}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '测试咖啡豆',
+      beanType: 'filter',
+      blendComponents: [{ origin: '哥伦比亚', process: '水洗' }],
+    });
+  });
+
+  it('drops invalid roast dates from model output', async () => {
+    mockModelResponse('{"name":"测试咖啡豆","roastDate":"2026-00-00"}');
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({ name: '测试咖啡豆', beanType: 'filter' });
+  });
+
+  it('drops empty string fields from model output', async () => {
+    mockModelResponse(
+      '{"name":"测试咖啡豆","roaster":"","notes":" ","remaining":null,"blendComponents":[{"origin":"哥伦比亚","estate":"","process":"水洗"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '测试咖啡豆',
+      beanType: 'filter',
+      blendComponents: [{ origin: '哥伦比亚', process: '水洗' }],
+    });
+  });
+
+  it('normalizes flat component and note output from fast models', async () => {
+    mockModelResponse(
+      '{"name":"测试咖啡豆","blendComponents":["ETHIOPIA","BONA STATION","水洗"],"notes":["2350 M.A.S.L","74158"]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '测试咖啡豆',
+      beanType: 'filter',
+      blendComponents: [
+        {
+          origin: '埃塞俄比亚',
+          estate: '博纳',
+          process: '水洗',
+          variety: '74158',
+        },
+      ],
+      notes: '海拔 2350m',
+    });
+  });
+
+  it('moves region text out of the name and drops advertising notes', async () => {
+    mockModelResponse(
+      '{"name":"Alo 西达摩 班莎 奇拉卡","notes":"540天锁鲜装","blendComponents":[{"origin":"埃塞俄比亚","process":"精致水洗","variety":"74158"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: 'Alo 奇拉卡',
+      beanType: 'filter',
+      blendComponents: [
+        {
+          origin: '埃塞俄比亚 西达摩 班莎',
+          process: '精致水洗',
+          variety: '74158',
+        },
+      ],
+    });
+  });
+
+  it('does not treat green bean merchants as roasters', async () => {
+    mockModelResponse(
+      '{"name":"花魁","roaster":"裂豆师","notes":"G1","blendComponents":[{"origin":"埃塞俄比亚","process":"日晒"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '花魁',
+      beanType: 'filter',
+      blendComponents: [{ origin: '埃塞俄比亚', process: '日晒' }],
+      notes: 'G1/生豆商：裂豆师',
+    });
   });
 
   it('rejects an allowed declaration when the bytes are not an image', async () => {
