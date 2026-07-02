@@ -14,7 +14,11 @@ import {
   formatBeanDisplayName,
   type RoasterSettings,
 } from '@/lib/utils/beanVarietyUtils';
-import { getBeanUnitPrice } from '@/lib/notes/noteDisplay';
+import {
+  getBeanUnitPrice,
+  normalizeBrewingNoteParams,
+  resolveNoteEquipmentName,
+} from '@/lib/notes/noteDisplay';
 import { useBrewingNoteImages } from '@/lib/hooks/useBrewingNoteImages';
 
 interface RelatedRecordsSectionProps {
@@ -434,121 +438,111 @@ const BrewingRecordItem: React.FC<{
       (note.beanId
         ? allBeans.find(candidate => candidate.id === note.beanId) || null
         : null) || bean;
-    const equipmentName = note.equipment
-      ? equipmentNames[note.equipment] || note.equipment
-      : '';
+    const equipmentName = resolveNoteEquipmentName(note, equipmentNames);
     const beanUnitPrice = getBeanUnitPrice(noteBean);
+    const normalizedParams = normalizeBrewingNoteParams(note.params);
 
-    const titleParts = [
-      equipmentName || '未知器具',
-      note.method?.trim() || '',
-    ].filter(Boolean);
+    const titleParts = [equipmentName, note.method?.trim() || ''].filter(
+      Boolean
+    );
+    const isEspresso =
+      note.equipment &&
+      (note.equipment.toLowerCase().includes('espresso') ||
+        note.equipment.includes('意式'));
+    const paramParts = normalizedParams
+      ? isEspresso
+        ? [
+            normalizedParams.coffee,
+            normalizedParams.grindSize,
+            note.totalTime ? `${note.totalTime}s` : '',
+            normalizedParams.liquidWeight || normalizedParams.water,
+          ].filter(Boolean)
+        : [
+            normalizedParams.coffee,
+            normalizedParams.ratio,
+            [normalizedParams.grindSize, normalizedParams.temp]
+              .filter(Boolean)
+              .join(' · '),
+          ].filter(Boolean)
+      : [];
+    const hasTextSummary = titleParts.length > 0 || paramParts.length > 0;
+    const hasSummaryContent = Boolean(noteImage || hasTextSummary);
 
     const content = (
       <>
         {/* 图片和标题参数区域 */}
-        <div className="flex gap-3">
-          {/* 笔记图片 */}
-          {noteImage && (
-            <div
-              className="relative h-14 w-14 shrink-0 cursor-pointer overflow-hidden rounded border border-neutral-200/50 bg-neutral-100 dark:border-neutral-700/40 dark:bg-neutral-800/20"
-              onClick={e => {
-                e.stopPropagation();
-                if (!noteImageErrors[note.id]) {
-                  onImageClick(noteImage, undefined);
-                }
-              }}
-            >
-              {noteImageErrors[note.id] ? (
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
-                  加载失败
-                </div>
-              ) : (
-                <Image
-                  src={noteImage}
-                  alt={bean?.name || '笔记图片'}
-                  height={48}
-                  width={48}
-                  unoptimized
-                  style={{ width: '100%', height: '100%' }}
-                  className="object-cover"
-                  sizes="48px"
-                  priority={false}
-                  loading="lazy"
-                  onError={() =>
-                    setNoteImageErrors(prev => ({
-                      ...prev,
-                      [note.id]: true,
-                    }))
+        {hasSummaryContent && (
+          <div className="flex gap-3">
+            {/* 笔记图片 */}
+            {noteImage && (
+              <div
+                className="relative h-14 w-14 shrink-0 cursor-pointer overflow-hidden rounded border border-neutral-200/50 bg-neutral-100 dark:border-neutral-700/40 dark:bg-neutral-800/20"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (!noteImageErrors[note.id]) {
+                    onImageClick(noteImage, undefined);
                   }
-                />
-              )}
-            </div>
-          )}
-
-          {/* 名称和标签区域 */}
-          <div className="min-w-0 flex-1">
-            <div className="space-y-1.5">
-              {/* 标题行 */}
-              <div className="text-xs font-medium wrap-break-word text-neutral-800 dark:text-neutral-100">
-                {titleParts.map((part, index) => (
-                  <React.Fragment key={`${part}-${index}`}>
-                    {index > 0 && <span className="mx-1">·</span>}
-                    <span>{part}</span>
-                  </React.Fragment>
-                ))}
+                }}
+              >
+                {noteImageErrors[note.id] ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500 dark:text-neutral-400">
+                    加载失败
+                  </div>
+                ) : (
+                  <Image
+                    src={noteImage}
+                    alt={bean?.name || '笔记图片'}
+                    height={48}
+                    width={48}
+                    unoptimized
+                    style={{ width: '100%', height: '100%' }}
+                    className="object-cover"
+                    sizes="48px"
+                    priority={false}
+                    loading="lazy"
+                    onError={() =>
+                      setNoteImageErrors(prev => ({
+                        ...prev,
+                        [note.id]: true,
+                      }))
+                    }
+                  />
+                )}
               </div>
+            )}
 
-              {/* 参数信息 */}
-              {note.params &&
-                (() => {
-                  // 判断是否为意式咖啡笔记
-                  const isEspresso =
-                    note.equipment &&
-                    (note.equipment.toLowerCase().includes('espresso') ||
-                      note.equipment.includes('意式'));
-
-                  return (
-                    <div className="mt-1.5 space-x-1 text-xs leading-relaxed font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
-                      {isEspresso ? (
-                        // 意式参数：粉量 · 研磨度 · 时间 · 液重
-                        <>
-                          <span>{note.params.coffee}</span>
-                          <span className="shrink-0">·</span>
-                          <span>{note.params.grindSize || '-'}</span>
-                          {(note.totalTime || 0) > 0 && (
-                            <>
-                              <span className="shrink-0">·</span>
-                              <span>{note.totalTime}s</span>
-                            </>
-                          )}
-                          <span className="shrink-0">·</span>
-                          <span>{note.params.water}</span>
-                        </>
-                      ) : (
-                        // 手冲参数：粉量 · 粉水比 · 研磨度 · 温度
-                        <>
-                          <span>{note.params.coffee}</span>
-                          <span>·</span>
-                          <span>{note.params.ratio}</span>
-                          {(note.params.grindSize || note.params.temp) && (
-                            <>
-                              <span>·</span>
-                              <span>
-                                {[note.params.grindSize, note.params.temp]
-                                  .filter(Boolean)
-                                  .join(' · ')}
-                              </span>
-                            </>
-                          )}
-                        </>
-                      )}
+            {/* 名称和标签区域 */}
+            {hasTextSummary && (
+              <div className="min-w-0 flex-1">
+                <div className="space-y-1.5">
+                  {/* 标题行 */}
+                  {titleParts.length > 0 && (
+                    <div className="text-xs font-medium wrap-break-word text-neutral-800 dark:text-neutral-100">
+                      {titleParts.map((part, index) => (
+                        <React.Fragment key={`${part}-${index}`}>
+                          {index > 0 && <span className="mx-1">·</span>}
+                          <span>{part}</span>
+                        </React.Fragment>
+                      ))}
                     </div>
-                  );
-                })()}
-            </div>
+                  )}
+
+                  {/* 参数信息 */}
+                  {paramParts.length > 0 && (
+                    <div className="mt-1.5 space-x-1 text-xs leading-relaxed font-medium tracking-wide text-neutral-600 dark:text-neutral-400">
+                      {paramParts.map((part, index) => (
+                        <React.Fragment key={`${part}-${index}`}>
+                          {index > 0 && <span className="shrink-0">·</span>}
+                          <span>{part}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* 风味评分 */}
         {hasTasteRatings && (
