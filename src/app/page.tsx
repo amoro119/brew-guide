@@ -219,6 +219,18 @@ const preloadBrewingTimer = () => {
   void brewingTimerPreloadPromise.catch(() => undefined);
 };
 
+const getBrewingStartStep = (
+  hasCoffeeBeans: boolean,
+  settings: SettingsOptions
+): BrewingStep => {
+  const navigationState = deriveNavigationSettings(settings.navigationSettings);
+  const canUseCoffeeBeanInBrewing =
+    navigationState.visibleTabs.coffeeBean &&
+    settings.showCoffeeBeanSelectionStep !== false;
+
+  return hasCoffeeBeans && canUseCoffeeBeanInBrewing ? 'coffeeBean' : 'method';
+};
+
 // 动态导入客户端组件
 const BrewingTimer = dynamic(loadBrewingTimer, {
   ssr: false,
@@ -255,23 +267,32 @@ const AppLoader = ({
           import('@/lib/stores/coffeeBeanStore'),
         ]);
 
-        // 检查咖啡豆状态
-        const store = getCoffeeBeanStore();
-        if (!store.initialized) {
-          await store.loadBeans();
-        }
-        const beans = store.beans;
-        const hasBeans = beans.length > 0;
-
-        // 初始化版本和storage
-        try {
-          const storageVersion = await Storage.get('brewingNotesVersion');
-          if (!storageVersion) {
-            await Storage.set('brewingNotesVersion', APP_VERSION);
+        const coffeeBeanStore = getCoffeeBeanStore();
+        const settingsStore = getSettingsStore();
+        const loadBeansPromise = coffeeBeanStore.initialized
+          ? Promise.resolve()
+          : coffeeBeanStore.loadBeans();
+        const loadSettingsPromise = settingsStore.initialized
+          ? Promise.resolve()
+          : settingsStore.loadSettings();
+        const initializeStorageVersionPromise = (async () => {
+          try {
+            const storageVersion = await Storage.get('brewingNotesVersion');
+            if (!storageVersion) {
+              await Storage.set('brewingNotesVersion', APP_VERSION);
+            }
+          } catch {
+            // 静默处理错误
           }
-        } catch {
-          // 静默处理错误
-        }
+        })();
+
+        await Promise.all([
+          loadBeansPromise,
+          loadSettingsPromise,
+          initializeStorageVersionPromise,
+        ]);
+
+        const hasBeans = getCoffeeBeanStore().beans.length > 0;
 
         // 通知初始化完成，传递咖啡豆状态
         onInitialized({ hasBeans });
@@ -397,6 +418,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     () => deriveNavigationSettings(settings.navigationSettings),
     [settings.navigationSettings]
   );
+  const initialBrewingStep = getBrewingStartStep(initialHasBeans, settings);
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const storeInitialized = useSettingsStore(state => state.initialized);
   const loadSettingsFromStore = useSettingsStore(state => state.loadSettings);
@@ -650,10 +672,9 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   // 自动跳转到笔记的状态
   const [hasAutoNavigatedToNotes, setHasAutoNavigatedToNotes] = useState(false);
 
-  // 始终从 method 步骤开始，避免在设置加载前进入咖啡豆步骤
-  // 后续的 useEffect 会根据设置和咖啡豆状态调整到正确的步骤
+  // 首帧就使用真实设置和豆仓状态决定起始步骤，避免 method 器具栏先闪现再消失。
   const [isStageWaiting, setIsStageWaiting] = useState(false);
-  const brewingState = useBrewingState('method');
+  const brewingState = useBrewingState(initialBrewingStep);
   const {
     activeMainTab,
     setActiveMainTab,
@@ -991,42 +1012,35 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     onConfirm: () => void;
   } | null>(null);
 
-  // 在 settings 加载完成后，根据 showCoffeeBeanSelectionStep 设置调整初始步骤
-  // 这是为了处理初始化时 settings 还未加载的情况
+  // 初始化兜底：如果外部数据在首帧后发生修正，只同步一次起始步骤。
   const hasAdjustedInitialStep = useRef(false);
   useEffect(() => {
     // 只在 settings 初始化完成后执行一次
     if (!storeInitialized || hasAdjustedInitialStep.current) return;
     hasAdjustedInitialStep.current = true;
 
-    const showBeanStep =
-      navigationState.visibleTabs.coffeeBean &&
-      settings.showCoffeeBeanSelectionStep !== false;
     // 检查冲煮 tab 是否可见
     const isBrewingTabVisible = navigationState.visibleTabs.brewing;
 
     // 只有当冲煮 tab 可见且当前在冲煮 tab 时，才调整冲煮步骤
-    if (isBrewingTabVisible && activeMainTab === '冲煮') {
-      // 如果设置开启了咖啡豆步骤且有咖啡豆，且当前在 method 步骤，则跳转到咖啡豆步骤
-      if (showBeanStep && initialHasBeans && activeBrewingStep === 'method') {
-        navigateToStep('coffeeBean');
-      }
-      // 如果设置关闭了咖啡豆步骤，且当前在咖啡豆步骤，则跳转到方案步骤
-      else if (!showBeanStep && activeBrewingStep === 'coffeeBean') {
-        navigateToStep('method');
-      }
+    if (
+      isBrewingTabVisible &&
+      activeMainTab === '冲煮' &&
+      activeBrewingStep !== initialBrewingStep
+    ) {
+      navigateToStep(initialBrewingStep);
     }
 
     // 标记首次初始化完成，更新 prevMainTabRef 以避免主 tab 切换 useEffect 重复处理
     prevMainTabRef.current = activeMainTab;
   }, [
     storeInitialized,
-    settings.showCoffeeBeanSelectionStep,
     navigationState.visibleTabs.brewing,
     activeMainTab,
     activeBrewingStep,
+    initialBrewingStep,
     navigateToStep,
-    initialHasBeans,
+    prevMainTabRef,
   ]);
 
   // 加载自定义器具
@@ -1329,11 +1343,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   }, []);
 
   const [hasCoffeeBeans, setHasCoffeeBeans] = useState(initialHasBeans);
-  const canUseCoffeeBeanInBrewing =
-    navigationState.visibleTabs.coffeeBean &&
-    settings.showCoffeeBeanSelectionStep !== false;
-  const brewingStartStep: BrewingStep =
-    hasCoffeeBeans && canUseCoffeeBeanInBrewing ? 'coffeeBean' : 'method';
+  const brewingStartStep = getBrewingStartStep(hasCoffeeBeans, settings);
 
   useEffect(() => {
     if (navigationState.visibleTabs.coffeeBean) return;
