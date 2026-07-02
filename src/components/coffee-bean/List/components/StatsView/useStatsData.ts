@@ -11,11 +11,14 @@ import {
   BrewingDetailItem,
   BeanRatingHighlight,
   BeanRatingHighlights,
+  CommonMethodStatsItem,
 } from './types';
 import { formatBeanDisplayName } from '@/lib/utils/beanVarietyUtils';
 import { findCoffeeBeanByIdentity } from '@/lib/utils/coffeeBeanUtils';
 import { getBeanRatingInfo } from '@/lib/utils/beanRatingUtils';
 import { getBrewingNotes } from '@/lib/notes/relatedNotes';
+import { getEquipmentNameById } from '@/lib/utils/equipmentUtils';
+import { useCustomEquipmentStore } from '@/lib/stores/customEquipmentStore';
 
 // ============================================================================
 // 类型定义
@@ -62,8 +65,16 @@ interface BeanRatingCandidate {
   latestTimestamp: number;
 }
 
+interface CommonMethodStatsAccumulator {
+  key: string;
+  label: string;
+  count: number;
+  latestTimestamp: number;
+}
+
 const BEAN_RATING_HIGHLIGHT_SCORE_BOUNDARY = 2.5;
 const BEAN_RATING_HIGHLIGHT_MAX_COUNT = 15;
+const COMMON_METHOD_STATS_MAX_COUNT = 15;
 
 // ============================================================================
 // 工具函数
@@ -190,6 +201,63 @@ const buildBeanRatingHighlights = (
       .slice(0, BEAN_RATING_HIGHLIGHT_MAX_COUNT),
   };
 };
+
+const normalizeStatsText = (value?: string | null): string =>
+  value?.trim() ?? '';
+
+const buildCommonMethodLabel = (
+  note: BrewingNote,
+  customEquipments: Parameters<typeof getEquipmentNameById>[1]
+): string | null => {
+  const method = normalizeStatsText(note.method);
+  if (!method) return null;
+
+  const equipment = normalizeStatsText(note.equipment);
+  if (!equipment) return method;
+
+  const equipmentName = getEquipmentNameById(equipment, customEquipments);
+  return `${equipmentName} / ${method}`;
+};
+
+const addCommonMethodStats = (
+  map: Map<string, CommonMethodStatsAccumulator>,
+  note: BrewingNote,
+  customEquipments: Parameters<typeof getEquipmentNameById>[1]
+) => {
+  const label = buildCommonMethodLabel(note, customEquipments);
+  if (!label) return;
+
+  const equipment = normalizeStatsText(note.equipment);
+  const method = normalizeStatsText(note.method);
+  const key = `${equipment || 'none'}::${method}`;
+  const current = map.get(key);
+
+  if (current) {
+    current.count += 1;
+    current.latestTimestamp = Math.max(current.latestTimestamp, note.timestamp);
+    return;
+  }
+
+  map.set(key, {
+    key,
+    label,
+    count: 1,
+    latestTimestamp: note.timestamp,
+  });
+};
+
+const buildCommonMethodStats = (
+  map: Map<string, CommonMethodStatsAccumulator>
+): CommonMethodStatsItem[] =>
+  Array.from(map.values())
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      if (b.latestTimestamp !== a.latestTimestamp) {
+        return b.latestTimestamp - a.latestTimestamp;
+      }
+      return a.label.localeCompare(b.label);
+    })
+    .slice(0, COMMON_METHOD_STATS_MAX_COUNT);
 
 /** 获取日期键（用于趋势图分组） */
 const getDateKey = (
@@ -375,6 +443,7 @@ export const useStatsData = (
 ): UseStatsDataResult => {
   const [notes, setNotes] = useState<BrewingNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const customEquipments = useCustomEquipmentStore(state => state.equipments);
 
   const isHistoricalView = selectedDate !== null;
 
@@ -573,6 +642,7 @@ export const useStatsData = (
     // 评分亮点（全部/年/月视图）
     const needBeanRatingHighlights = !isSingleDayView;
     const beanRatingCandidates = new Map<string, BeanRatingCandidate>();
+    const commonMethodStats = new Map<string, CommonMethodStatsAccumulator>();
 
     if (needBeanRatingHighlights && !selectedDate) {
       for (const bean of roastedBeans) {
@@ -598,6 +668,10 @@ export const useStatsData = (
       // 范围内的笔记（历史视图用于计算总消耗，全部视图用于明细）
       if (ts >= startTime && ts < endTime) {
         const bean = findBeanForNote(note, roastedBeans);
+
+        if (!note.source) {
+          addCommonMethodStats(commonMethodStats, note, customEquipments);
+        }
 
         if (needBeanRatingHighlights && bean) {
           const existing = beanRatingCandidates.get(bean.id);
@@ -824,6 +898,7 @@ export const useStatsData = (
       trendData,
       brewingDetails,
       todayBrewingDetails,
+      commonMethods: buildCommonMethodStats(commonMethodStats),
       // 元数据
       validNotesCount,
       todayNotesCount,
@@ -832,7 +907,14 @@ export const useStatsData = (
       totalNotesCount: notes.length,
       useFallbackStats: !selectedDate && validNotesCount === 0, // 仅在无有效记录时回退到库存差值估算
     };
-  }, [notes, roastedBeans, selectedDate, dateGroupingMode, isHistoricalView]);
+  }, [
+    notes,
+    roastedBeans,
+    selectedDate,
+    dateGroupingMode,
+    isHistoricalView,
+    customEquipments,
+  ]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Layer 4: 组装最终数据
@@ -908,6 +990,7 @@ export const useStatsData = (
       inventory,
       inventoryByType,
       ratingHighlights,
+      commonMethods: computedData.commonMethods,
     };
   }, [computedData, roastedBeans, isHistoricalView]);
 

@@ -8,6 +8,7 @@ import {
   BrewingDetailItem,
   BeanType,
   BeanRatingHighlights,
+  CommonMethodStatsItem,
 } from './types';
 import { formatNumber } from './utils';
 import {
@@ -94,6 +95,7 @@ interface BeanPriceHighlights {
 
 type RoastedStatsSectionKey =
   | 'beanCount'
+  | 'commonMethods'
   | 'bestBeans'
   | 'worstBeans'
   | 'expensiveBeans'
@@ -108,11 +110,12 @@ type RoastedStatsSectionKey =
 
 const ROASTED_STATS_SECTION_DEFAULTS: StatsSectionOption[] = [
   { key: 'beanCount', label: '咖啡豆', visible: true },
+  { key: 'commonMethods', label: '常用方案', visible: true },
   { key: 'roaster', label: '烘焙商', visible: true },
   { key: 'expensiveBeans', label: '最贵豆子', visible: false },
   { key: 'cheapBeans', label: '最便宜豆子', visible: false },
-  { key: 'bestBeans', label: '最夯豆子', visible: true },
-  { key: 'worstBeans', label: '最拉豆子', visible: true },
+  { key: 'bestBeans', label: '最夯豆子', visible: false },
+  { key: 'worstBeans', label: '最拉豆子', visible: false },
   { key: 'originMap', label: '咖啡产区地图', visible: true },
   { key: 'origin', label: '产地', visible: true },
   { key: 'estate', label: '庄园', visible: true },
@@ -982,6 +985,7 @@ interface BeanAttributeStatsProps {
   selectedDate: string | null;
   dateGroupingMode: DateGroupingMode;
   ratingHighlights: BeanRatingHighlights | null;
+  commonMethods: CommonMethodStatsItem[];
   onExplain: (
     key: StatsKey,
     rect: DOMRect,
@@ -994,6 +998,7 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
   selectedDate,
   dateGroupingMode,
   ratingHighlights,
+  commonMethods,
   onExplain,
 }) => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -1147,6 +1152,14 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
     );
   }, [ratingHighlights]);
 
+  const commonMethodStats = useMemo<AttributeCardItem[]>(() => {
+    return commonMethods.map(method => ({
+      key: method.key,
+      label: method.label,
+      value: method.count,
+    }));
+  }, [commonMethods]);
+
   const beanPriceHighlights = useMemo(
     () => buildBeanPriceHighlights(filteredBeans),
     [filteredBeans]
@@ -1203,6 +1216,17 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
           beans={filteredBeans}
           onExplain={onExplain}
         />,
+      ],
+      [
+        'commonMethods',
+        commonMethodStats.length > 0 ? (
+          <AttributeCard
+            key="commonMethods"
+            title="常用方案"
+            data={commonMethodStats}
+            valueLabel="次数"
+          />
+        ) : null,
       ],
       [
         'bestBeans',
@@ -1294,6 +1318,7 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
   }, [
     bestBeanStats,
     cheapBeanStats,
+    commonMethodStats,
     estateStats,
     expensiveBeanStats,
     filteredBeans,
@@ -1829,6 +1854,7 @@ const RoastedBeanStatsView: React.FC<RoastedBeanStatsViewProps> = ({
                 selectedDate={selectedDate}
                 dateGroupingMode={dateGroupingMode}
                 ratingHighlights={stats.ratingHighlights}
+                commonMethods={stats.commonMethods}
                 onExplain={handleExplain}
               />
             </>

@@ -71,6 +71,14 @@ export interface BeanRatingHighlights {
   worst: BeanRatingHighlight[];
 }
 
+// 基于冲煮记录统计出的常用方案组合
+export interface CommonMethodStatsItem {
+  key: string;
+  label: string; // 例如 "V60 / 粕谷 4:6" 或单独的方案名
+  count: number;
+  latestTimestamp: number;
+}
+
 // 统一的统计数据结构
 export interface UnifiedStatsData {
   // 概览：总消耗数据
@@ -88,4 +96,6 @@ export interface UnifiedStatsData {
   inventoryByType: TypeInventoryStats[] | null;
   // 全部/年/月视图下的评分最高和最低咖啡豆
   ratingHighlights: BeanRatingHighlights | null;
+  // 全部/年/月视图下常用的器具 + 方案组合
+  commonMethods: CommonMethodStatsItem[];
 }
