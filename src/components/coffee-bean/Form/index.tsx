@@ -94,6 +94,22 @@ const isRoastingDraft = (
   );
 };
 
+const isValidBeanType = (beanType: ExtendedCoffeeBean['beanType']) => {
+  return (
+    beanType === 'filter' || beanType === 'espresso' || beanType === 'omni'
+  );
+};
+
+const isBeanReadyToSave = (
+  bean: Omit<ExtendedCoffeeBean, 'id' | 'timestamp'>
+) => {
+  return (
+    typeof bean.name === 'string' &&
+    bean.name.trim() !== '' &&
+    isValidBeanType(bean.beanType)
+  );
+};
+
 const createEmptyBeanDraft = (
   initialBeanState?: 'green' | 'roasted'
 ): Omit<ExtendedCoffeeBean, 'id' | 'timestamp'> => ({
@@ -585,6 +601,10 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
     const handleSubmit = async () => {
       validateRemaining();
 
+      if (!isBeanReadyToSave(bean)) {
+        return;
+      }
+
       const addPresetValues = (
         key: 'origins' | 'estates' | 'processes' | 'varieties',
         defaultValues: string[],
@@ -691,25 +711,6 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       }
     };
 
-    // 验证当前步骤是否可以进行下一步
-    const isStepValid = () => {
-      if (currentStep === 'basic') {
-        return typeof bean.name === 'string' && bean.name.trim() !== '';
-      }
-
-      if (currentStep === 'detail') {
-        // 确保有选择beanType(手冲/意式/全能)
-        return (
-          typeof bean.beanType === 'string' &&
-          (bean.beanType === 'filter' ||
-            bean.beanType === 'espresso' ||
-            bean.beanType === 'omni')
-        );
-      }
-
-      return true;
-    };
-
     // 渲染进度条
     const renderProgressBar = () => {
       const currentIndex = getCurrentStepIndex();
@@ -784,29 +785,31 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
 
     const renderNextButton = () => {
       const isLastStep = getCurrentStepIndex() === steps.length - 1;
-      const valid = isStepValid();
-      const canSave = valid && !isLastStep;
+      const canComplete = isBeanReadyToSave(bean);
+      const showSaveButton = !isLastStep;
+      const nextButtonDisabled = isLastStep && !canComplete;
 
       const springTransition = { stiffness: 500, damping: 25 };
       const buttonBaseClass =
-        'rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100';
+        'rounded-full bg-neutral-100 text-neutral-800 transition-opacity disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-800 dark:text-neutral-100';
 
       return (
         <div className="pb-safe-bottom flex items-center justify-center pt-4">
           <div className="flex items-center justify-center gap-2">
             <AnimatePresence mode="popLayout">
-              {canSave && (
+              {showSaveButton && (
                 <motion.button
                   key="save-button"
                   type="button"
                   onClick={handleSubmit}
+                  disabled={!canComplete}
                   className={`${buttonBaseClass} flex shrink-0 items-center gap-2 px-4 py-3`}
                   title="快速保存"
                   initial={{ scale: 0.8, opacity: 0, x: 15 }}
-                  animate={{ scale: 1, opacity: 1, x: 0 }}
+                  animate={{ scale: 1, opacity: canComplete ? 1 : 0.5, x: 0 }}
                   exit={{ scale: 0.8, opacity: 0, x: 15 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={canComplete ? { scale: 1.05 } : undefined}
+                  whileTap={canComplete ? { scale: 0.96 } : undefined}
                   transition={springTransition}
                 >
                   <Check className="h-4 w-4" strokeWidth="3" />
@@ -819,11 +822,11 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
               layout
               type="button"
               onClick={handleNextStep}
-              disabled={!valid}
+              disabled={nextButtonDisabled}
               transition={springTransition}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`${buttonBaseClass} flex items-center justify-center ${!valid ? 'cursor-not-allowed opacity-0' : ''} ${isLastStep ? 'px-6 py-3' : 'p-4'}`}
+              whileHover={!nextButtonDisabled ? { scale: 1.05 } : undefined}
+              whileTap={!nextButtonDisabled ? { scale: 0.96 } : undefined}
+              className={`${buttonBaseClass} flex items-center justify-center ${isLastStep ? 'px-6 py-3' : 'p-4'}`}
             >
               {isLastStep ? (
                 <span className="font-medium">完成</span>
