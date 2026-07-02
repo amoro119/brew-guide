@@ -113,9 +113,9 @@ const RescueModeDrawer: React.FC = () => {
 
     dispatch({ type: 'recompressStarted' });
     try {
-      const { recompressOversizedBrewingNoteImages } =
-        await import('@/lib/notes/imageRepository');
-      const stats = await recompressOversizedBrewingNoteImages();
+      const { recompressOversizedAppImages } =
+        await import('@/lib/images/recompressAppImages');
+      const stats = await recompressOversizedAppImages();
 
       dispatch({ type: 'recompressSucceeded' });
       showToast({
@@ -128,7 +128,7 @@ const RescueModeDrawer: React.FC = () => {
               : '没有需要补压的图片',
       });
     } catch (error) {
-      console.error('笔记图片补压失败:', error);
+      console.error('图片补压失败:', error);
       dispatch({ type: 'recompressFailed' });
       showToast({ type: 'error', title: '图片补压失败' });
     }

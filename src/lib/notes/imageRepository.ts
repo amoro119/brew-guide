@@ -4,7 +4,12 @@ import {
   NOTE_IMAGE_COMPRESSION_OPTIONS,
   NOTE_IMAGE_MAX_SIZE_BYTES,
 } from '@/lib/images/imageProcessing';
-import { compressBase64Image } from '@/lib/utils/imageCompression';
+import {
+  applyImageRecompressionResultToStats,
+  createImageRecompressionStats,
+  recompressStoredImage,
+  type ImageRecompressionStats,
+} from '@/lib/images/imageRecompression';
 import {
   type BrewingNoteImageRecord,
   mergeBrewingNoteImages,
@@ -24,40 +29,15 @@ const getRecordImages = (record: {
 }): string[] =>
   record.images?.length ? record.images : record.image ? [record.image] : [];
 
-export interface RecompressBrewingNoteImagesStats {
-  scannedCount: number;
-  candidateCount: number;
-  compressedCount: number;
-  failedCount: number;
-  savedBytes: number;
-}
+export type RecompressBrewingNoteImagesStats = ImageRecompressionStats;
 
-const getDataUrlBytes = (dataUrl: string): number | null => {
-  const commaIndex = dataUrl.indexOf(',');
-  if (commaIndex === -1 || !dataUrl.slice(0, commaIndex).includes(';base64')) {
-    return null;
-  }
-
-  const payload = dataUrl.slice(commaIndex + 1);
-  const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
-  return Math.floor((payload.length * 3) / 4) - padding;
-};
-
-const shouldRecompressNoteImage = (image: string): boolean => {
-  if (!image.startsWith('data:image/')) return false;
-
-  const bytes = getDataUrlBytes(image);
-  return bytes !== null && bytes > NOTE_IMAGE_MAX_SIZE_BYTES;
+const NOTE_IMAGE_RECOMPRESSION_PROFILE = {
+  maxSizeBytes: NOTE_IMAGE_MAX_SIZE_BYTES,
+  compression: NOTE_IMAGE_COMPRESSION_OPTIONS,
 };
 
 export async function recompressOversizedBrewingNoteImages(): Promise<RecompressBrewingNoteImagesStats> {
-  const stats: RecompressBrewingNoteImagesStats = {
-    scannedCount: 0,
-    candidateCount: 0,
-    compressedCount: 0,
-    failedCount: 0,
-    savedBytes: 0,
-  };
+  const stats = createImageRecompressionStats();
   const noteIds = (await db.brewingNoteImages.toCollection().primaryKeys()).map(
     String
   );
@@ -72,35 +52,18 @@ export async function recompressOversizedBrewingNoteImages(): Promise<Recompress
 
     const nextImages: string[] = [];
     for (const image of images) {
-      if (!shouldRecompressNoteImage(image)) {
-        nextImages.push(image);
-        continue;
+      const result = await recompressStoredImage(
+        image,
+        NOTE_IMAGE_RECOMPRESSION_PROFILE
+      );
+      applyImageRecompressionResultToStats(stats, result);
+
+      if (result.failed) {
+        console.error('笔记图片补压失败:', { noteId, error: result.error });
       }
 
-      stats.candidateCount += 1;
-      const beforeBytes = getDataUrlBytes(image) || image.length;
-
-      try {
-        const compressed = await compressBase64Image(
-          image,
-          NOTE_IMAGE_COMPRESSION_OPTIONS
-        );
-        const afterBytes = getDataUrlBytes(compressed) || compressed.length;
-
-        if (afterBytes >= beforeBytes) {
-          nextImages.push(image);
-          continue;
-        }
-
-        changed = true;
-        stats.compressedCount += 1;
-        stats.savedBytes += beforeBytes - afterBytes;
-        nextImages.push(compressed);
-      } catch (error) {
-        stats.failedCount += 1;
-        console.error('笔记图片补压失败:', { noteId, error });
-        nextImages.push(image);
-      }
+      changed ||= result.changed;
+      nextImages.push(result.image);
     }
 
     if (!changed) continue;

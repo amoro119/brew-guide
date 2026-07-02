@@ -13,6 +13,16 @@ import {
   createImageThumbnailDataUrl,
   getUsableThumbnailDataUrl,
 } from '@/lib/images/thumbnail';
+import {
+  COFFEE_BEAN_IMAGE_COMPRESSION_OPTIONS,
+  COFFEE_BEAN_IMAGE_MAX_SIZE_BYTES,
+} from '@/lib/images/imageProcessing';
+import {
+  applyImageRecompressionResultToStats,
+  createImageRecompressionStats,
+  recompressStoredImage,
+  type ImageRecompressionStats,
+} from '@/lib/images/imageRecompression';
 
 export type CoffeeBeanImageSide = 'front' | 'back';
 export type CoffeeBeanImageSourceMode = 'thumbnail' | 'original';
@@ -93,6 +103,79 @@ const putOrDeleteThumbnailRecord = async (
 
   await db.coffeeBeanImageThumbnails.put(record);
 };
+
+export type RecompressCoffeeBeanImagesStats = ImageRecompressionStats;
+
+const COFFEE_BEAN_IMAGE_RECOMPRESSION_PROFILE = {
+  maxSizeBytes: COFFEE_BEAN_IMAGE_MAX_SIZE_BYTES,
+  compression: COFFEE_BEAN_IMAGE_COMPRESSION_OPTIONS,
+};
+
+export async function recompressOversizedCoffeeBeanImages(): Promise<RecompressCoffeeBeanImagesStats> {
+  const stats = createImageRecompressionStats();
+  const beanIds = (await db.coffeeBeanImages.toCollection().primaryKeys()).map(
+    String
+  );
+
+  for (const beanId of beanIds) {
+    const record = await db.coffeeBeanImages.get(beanId);
+    if (!record) continue;
+
+    stats.scannedCount += 1;
+    const nextRecord: CoffeeBeanImageRecord = { ...record };
+    const changedSides = new Set<CoffeeBeanImageSide>();
+
+    for (const side of ['front', 'back'] as const) {
+      const imageKey = side === 'front' ? 'image' : 'backImage';
+      const thumbnailKey =
+        side === 'front' ? 'imageThumbnail' : 'backImageThumbnail';
+      const image = record[imageKey];
+      if (!image) continue;
+
+      const result = await recompressStoredImage(
+        image,
+        COFFEE_BEAN_IMAGE_RECOMPRESSION_PROFILE
+      );
+      applyImageRecompressionResultToStats(stats, result);
+
+      if (result.failed) {
+        console.error('咖啡豆图片补压失败:', {
+          beanId,
+          side,
+          error: result.error,
+        });
+      }
+
+      if (!result.changed) continue;
+
+      nextRecord[imageKey] = result.image;
+      nextRecord[thumbnailKey] = undefined;
+      changedSides.add(side);
+    }
+
+    if (changedSides.size === 0) continue;
+
+    const updatedAt = Date.now();
+    nextRecord.updatedAt = updatedAt;
+    await db.coffeeBeanImages.put(nextRecord);
+
+    const thumbnailRecord = await getThumbnailRecord(beanId);
+    if (thumbnailRecord) {
+      await putOrDeleteThumbnailRecord({
+        ...thumbnailRecord,
+        imageThumbnail: changedSides.has('front')
+          ? undefined
+          : thumbnailRecord.imageThumbnail,
+        backImageThumbnail: changedSides.has('back')
+          ? undefined
+          : thumbnailRecord.backImageThumbnail,
+        updatedAt,
+      });
+    }
+  }
+
+  return stats;
+}
 
 export async function persistCoffeeBeanImagesFromBean(
   bean: CoffeeBean,

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const beans = new Map<string, CoffeeBean>();
   const images = new Map<string, CoffeeBeanImageRecord>();
   const thumbnails = new Map<string, CoffeeBeanImageThumbnailRecord>();
+  const compressBase64Image = vi.fn();
 
   const table = <T extends object>(records: Map<string, T>, key: keyof T) => ({
     get: vi.fn((id: string) => Promise.resolve(records.get(id))),
@@ -53,6 +54,7 @@ const mocks = vi.hoisted(() => {
     beans,
     images,
     thumbnails,
+    compressBase64Image,
     db: {
       coffeeBeans: table(beans, 'id'),
       coffeeBeanImages: table(images, 'beanId'),
@@ -66,10 +68,20 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@/lib/core/db', () => ({ db: mocks.db }));
+vi.mock('@/lib/utils/imageCompression', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/utils/imageCompression')
+  >('@/lib/utils/imageCompression');
+  return {
+    ...actual,
+    compressBase64Image: mocks.compressBase64Image,
+  };
+});
 
 import {
   getCoffeeBeanImageBeanIds,
   getCoffeeBeanImageSource,
+  recompressOversizedCoffeeBeanImages,
   replaceCoffeeBeansWithSplitImages,
 } from './imageRepository';
 
@@ -84,6 +96,7 @@ describe('coffee bean image repository records', () => {
     mocks.beans.clear();
     mocks.images.clear();
     mocks.thumbnails.clear();
+    mocks.compressBase64Image.mockReset();
     vi.clearAllMocks();
   });
 
@@ -151,5 +164,48 @@ describe('coffee bean image repository records', () => {
     await replaceCoffeeBeansWithSplitImages([{ ...baseBean, timestamp: 2 }]);
 
     expect(mocks.images.get('bean-1')?.image).toBe('original');
+  });
+
+  it('recompresses oversized bean images and expires changed-side thumbnails', async () => {
+    const oversizedImage = `data:image/jpeg;base64,${'a'.repeat(440 * 1024)}`;
+    const smallBackImage = 'data:image/jpeg;base64,abcd';
+    const compressedImage = `data:image/webp;base64,${'b'.repeat(120 * 1024)}`;
+
+    mocks.images.set('bean-1', {
+      beanId: 'bean-1',
+      image: oversizedImage,
+      backImage: smallBackImage,
+      imageThumbnail: 'front-thumbnail',
+      backImageThumbnail: 'back-thumbnail',
+      updatedAt: 1,
+    });
+    mocks.thumbnails.set('bean-1', {
+      beanId: 'bean-1',
+      imageThumbnail: 'front-thumbnail',
+      backImageThumbnail: 'back-thumbnail',
+      updatedAt: 1,
+    });
+    mocks.compressBase64Image.mockResolvedValue(compressedImage);
+
+    const stats = await recompressOversizedCoffeeBeanImages();
+
+    expect(mocks.compressBase64Image).toHaveBeenCalledTimes(1);
+    expect(mocks.images.get('bean-1')).toMatchObject({
+      image: compressedImage,
+      backImage: smallBackImage,
+      backImageThumbnail: 'back-thumbnail',
+    });
+    expect(mocks.images.get('bean-1')?.imageThumbnail).toBeUndefined();
+    expect(mocks.thumbnails.get('bean-1')).toMatchObject({
+      backImageThumbnail: 'back-thumbnail',
+    });
+    expect(mocks.thumbnails.get('bean-1')?.imageThumbnail).toBeUndefined();
+    expect(stats).toMatchObject({
+      scannedCount: 1,
+      candidateCount: 1,
+      compressedCount: 1,
+      failedCount: 0,
+    });
+    expect(stats.savedBytes).toBeGreaterThan(0);
   });
 });

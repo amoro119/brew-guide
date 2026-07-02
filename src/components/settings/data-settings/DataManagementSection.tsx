@@ -170,9 +170,9 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     setIsRecompressing(true);
     setStatus({ type: 'info', message: '正在补压图片...', scope: 'image' });
     try {
-      const { recompressOversizedBrewingNoteImages } =
-        await import('@/lib/notes/imageRepository');
-      const stats = await recompressOversizedBrewingNoteImages();
+      const { recompressOversizedAppImages } =
+        await import('@/lib/images/recompressAppImages');
+      const stats = await recompressOversizedAppImages();
 
       setStatus({
         type: stats.failedCount > 0 ? 'error' : 'success',
@@ -185,7 +185,7 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
               : '没有需要补压的图片',
       });
     } catch (_error) {
-      console.error('笔记图片补压失败:', _error);
+      console.error('图片补压失败:', _error);
       setStatus({ type: 'error', message: '图片补压失败', scope: 'image' });
     } finally {
       setIsRecompressing(false);
