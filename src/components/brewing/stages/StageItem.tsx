@@ -162,7 +162,7 @@ const StageItem: React.FC<StageItemProps> = React.memo(
       if (activeTab === '方案' && step.isNoStageMethod) {
         return 'opacity-50';
       }
-      if (activeTab === '注水' && !isCurrentStage && index > currentStage) {
+      if (activeTab === '注水' && !isCurrentStage) {
         return 'opacity-50';
       }
       return '';

@@ -181,6 +181,19 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       });
   }, []);
 
+  // 处理可视化冲煮设置变化
+  const handleBrewingVisualizerSettingChange = useCallback(
+    (showBrewingVisualizer: boolean) => {
+      useSettingsStore
+        .getState()
+        .updateSettings({ showBrewingVisualizer })
+        .catch(error => {
+          console.error('保存可视化冲煮设置失败', error);
+        });
+    },
+    []
+  );
+
   // 检查设备是否支持触感反馈
   useEffect(() => {
     const checkHapticsSupport = async () => {
@@ -1118,8 +1131,12 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
               onClose={() => setShowSettings(false)}
               layoutSettings={localLayoutSettings}
               showFlowRate={localShowFlowRate}
+              showBrewingVisualizer={settings.showBrewingVisualizer ?? true}
               onLayoutChange={handleLayoutChange}
               onFlowRateSettingChange={handleFlowRateSettingChange}
+              onBrewingVisualizerSettingChange={
+                handleBrewingVisualizerSettingChange
+              }
             />
           )}
         </AnimatePresence>

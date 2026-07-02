@@ -36,13 +36,23 @@ const BrewingSettings: React.FC<BrewingSettingsProps> = ({
     [updateSettings]
   );
 
+  const handleCoffeeBeanSelectionStepChange = React.useCallback(
+    (checked: boolean) => {
+      handleChange('showCoffeeBeanSelectionStep', checked);
+    },
+    [handleChange]
+  );
+
   // 控制动画状态
   const [shouldRender] = React.useState(true);
   const [isVisible, setIsVisible] = React.useState(false);
 
   // 用于保存最新的 onClose 引用
   const onCloseRef = React.useRef(onClose);
-  onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // 关闭处理函数（带动画）
   const handleCloseWithAnimation = React.useCallback(() => {
@@ -83,9 +93,7 @@ const BrewingSettings: React.FC<BrewingSettingsProps> = ({
         <SettingRow label="咖啡豆选择步骤" isLast>
           <SettingToggle
             checked={settings.showCoffeeBeanSelectionStep ?? true}
-            onChange={checked =>
-              handleChange('showCoffeeBeanSelectionStep', checked)
-            }
+            onChange={handleCoffeeBeanSelectionStepChange}
           />
         </SettingRow>
       </SettingSection>

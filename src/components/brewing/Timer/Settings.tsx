@@ -15,8 +15,10 @@ interface BrewingTimerSettingsProps {
   onClose: () => void;
   layoutSettings: LayoutSettings;
   showFlowRate: boolean;
+  showBrewingVisualizer: boolean;
   onLayoutChange: (settings: LayoutSettings) => void;
   onFlowRateSettingChange: (showFlowRate: boolean) => void;
+  onBrewingVisualizerSettingChange: (showBrewingVisualizer: boolean) => void;
 }
 
 const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
@@ -24,8 +26,10 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
   onClose,
   layoutSettings,
   showFlowRate,
+  showBrewingVisualizer,
   onLayoutChange,
   onFlowRateSettingChange,
+  onBrewingVisualizerSettingChange,
 }) => {
   const [localLayoutSettings, setLocalLayoutSettings] =
     useState<LayoutSettings>(layoutSettings);
@@ -71,6 +75,14 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
         });
     },
     [onFlowRateSettingChange]
+  );
+
+  // 处理可视化冲煮设置变化
+  const handleBrewingVisualizerSettingChange = useCallback(
+    (showBrewingVisualizer: boolean) => {
+      onBrewingVisualizerSettingChange(showBrewingVisualizer);
+    },
+    [onBrewingVisualizerSettingChange]
   );
 
   return (
@@ -151,6 +163,22 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
                     checked={localShowFlowRate || false}
                     onChange={e => {
                       handleFlowRateSettingChange(e.target.checked);
+                    }}
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-5 w-9 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500" />
+                </label>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                  可视化冲煮
+                </span>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={showBrewingVisualizer}
+                    onChange={e => {
+                      handleBrewingVisualizerSettingChange(e.target.checked);
                     }}
                     className="peer sr-only"
                   />

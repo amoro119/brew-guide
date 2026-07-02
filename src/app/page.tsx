@@ -3216,6 +3216,15 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   const isBeansMainTab = activeMainTab === '咖啡豆';
   const shouldShowBrewingTimer =
     activeBrewingStep === 'brewing' && currentBrewingMethod && !showHistory;
+  const shouldSuppressBrewingNavigation =
+    activeMainTab === '冲煮' &&
+    activeBrewingStep === 'brewing' &&
+    isTimerRunning &&
+    !showComplete &&
+    !showHistory &&
+    settings.showBrewingVisualizer === false;
+  const shouldRenderNavigation =
+    !isNavigationActuallyCollapsed && !shouldSuppressBrewingNavigation;
 
   useEffect(() => {
     if (activeMainTab !== '冲煮' || !currentBrewingMethod) return;
@@ -3943,7 +3952,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
             ),
             // CSS 变量用于 BottomActionBar 等组件
             '--nav-panel-width':
-              isDesktopLayout && !isNavigationActuallyCollapsed
+              isDesktopLayout && shouldRenderNavigation
                 ? `${navPanelWidth}px`
                 : '0px',
             '--detail-panel-width':
@@ -3955,16 +3964,38 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       >
         <PWAInstallBanner />
         <div className="flex h-full flex-col md:flex-row">
-          {!isNavigationActuallyCollapsed && (
-            <div className="md:h-full md:shrink-0 md:overflow-hidden">
-              {renderNavigationBar('navigation-bar', expandedSidebarControl)}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {shouldRenderNavigation && (
+              <motion.div
+                key="navigation-bar-shell"
+                className="md:h-full md:shrink-0 md:overflow-hidden"
+                initial={
+                  isDesktopLayout
+                    ? { width: 0, opacity: 0 }
+                    : { height: 0, opacity: 0 }
+                }
+                animate={
+                  isDesktopLayout
+                    ? { width: navPanelWidth, opacity: 1 }
+                    : { height: 'auto', opacity: 1 }
+                }
+                exit={
+                  isDesktopLayout
+                    ? { width: 0, opacity: 0 }
+                    : { height: 0, opacity: 0 }
+                }
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                style={isDesktopLayout ? { width: navPanelWidth } : undefined}
+              >
+                {renderNavigationBar('navigation-bar', expandedSidebarControl)}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {collapsedNavigationOverlay}
+          {!shouldSuppressBrewingNavigation && collapsedNavigationOverlay}
 
           {/* 导航栏拖动条 - 侧边导航布局（md 及以上）显示，放在 NavigationBar 和 main 之间避免被裁切 */}
-          {isDesktopLayout && !isNavigationActuallyCollapsed && (
+          {isDesktopLayout && shouldRenderNavigation && (
             <div
               className="group relative z-10 hidden h-full w-0 cursor-col-resize select-none md:block"
               onMouseDown={handleNavResizeStart}
@@ -3984,7 +4015,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           {/* 主内容区域 - 桌面端独立滚动 */}
           <main
             className={`md:pt-safe-top h-full flex-1 ${
-              isMobileNavigationActuallyCollapsed ? 'pt-safe-top' : ''
+              isMobileNavigationActuallyCollapsed &&
+              !shouldSuppressBrewingNavigation
+                ? 'pt-safe-top'
+                : ''
             } ${
               activeMainTab === '冲煮' &&
               activeBrewingStep === 'brewing' &&

@@ -255,13 +255,15 @@ const TabContent: React.FC<TabContentProps> = ({
     };
   }, []);
 
+  const hapticFeedbackEnabled = settings.hapticFeedback;
+
   // 触感反馈函数
   const triggerHapticFeedback = useCallback(async () => {
-    if (settings?.hapticFeedback) {
+    if (hapticFeedbackEnabled) {
       const hapticsUtils = await import('@/lib/ui/haptics');
       hapticsUtils.default.light();
     }
-  }, [settings?.hapticFeedback]);
+  }, [hapticFeedbackEnabled]);
 
   // 确保 Store 已初始化
   useEffect(() => {
@@ -365,35 +367,36 @@ const TabContent: React.FC<TabContentProps> = ({
   // 笔记表单的设备名称状态 - 移到组件顶层避免重新挂载问题
   const [noteEquipmentName, setNoteEquipmentName] = useState('');
 
+  // 获取设备名称
+  const getEquipmentNameForNote = useCallback(
+    async (equipmentId: string): Promise<string> => {
+      const standardEquipment = equipmentList.find(e => e.id === equipmentId);
+      if (standardEquipment) return standardEquipment.name;
+
+      try {
+        // 使用动态导入，但只导入一次模块
+        const customEquipmentsModule =
+          await import('@/lib/stores/customEquipmentStore');
+        const customEquipments =
+          await customEquipmentsModule.loadCustomEquipments();
+        return (
+          getEquipmentName(equipmentId, equipmentList, customEquipments) ||
+          equipmentId
+        );
+      } catch (error) {
+        console.error('加载自定义设备失败:', error);
+        return equipmentId;
+      }
+    },
+    []
+  );
+
   // 获取设备名称用于笔记表单
   useEffect(() => {
     if (selectedEquipment) {
       getEquipmentNameForNote(selectedEquipment).then(setNoteEquipmentName);
     }
-  }, [selectedEquipment]);
-
-  // 获取设备名称
-  const getEquipmentNameForNote = async (
-    equipmentId: string
-  ): Promise<string> => {
-    const standardEquipment = equipmentList.find(e => e.id === equipmentId);
-    if (standardEquipment) return standardEquipment.name;
-
-    try {
-      // 使用动态导入，但只导入一次模块
-      const customEquipmentsModule =
-        await import('@/lib/stores/customEquipmentStore');
-      const customEquipments =
-        await customEquipmentsModule.loadCustomEquipments();
-      return (
-        getEquipmentName(equipmentId, equipmentList, customEquipments) ||
-        equipmentId
-      );
-    } catch (error) {
-      console.error('加载自定义设备失败:', error);
-      return equipmentId;
-    }
-  };
+  }, [selectedEquipment, getEquipmentNameForNote]);
 
   // 检查当前是否为意式咖啡方案
   const isEspressoMethod =
@@ -844,6 +847,7 @@ const TabContent: React.FC<TabContentProps> = ({
   if (
     activeTab === '注水' &&
     !isEspressoMethod &&
+    (settings.showBrewingVisualizer ?? true) &&
     isTimerRunning &&
     !showComplete &&
     currentBrewingMethod

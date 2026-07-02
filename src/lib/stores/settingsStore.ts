@@ -204,6 +204,7 @@ export const defaultSettings: AppSettings = {
 
   // 冲煮设置
   showCoffeeBeanSelectionStep: true, // 默认显示咖啡豆选择步骤
+  showBrewingVisualizer: true, // 默认显示可视化冲煮界面
 
   // 烘焙商字段设置
   roasterFieldEnabled: true, // 是否启用独立烘焙商字段

@@ -97,6 +97,12 @@ const TimerSettings: React.FC<TimerSettingsProps> = ({
             onChange={checked => handleChange('showFlowRate', checked)}
           />
         </SettingRow>
+        <SettingRow label="可视化冲煮">
+          <SettingToggle
+            checked={settings.showBrewingVisualizer ?? true}
+            onChange={checked => handleChange('showBrewingVisualizer', checked)}
+          />
+        </SettingRow>
         <SettingRow label="进度条高度" vertical>
           <SettingSlider
             min={4}
