@@ -1660,7 +1660,7 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                     className="overflow-hidden"
                   >
                     <div
-                      className={`bg-neutral-100 px-6 py-2 text-xs font-medium text-neutral-500 md:px-6 md:py-3 dark:bg-neutral-800/40 dark:text-neutral-400 ${desktopContentTopSpacingClass}`}
+                      className={`bg-neutral-100 px-6 py-2 text-xs font-medium text-neutral-500 select-text md:px-6 md:py-3 dark:bg-neutral-800/40 dark:text-neutral-400 ${desktopContentTopSpacingClass}`}
                     >
                       <div className="flex items-center justify-between gap-3 md:flex-col md:items-start md:gap-6">
                         {/* 左侧：方案名称区域 - 使用省略号 */}
@@ -1674,10 +1674,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                               )}
                               {getSelectedEquipmentName() && (
                                 <>
-                                  <span className="mx-1 shrink-0 md:hidden">
+                                  <span className="mx-1 shrink-0 select-none md:hidden">
                                     ·
                                   </span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                 </>
@@ -1706,8 +1706,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                     }
                                     unit="g"
                                   />
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <GrindSizeInput
@@ -1726,8 +1728,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                         ?.navigationBar ?? true
                                     }
                                   />
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <EditableParameter
@@ -1743,8 +1747,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                     onChange={v => _handleTimeChange(v)}
                                     unit="s"
                                   />
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <EditableParameter
@@ -1782,15 +1788,19 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                   <span className="whitespace-nowrap">
                                     {parameterInfo.params.coffee}
                                   </span>
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <span className="whitespace-nowrap">
                                     {parameterInfo.params.grindSize || ''}
                                   </span>
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <span className="whitespace-nowrap">
@@ -1801,8 +1811,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                     )}
                                     s
                                   </span>
-                                  <span className="shrink-0 md:hidden">·</span>
-                                  <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                  <span className="shrink-0 select-none md:hidden">
+                                    ·
+                                  </span>
+                                  <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                     /
                                   </span>
                                   <span className="whitespace-nowrap">
@@ -1821,8 +1833,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                   onChange={v => handleParamChange('coffee', v)}
                                   unit="g"
                                 />
-                                <span className="shrink-0 md:hidden">·</span>
-                                <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                <span className="shrink-0 select-none md:hidden">
+                                  ·
+                                </span>
+                                <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                   /
                                 </span>
                                 <EditableParameter
@@ -1836,10 +1850,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                 />
                                 {parameterInfo.params?.grindSize && (
                                   <>
-                                    <span className="shrink-0 md:hidden">
+                                    <span className="shrink-0 select-none md:hidden">
                                       ·
                                     </span>
-                                    <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                    <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                       /
                                     </span>
                                     <GrindSizeInput
@@ -1862,10 +1876,10 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                 )}
                                 {parameterInfo.params?.temp && (
                                   <>
-                                    <span className="shrink-0 md:hidden">
+                                    <span className="shrink-0 select-none md:hidden">
                                       ·
                                     </span>
-                                    <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                    <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                       /
                                     </span>
                                     <EditableParameter
@@ -1900,22 +1914,28 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                 <span className="whitespace-nowrap">
                                   {parameterInfo.params.coffee}
                                 </span>
-                                <span className="shrink-0 md:hidden">·</span>
-                                <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                <span className="shrink-0 select-none md:hidden">
+                                  ·
+                                </span>
+                                <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                   /
                                 </span>
                                 <span className="whitespace-nowrap">
                                   {parameterInfo.params.ratio}
                                 </span>
-                                <span className="shrink-0 md:hidden">·</span>
-                                <span className="hidden shrink-0 text-neutral-300 md:inline dark:text-neutral-700">
+                                <span className="shrink-0 select-none md:hidden">
+                                  ·
+                                </span>
+                                <span className="hidden shrink-0 text-neutral-300 select-none md:inline dark:text-neutral-700">
                                   /
                                 </span>
                                 <span className="whitespace-nowrap">
                                   {parameterInfo.params.grindSize || ''}
                                 </span>
-                                <span className="shrink-0 md:hidden">·</span>
-                                <span className="hidden shrink-0 md:inline">
+                                <span className="shrink-0 select-none md:hidden">
+                                  ·
+                                </span>
+                                <span className="hidden shrink-0 select-none md:inline">
                                   /
                                 </span>
                                 <span className="whitespace-nowrap">

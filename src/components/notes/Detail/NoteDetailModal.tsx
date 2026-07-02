@@ -1126,7 +1126,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
 
           {/* 标题区域 */}
           {titleText && (
-            <div className="mb-4 px-6">
+            <div className="mb-4 px-6 select-text">
               <h2
                 id="note-detail-title"
                 className="text-sm font-medium text-neutral-800 dark:text-neutral-100"
@@ -1142,7 +1142,7 @@ const NoteDetailModal: React.FC<NoteDetailModalProps> = ({
           )}
 
           {note ? (
-            <div className="space-y-3 px-6">
+            <div className="space-y-3 px-6 select-text">
               <NoteDetailSectionList
                 sections={[
                   {

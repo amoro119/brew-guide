@@ -1139,7 +1139,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
                   />
 
                   {bean ? (
-                    <div className="space-y-3 px-6 pb-6">
+                    <div className="space-y-3 px-6 pb-6 select-text">
                       <BasicInfoSection
                         bean={bean}
                         tempBean={tempBean}

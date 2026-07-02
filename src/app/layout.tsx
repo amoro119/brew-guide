@@ -274,7 +274,7 @@ export default function RootLayout({
           </>
         )}
       </head>
-      <body>
+      <body className="select-none [&_[contenteditable]]:select-text [&_input]:select-text [&_textarea]:select-text">
         <h1 className="sr-only">
           Brew Guide 咖啡冲煮计时、豆仓管理与品鉴记录工具
         </h1>

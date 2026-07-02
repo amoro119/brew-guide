@@ -240,7 +240,7 @@ const StageItem: React.FC<StageItemProps> = React.memo(
 
       return (
         <div
-          className={`group relative border-l ${isWaitingStage ? 'border-dashed' : ''} border-neutral-200/50 pl-6 dark:border-neutral-800/50 ${textStyle} ${opacityStyle}`}
+          className={`group relative border-l ${isWaitingStage ? 'border-dashed' : ''} border-neutral-200/50 pl-6 dark:border-neutral-800/50 ${activeTab === '注水' ? 'select-text' : ''} ${textStyle} ${opacityStyle}`}
         >
           {isCurrentStage && (
             <motion.div
@@ -326,7 +326,9 @@ const StageItem: React.FC<StageItemProps> = React.memo(
                                   }
                                 })()}
                               </span>
-                              {!isWaitingStage && <span>·</span>}
+                              {!isWaitingStage && (
+                                <span className="select-none">·</span>
+                              )}
                             </>
                           )}
                         {!isWaitingStage && waterText && (
@@ -334,7 +336,7 @@ const StageItem: React.FC<StageItemProps> = React.memo(
                         )}
                         {showFlowRate && step.type === 'pour' && step.note && (
                           <>
-                            <span>·</span>
+                            <span className="select-none">·</span>
                             <span>
                               {allSteps.length > 0
                                 ? calculateImprovedFlowRate(
