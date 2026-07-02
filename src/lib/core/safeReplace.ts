@@ -1,13 +1,23 @@
-export type EmptyReplaceCheck = {
+export type ReplaceSafetyCheck = {
   nextCount: number;
   existingCount: number;
   allowEmptyReplace?: boolean;
+  allowDestructiveReplace?: boolean;
 };
 
-export function shouldSkipEmptyReplace({
+export function shouldSkipDestructiveReplace({
   nextCount,
   existingCount,
   allowEmptyReplace = false,
-}: EmptyReplaceCheck): boolean {
-  return !allowEmptyReplace && nextCount === 0 && existingCount > 0;
+  allowDestructiveReplace = false,
+}: ReplaceSafetyCheck): boolean {
+  if (allowDestructiveReplace) {
+    return false;
+  }
+
+  if (nextCount === 0) {
+    return !allowEmptyReplace && existingCount > 0;
+  }
+
+  return existingCount > 1 && nextCount < existingCount;
 }

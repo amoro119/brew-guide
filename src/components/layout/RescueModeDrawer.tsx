@@ -11,6 +11,7 @@ import {
 interface RescueModeDrawerState {
   isOpen: boolean;
   isExporting: boolean;
+  isExportingLegacyPreferences: boolean;
   isRecompressing: boolean;
 }
 
@@ -20,6 +21,9 @@ type RescueModeDrawerAction =
   | { type: 'exportStarted' }
   | { type: 'exportSucceeded' }
   | { type: 'exportFailed' }
+  | { type: 'legacyPreferencesExportStarted' }
+  | { type: 'legacyPreferencesExportSucceeded' }
+  | { type: 'legacyPreferencesExportFailed' }
   | { type: 'recompressStarted' }
   | { type: 'recompressSucceeded' }
   | { type: 'recompressFailed' };
@@ -27,6 +31,7 @@ type RescueModeDrawerAction =
 const initialState: RescueModeDrawerState = {
   isOpen: false,
   isExporting: false,
+  isExportingLegacyPreferences: false,
   isRecompressing: false,
 };
 
@@ -48,6 +53,18 @@ const rescueModeDrawerReducer = (
       };
     case 'exportFailed':
       return { ...state, isExporting: false };
+    case 'legacyPreferencesExportStarted':
+      return {
+        ...state,
+        isExportingLegacyPreferences: true,
+      };
+    case 'legacyPreferencesExportSucceeded':
+      return {
+        ...state,
+        isExportingLegacyPreferences: false,
+      };
+    case 'legacyPreferencesExportFailed':
+      return { ...state, isExportingLegacyPreferences: false };
     case 'recompressStarted':
       return {
         ...state,
@@ -65,7 +82,8 @@ const rescueModeDrawerReducer = (
 
 const RescueModeDrawer: React.FC = () => {
   const [state, dispatch] = useReducer(rescueModeDrawerReducer, initialState);
-  const { isOpen, isExporting, isRecompressing } = state;
+  const { isOpen, isExporting, isExportingLegacyPreferences, isRecompressing } =
+    state;
 
   useEffect(() => {
     const open = () => {
@@ -77,7 +95,7 @@ const RescueModeDrawer: React.FC = () => {
   }, []);
 
   const handleExport = async (includeImages: boolean) => {
-    if (isExporting) return;
+    if (isExporting || isExportingLegacyPreferences || isRecompressing) return;
 
     dispatch({ type: 'exportStarted' });
     try {
@@ -109,7 +127,7 @@ const RescueModeDrawer: React.FC = () => {
   };
 
   const handleRecompressImages = async () => {
-    if (isRecompressing) return;
+    if (isRecompressing || isExporting || isExportingLegacyPreferences) return;
 
     dispatch({ type: 'recompressStarted' });
     try {
@@ -134,6 +152,35 @@ const RescueModeDrawer: React.FC = () => {
     }
   };
 
+  const handleExportLegacyPreferences = async () => {
+    if (isExportingLegacyPreferences || isExporting || isRecompressing) return;
+
+    dispatch({ type: 'legacyPreferencesExportStarted' });
+    try {
+      const [{ exportJsonFile }, { exportLegacyPreferencesRescueData }] =
+        await Promise.all([
+          import('@/lib/utils/jsonExport'),
+          import('@/lib/rescue/legacyPreferencesRescue'),
+        ]);
+      const jsonData = await exportLegacyPreferencesRescueData();
+      const date = new Date().toISOString().slice(0, 10);
+
+      await exportJsonFile({
+        jsonData,
+        fileName: `brew-guide-legacy-preferences-rescue-${date}.json`,
+        title: '导出旧版存储数据',
+        text: '请选择保存位置',
+        dialogTitle: '导出旧版存储数据',
+      });
+      dispatch({ type: 'legacyPreferencesExportSucceeded' });
+      showToast({ type: 'success', title: '已导出旧版存储数据' });
+    } catch (error) {
+      console.error('旧版存储数据导出失败:', error);
+      dispatch({ type: 'legacyPreferencesExportFailed' });
+      showToast({ type: 'error', title: '旧版存储导出失败' });
+    }
+  };
+
   return (
     <ActionDrawer
       isOpen={isOpen}
@@ -148,19 +195,35 @@ const RescueModeDrawer: React.FC = () => {
       <ActionDrawer.Actions className="flex-col [&>button]:w-full [&>button]:flex-none [&>button]:text-left">
         <ActionDrawer.SecondaryButton
           onClick={() => handleExport(true)}
-          disabled={isExporting || isRecompressing}
+          disabled={
+            isExporting || isExportingLegacyPreferences || isRecompressing
+          }
         >
           {isExporting ? '正在导出' : '导出数据'}
         </ActionDrawer.SecondaryButton>
         <ActionDrawer.SecondaryButton
           onClick={() => handleExport(false)}
-          disabled={isExporting || isRecompressing}
+          disabled={
+            isExporting || isExportingLegacyPreferences || isRecompressing
+          }
         >
           导出数据（不带图片）
         </ActionDrawer.SecondaryButton>
         <ActionDrawer.SecondaryButton
+          onClick={handleExportLegacyPreferences}
+          disabled={
+            isExporting || isExportingLegacyPreferences || isRecompressing
+          }
+        >
+          {isExportingLegacyPreferences
+            ? '正在导出旧版存储'
+            : '导出旧版存储数据'}
+        </ActionDrawer.SecondaryButton>
+        <ActionDrawer.SecondaryButton
           onClick={handleRecompressImages}
-          disabled={isRecompressing || isExporting}
+          disabled={
+            isRecompressing || isExporting || isExportingLegacyPreferences
+          }
         >
           {isRecompressing ? '补压中' : '图片补压'}
         </ActionDrawer.SecondaryButton>

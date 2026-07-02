@@ -4,7 +4,6 @@ import {
   getCoffeeBeanStore,
   increaseBeanRemaining,
 } from '@/lib/stores/coffeeBeanStore';
-import { db } from '@/lib/core/db';
 import { getBrewingNoteStore } from '@/lib/stores/brewingNoteStore';
 import { nanoid } from 'nanoid';
 import {
@@ -47,12 +46,16 @@ const deleteBrewingNote = async (noteId: string): Promise<void> => {
 
 const replaceBrewingNotes = async (
   notes: BrewingNoteData[],
-  options: { allowEmptyReplace?: boolean } = {}
+  options: {
+    allowEmptyReplace?: boolean;
+    allowDestructiveReplace?: boolean;
+  } = {}
 ): Promise<void> => {
   const replaced = await replaceBrewingNotesWithSplitImages(
     notes as BrewingNote[],
     {
       allowEmptyReplace: options.allowEmptyReplace,
+      allowDestructiveReplace: options.allowDestructiveReplace,
     }
   );
   if (replaced) {
@@ -665,6 +668,7 @@ export const RoastingManager = {
           );
           await replaceBrewingNotes(updatedNotes, {
             allowEmptyReplace: updatedNotes.length === 0,
+            allowDestructiveReplace: true,
           });
         }
 
@@ -798,7 +802,9 @@ export const RoastingManager = {
       updatedNotes.unshift(roastingNote);
 
       // 保存笔记
-      await replaceBrewingNotes(updatedNotes);
+      await replaceBrewingNotes(updatedNotes, {
+        allowDestructiveReplace: true,
+      });
 
       // 9. 删除原熟豆 - 使用 store 的 deleteBean 方法确保触发同步事件
       await getCoffeeBeanStore().deleteBean(roastedBeanId);

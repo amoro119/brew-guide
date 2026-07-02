@@ -2,7 +2,6 @@ import Dexie from 'dexie';
 import { BrewingNote, Method, CustomEquipment } from './config';
 import type { EstimatedCupDoseSettings } from '@/lib/settings/estimatedCupDose';
 import { CoffeeBean } from '@/types/app';
-import { normalizeCoffeeBeans } from '@/lib/utils/coffeeBeanUtils';
 import {
   type CoffeeBeanImageRecord,
   type CoffeeBeanImageThumbnailRecord,
@@ -13,7 +12,6 @@ import {
   type BrewingNoteImageThumbnailRecord,
   splitBrewingNoteImages,
 } from '@/lib/notes/imageRecords';
-import { hasLocalStorageKey } from '@/lib/core/localStorageKeys';
 
 const MAX_COFFEE_BEAN_THUMBNAIL_DATA_URL_CHARS = 512 * 1024;
 
@@ -590,25 +588,6 @@ export const dbUtils = {
       // v10 迁移：将冲煮记录图片拆到独立表，避免笔记列表整表加载图片
       await this.migrateBrewingNoteImages();
 
-      // 验证迁移状态与数据一致性
-      const migrated = await db.settings.get('migrated');
-      if (migrated && migrated.value === 'true') {
-        const beansCount = await db.coffeeBeans.count();
-        const notesCount = await db.brewingNotes.count();
-
-        const hasLocalBeans = hasLocalStorageKey('coffeeBeans');
-        const hasLocalNotes = hasLocalStorageKey('brewingNotes');
-
-        if (
-          (beansCount === 0 && hasLocalBeans) ||
-          (notesCount === 0 && hasLocalNotes)
-        ) {
-          console.warn(
-            '检测到数据不一致：IndexedDB为空但localStorage有旧数据，保留旧数据并等待手动恢复'
-          );
-        }
-      }
-
       if (process.env.NODE_ENV === 'development') {
         setTimeout(() => this.logStorageInfo(), 1000);
       }
@@ -961,139 +940,6 @@ export const dbUtils = {
     }
 
     await db.settings.put({ key: 'brewingNoteImagesMigrated', value: 'true' });
-  },
-
-  /**
-   * 从localStorage迁移数据到IndexedDB
-   */
-  async migrateFromLocalStorage(): Promise<boolean> {
-    try {
-      const migrated = await db.settings.get('migrated');
-      const beansCount = await db.coffeeBeans.count();
-      const notesCount = await db.brewingNotes.count();
-
-      if (migrated && migrated.value === 'true') {
-        if (
-          (beansCount === 0 || notesCount === 0) &&
-          (hasLocalStorageKey('coffeeBeans') ||
-            hasLocalStorageKey('brewingNotes'))
-        ) {
-          console.warn(
-            '虽然标记为已迁移，但 IndexedDB 数据不完整；保留 localStorage 旧数据，跳过自动覆盖'
-          );
-        }
-
-        return true;
-      }
-
-      let migrationSuccessful = true;
-
-      // 迁移冲煮笔记
-      const brewingNotesJson =
-        notesCount === 0 && hasLocalStorageKey('brewingNotes')
-          ? localStorage.getItem('brewingNotes')
-          : null;
-      if (brewingNotesJson) {
-        try {
-          const brewingNotes: BrewingNote[] = JSON.parse(brewingNotesJson);
-          if (brewingNotes.length > 0) {
-            const strippedNotes: BrewingNote[] = [];
-            const imageRecords: BrewingNoteImageRecord[] = [];
-            for (const note of brewingNotes) {
-              const split = splitBrewingNoteImages(note);
-              strippedNotes.push(split.note);
-              if (split.imageRecord) imageRecords.push(split.imageRecord);
-            }
-
-            await db.transaction(
-              'rw',
-              db.brewingNotes,
-              db.brewingNoteImages,
-              async () => {
-                await db.brewingNotes.bulkPut(strippedNotes);
-                if (imageRecords.length > 0) {
-                  await db.brewingNoteImages.bulkPut(imageRecords);
-                }
-              }
-            );
-            const migratedCount = await db.brewingNotes.count();
-            if (migratedCount === brewingNotes.length) {
-              console.warn(`已迁移 ${brewingNotes.length} 条冲煮笔记`);
-            } else {
-              console.error(
-                `迁移失败：应有 ${brewingNotes.length} 条笔记，但只迁移了 ${migratedCount} 条`
-              );
-              migrationSuccessful = false;
-            }
-          }
-        } catch (e) {
-          console.error('解析冲煮笔记数据失败:', e);
-          migrationSuccessful = false;
-        }
-      }
-
-      // 迁移咖啡豆数据
-      const coffeeBeansJson =
-        beansCount === 0 && hasLocalStorageKey('coffeeBeans')
-          ? localStorage.getItem('coffeeBeans')
-          : null;
-      if (coffeeBeansJson) {
-        try {
-          const coffeeBeans = normalizeCoffeeBeans(
-            JSON.parse(coffeeBeansJson) as CoffeeBean[],
-            {
-              ensureFlavorArray: true,
-            }
-          );
-          if (coffeeBeans.length > 0) {
-            const splitBeans = coffeeBeans.map(bean =>
-              splitCoffeeBeanImages(bean)
-            );
-            await db.transaction(
-              'rw',
-              db.coffeeBeans,
-              db.coffeeBeanImages,
-              async () => {
-                await db.coffeeBeans.bulkPut(
-                  splitBeans.map(split => split.bean)
-                );
-                const imageRecords = splitBeans
-                  .map(split => split.imageRecord)
-                  .filter((record): record is CoffeeBeanImageRecord =>
-                    Boolean(record)
-                  );
-                if (imageRecords.length > 0) {
-                  await db.coffeeBeanImages.bulkPut(imageRecords);
-                }
-              }
-            );
-            const migratedCount = await db.coffeeBeans.count();
-            if (migratedCount === coffeeBeans.length) {
-              console.warn(`已迁移 ${coffeeBeans.length} 条咖啡豆数据`);
-            } else {
-              console.error(
-                `迁移失败：应有 ${coffeeBeans.length} 条咖啡豆数据，但只迁移了 ${migratedCount} 条`
-              );
-              migrationSuccessful = false;
-            }
-          }
-        } catch (e) {
-          console.error('解析咖啡豆数据失败:', e);
-          migrationSuccessful = false;
-        }
-      }
-
-      if (migrationSuccessful) {
-        await db.settings.put({ key: 'migrated', value: 'true' });
-        return true;
-      } else {
-        console.error('数据迁移过程中发生错误，未标记为已迁移');
-        return false;
-      }
-    } catch (error) {
-      console.error('数据迁移失败:', error);
-      return false;
-    }
   },
 
   /**

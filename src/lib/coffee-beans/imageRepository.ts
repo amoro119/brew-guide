@@ -8,7 +8,7 @@ import {
   splitCoffeeBeanImages,
   stripCoffeeBeanImages,
 } from './imageRecords';
-import { shouldSkipEmptyReplace } from '@/lib/core/safeReplace';
+import { shouldSkipDestructiveReplace } from '@/lib/core/safeReplace';
 import {
   createImageThumbnailDataUrl,
   getUsableThumbnailDataUrl,
@@ -407,17 +407,21 @@ export async function exportCoffeeBeansWithImages(): Promise<CoffeeBean[]> {
 
 export async function replaceCoffeeBeansWithSplitImages(
   beans: CoffeeBean[],
-  options: { allowEmptyReplace?: boolean } = {}
+  options: {
+    allowEmptyReplace?: boolean;
+    allowDestructiveReplace?: boolean;
+  } = {}
 ): Promise<boolean> {
-  const existingCount = beans.length === 0 ? await db.coffeeBeans.count() : 0;
+  const existingCount = await db.coffeeBeans.count();
   if (
-    shouldSkipEmptyReplace({
+    shouldSkipDestructiveReplace({
       nextCount: beans.length,
       existingCount,
       allowEmptyReplace: options.allowEmptyReplace,
+      allowDestructiveReplace: options.allowDestructiveReplace,
     })
   ) {
-    console.warn('[CoffeeBeanImage] 跳过空咖啡豆列表替换，避免误清空数据');
+    console.warn('[CoffeeBeanImage] 跳过咖啡豆列表替换，避免误清空数据');
     return false;
   }
 

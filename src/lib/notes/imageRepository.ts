@@ -17,7 +17,7 @@ import {
   splitBrewingNoteImages,
   stripBrewingNoteImages,
 } from './imageRecords';
-import { shouldSkipEmptyReplace } from '@/lib/core/safeReplace';
+import { shouldSkipDestructiveReplace } from '@/lib/core/safeReplace';
 
 const hasImageFieldUpdate = (note: BrewingNote): boolean =>
   Object.prototype.hasOwnProperty.call(note, 'image') ||
@@ -181,17 +181,21 @@ export async function exportBrewingNotesWithImages(): Promise<BrewingNote[]> {
 
 export async function replaceBrewingNotesWithSplitImages(
   notes: BrewingNote[],
-  options: { allowEmptyReplace?: boolean } = {}
+  options: {
+    allowEmptyReplace?: boolean;
+    allowDestructiveReplace?: boolean;
+  } = {}
 ): Promise<boolean> {
-  const existingCount = notes.length === 0 ? await db.brewingNotes.count() : 0;
+  const existingCount = await db.brewingNotes.count();
   if (
-    shouldSkipEmptyReplace({
+    shouldSkipDestructiveReplace({
       nextCount: notes.length,
       existingCount,
       allowEmptyReplace: options.allowEmptyReplace,
+      allowDestructiveReplace: options.allowDestructiveReplace,
     })
   ) {
-    console.warn('[BrewingNoteImage] 跳过空笔记列表替换，避免误清空数据');
+    console.warn('[BrewingNoteImage] 跳过笔记列表替换，避免误清空数据');
     return false;
   }
 

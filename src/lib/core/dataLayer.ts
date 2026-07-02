@@ -42,7 +42,7 @@ let initState: InitializationState = {
  * 初始化所有数据 Store
  *
  * 调用顺序很重要：
- * 1. 数据库初始化（含迁移）
+ * 1. 数据库初始化
  * 2. 设置 Store（其他 Store 可能依赖设置）
  * 3. 核心数据 Store（咖啡豆、笔记）
  * 4. 器具相关 Store
@@ -63,10 +63,9 @@ export async function initializeDataLayer(): Promise<void> {
     recordCrashCheckpoint('data-layer:db:init');
     await dbUtils.initialize();
 
-    // 2. 迁移旧数据
-    console.log('📦 Step 2: 迁移旧数据...');
-    recordCrashCheckpoint('data-layer:db:migrate');
-    await dbUtils.migrateFromLocalStorage();
+    // 2. 维护当前 IndexedDB 数据形态
+    console.log('📦 Step 2: 检查本地数据...');
+    recordCrashCheckpoint('data-layer:db:maintain');
     await dbUtils.migrateCoffeeBeanImages();
     recordCrashCheckpoint('data-layer:notes:normalize');
     await normalizeStoredBrewingNotes();
@@ -198,7 +197,8 @@ export async function importAllData(data: {
     tasks.push(
       (async () => {
         const replaced = await replaceCoffeeBeansWithSplitImages(
-          data.coffeeBeans!
+          data.coffeeBeans!,
+          { allowDestructiveReplace: true }
         );
         if (replaced) {
           useCoffeeBeanStore.setState({

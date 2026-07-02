@@ -166,6 +166,43 @@ describe('coffee bean image repository records', () => {
     expect(mocks.images.get('bean-1')?.image).toBe('original');
   });
 
+  it('blocks accidental destructive bean replacements', async () => {
+    for (let index = 0; index < 20; index += 1) {
+      mocks.beans.set(`bean-${index}`, {
+        ...baseBean,
+        id: `bean-${index}`,
+        name: `Bean ${index}`,
+      });
+    }
+
+    const replaced = await replaceCoffeeBeansWithSplitImages([
+      { ...baseBean, id: 'incoming-bean', name: 'Incoming Bean' },
+    ]);
+
+    expect(replaced).toBe(false);
+    expect(mocks.beans.size).toBe(20);
+    expect(mocks.db.coffeeBeans.clear).not.toHaveBeenCalled();
+  });
+
+  it('allows explicit destructive bean replacements', async () => {
+    for (let index = 0; index < 20; index += 1) {
+      mocks.beans.set(`bean-${index}`, {
+        ...baseBean,
+        id: `bean-${index}`,
+        name: `Bean ${index}`,
+      });
+    }
+
+    const replaced = await replaceCoffeeBeansWithSplitImages(
+      [{ ...baseBean, id: 'incoming-bean', name: 'Incoming Bean' }],
+      { allowDestructiveReplace: true }
+    );
+
+    expect(replaced).toBe(true);
+    expect(mocks.beans.size).toBe(1);
+    expect(mocks.beans.has('incoming-bean')).toBe(true);
+  });
+
   it('recompresses oversized bean images and expires changed-side thumbnails', async () => {
     const oversizedImage = `data:image/jpeg;base64,${'a'.repeat(440 * 1024)}`;
     const smallBackImage = 'data:image/jpeg;base64,abcd';

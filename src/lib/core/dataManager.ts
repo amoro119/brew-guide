@@ -22,7 +22,6 @@ import {
   replaceBrewingNotesWithSplitImages,
 } from '@/lib/notes/imageRepository';
 import { recordCrashOperationStep } from '@/lib/app/crashDiagnostics';
-import { shouldSkipEmptyReplace } from '@/lib/core/safeReplace';
 
 // 检查是否在浏览器环境中
 const isBrowser = typeof window !== 'undefined';
@@ -368,22 +367,14 @@ export const DataManager = {
             await replaceCoffeeBeansWithSplitImages(
               normalizeCoffeeBeans(data as _CoffeeBean[], {
                 ensureFlavorArray: true,
-              })
+              }),
+              { allowDestructiveReplace: true }
             );
             break;
           case 'brewingNotes':
-            if (
-              shouldSkipEmptyReplace({
-                nextCount: data.length,
-                existingCount:
-                  data.length === 0 ? await db.brewingNotes.count() : 0,
-              })
-            ) {
-              console.warn('[DataManager] 跳过空笔记列表导入，避免误清空数据');
-              break;
-            }
-
-            await replaceBrewingNotesWithSplitImages(data as _BrewingNote[]);
+            await replaceBrewingNotesWithSplitImages(data as _BrewingNote[], {
+              allowDestructiveReplace: true,
+            });
             break;
           case 'grinders':
             await db.grinders.clear();
@@ -712,10 +703,7 @@ export const DataManager = {
         }
 
         // 清除冲煮相关的临时状态
-        const brewingStateKeys = [
-          'brewingNoteInProgress',
-          'dataMigrationSkippedThisSession',
-        ];
+        const brewingStateKeys = ['brewingNoteInProgress'];
         for (const key of brewingStateKeys) {
           localStorage.removeItem(key);
         }
@@ -863,7 +851,7 @@ export const DataManager = {
    * @param bean 咖啡豆对象
    * @returns 是否有有效的旧格式字段
    */
-  hasValidLegacyFields(bean: LegacyCoffeeBeanRecord): boolean {
+  hasLegacyBeanFields(bean: LegacyCoffeeBeanRecord): boolean {
     return (
       this.isValidText(bean.origin as string) ||
       this.isValidText(bean.process as string) ||
@@ -889,9 +877,9 @@ export const DataManager = {
       // 检查每个咖啡豆是否使用旧格式
       beans.forEach(bean => {
         // 检查是否存在有效的旧格式字段（排除占位符）
-        const hasValidLegacyFields = this.hasValidLegacyFields(bean);
+        const hasLegacyBeanFields = this.hasLegacyBeanFields(bean);
 
-        if (hasValidLegacyFields) {
+        if (hasLegacyBeanFields) {
           legacyCount++;
         }
       });
@@ -904,106 +892,6 @@ export const DataManager = {
     } catch (error) {
       console.error('检测旧格式数据失败:', error);
       return { hasLegacyData: false, legacyCount: 0, totalCount: 0 };
-    }
-  },
-
-  /**
-   * 迁移旧格式咖啡豆数据到新格式
-   * @returns 迁移结果，包含迁移数量
-   */
-  async migrateLegacyBeanData(): Promise<{
-    success: boolean;
-    migratedCount: number;
-    message: string;
-  }> {
-    try {
-      const beans =
-        (await db.coffeeBeans.toArray()) as LegacyCoffeeBeanRecord[];
-      if (beans.length === 0) {
-        return {
-          success: true,
-          migratedCount: 0,
-          message: '没有找到咖啡豆数据',
-        };
-      }
-
-      let migratedCount = 0;
-
-      // 处理每个咖啡豆
-      const migratedBeans = beans.map(bean => {
-        // 检查是否需要迁移（存在有效的旧格式字段）
-        const hasValidLegacyFields = this.hasValidLegacyFields(bean);
-
-        if (hasValidLegacyFields) {
-          // 如果没有blendComponents，创建新的
-          if (
-            !bean.blendComponents ||
-            !Array.isArray(bean.blendComponents) ||
-            bean.blendComponents.length === 0
-          ) {
-            bean.blendComponents = [
-              {
-                origin: this.isValidText(bean.origin) ? bean.origin : '',
-                process: this.isValidText(bean.process) ? bean.process : '',
-                variety: this.isValidText(bean.variety) ? bean.variety : '',
-              },
-            ];
-          }
-          // 如果已经有blendComponents，但旧字段的信息更完整，则更新blendComponents
-          else {
-            // 检查第一个组件是否需要更新
-            const firstComponent = bean.blendComponents[0];
-            if (
-              !this.isValidText(firstComponent.origin) &&
-              this.isValidText(bean.origin)
-            ) {
-              firstComponent.origin = bean.origin;
-            }
-            if (
-              !this.isValidText(firstComponent.process) &&
-              this.isValidText(bean.process)
-            ) {
-              firstComponent.process = bean.process;
-            }
-            if (
-              !this.isValidText(firstComponent.variety) &&
-              this.isValidText(bean.variety)
-            ) {
-              firstComponent.variety = bean.variety;
-            }
-          }
-
-          migratedCount++;
-        }
-
-        // 总是删除旧的字段（无论是否有效），避免数据重复
-        delete bean.origin;
-        delete bean.process;
-        delete bean.variety;
-
-        return bean;
-      });
-
-      // 如果有迁移，更新存储
-      if (migratedCount > 0) {
-        await db.coffeeBeans.bulkPut(migratedBeans);
-      }
-
-      return {
-        success: true,
-        migratedCount,
-        message:
-          migratedCount > 0
-            ? `成功迁移了${migratedCount}个咖啡豆的数据格式`
-            : '没有需要迁移的数据',
-      };
-    } catch (error) {
-      console.error('迁移数据失败:', error);
-      return {
-        success: false,
-        migratedCount: 0,
-        message: `迁移失败: ${(error as Error).message}`,
-      };
     }
   },
 

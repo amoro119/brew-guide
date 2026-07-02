@@ -88,7 +88,7 @@ import {
   deleteCustomEquipment,
 } from '@/lib/stores/customEquipmentStore';
 import { useDataLayer } from '@/providers/DataLayerProvider';
-import DataMigrationModal from '@/components/common/modals/DataMigrationModal';
+import LegacyDataNoticeDrawer from '@/components/common/modals/LegacyDataNoticeDrawer';
 import { showToast } from '@/components/common/feedback/LightToast';
 import BackupReminderModal from '@/components/common/modals/BackupReminderModal';
 import BeanReadyReminderDrawer from '@/components/common/modals/BeanReadyReminderDrawer';
@@ -932,11 +932,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     methods?: Method[];
   } | null>(null);
   const [showEquipmentManagement, setShowEquipmentManagement] = useState(false);
-  const [showDataMigration, setShowDataMigration] = useState(false);
-  const [migrationData, setMigrationData] = useState<{
-    legacyCount: number;
-    totalCount: number;
-  } | null>(null);
+  const [showLegacyDataNotice, setShowLegacyDataNotice] = useState(false);
+  const [hasLegacyDataNotice, setHasLegacyDataNotice] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // 备份提醒状态
@@ -948,6 +945,9 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   const [beanReadyReminderItems, setBeanReadyReminderItems] = useState<
     BeanReadyReminderItem[]
   >([]);
+  const handleLegacyDataNoticeClose = useCallback(() => {
+    setShowLegacyDataNotice(false);
+  }, []);
 
   // 转生豆确认抽屉状态
   const [showConvertToGreenDrawer, setShowConvertToGreenDrawer] =
@@ -1142,24 +1142,15 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
         }
         setHasCoffeeBeans(hasCoffeeBeans);
 
-        // 0. 检测数据迁移需求和自动修复
+        // 0. 检测过旧数据并提示用户导出
         try {
           // 导入数据管理工具
           const { DataManager } = await import('@/lib/core/dataManager');
 
-          // 检查是否需要数据迁移
-          const migrationSkippedThisSession = sessionStorage.getItem(
-            'dataMigrationSkippedThisSession'
-          );
-          if (migrationSkippedThisSession !== 'true') {
-            const legacyDetection = await DataManager.detectLegacyBeanData();
-            if (legacyDetection.hasLegacyData && isMounted) {
-              setMigrationData({
-                legacyCount: legacyDetection.legacyCount,
-                totalCount: legacyDetection.totalCount,
-              });
-              setShowDataMigration(true);
-            }
+          const legacyDetection = await DataManager.detectLegacyBeanData();
+          if (legacyDetection.hasLegacyData && isMounted) {
+            setHasLegacyDataNotice(true);
+            setShowLegacyDataNotice(true);
           }
 
           // 自动修复拼配豆数据
@@ -1256,7 +1247,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   useEffect(() => {
     if (!storeInitialized || !settings.showBeanReadyReminderPopup) return;
     if (!navigationState.visibleTabs.coffeeBean) return;
-    if (showOnboarding || showDataMigration || showBackupReminder) return;
+    if (showOnboarding || showLegacyDataNotice || showBackupReminder) return;
 
     let isCancelled = false;
     const checkBeanReadyReminder = async () => {
@@ -1306,7 +1297,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     settings.showBeanReadyReminderPopup,
     navigationState.visibleTabs.coffeeBean,
     showBackupReminder,
-    showDataMigration,
+    showLegacyDataNotice,
     showOnboarding,
     storeInitialized,
   ]);
@@ -2931,12 +2922,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     }[]
   >([]);
 
-  const handleMigrationComplete = () => {
-    setShowDataMigration(false);
-    setMigrationData(null);
-    handleBeanListChange();
-  };
-
   const handleDataChange = async () => {
     // 重新加载设置 - 使用 settingsStore
     try {
@@ -4261,12 +4246,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
               }
             />
 
-            {migrationData && (
-              <DataMigrationModal
-                isOpen={showDataMigration}
-                onClose={() => setShowDataMigration(false)}
-                legacyCount={migrationData.legacyCount}
-                onMigrationComplete={handleMigrationComplete}
+            {hasLegacyDataNotice && (
+              <LegacyDataNoticeDrawer
+                isOpen={showLegacyDataNotice}
+                onClose={handleLegacyDataNoticeClose}
               />
             )}
 

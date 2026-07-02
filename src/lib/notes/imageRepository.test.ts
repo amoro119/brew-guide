@@ -155,6 +155,43 @@ describe('brewing note image repository', () => {
     expect(mocks.images.get('note-1')?.image).toBe('original');
   });
 
+  it('blocks accidental destructive note replacements', async () => {
+    for (let index = 0; index < 20; index += 1) {
+      mocks.notes.set(`note-${index}`, {
+        ...baseNote,
+        id: `note-${index}`,
+        notes: `Note ${index}`,
+      });
+    }
+
+    const replaced = await replaceBrewingNotesWithSplitImages([
+      { ...baseNote, id: 'incoming-note', notes: 'Incoming Note' },
+    ]);
+
+    expect(replaced).toBe(false);
+    expect(mocks.notes.size).toBe(20);
+    expect(mocks.db.brewingNotes.clear).not.toHaveBeenCalled();
+  });
+
+  it('allows explicit destructive note replacements', async () => {
+    for (let index = 0; index < 20; index += 1) {
+      mocks.notes.set(`note-${index}`, {
+        ...baseNote,
+        id: `note-${index}`,
+        notes: `Note ${index}`,
+      });
+    }
+
+    const replaced = await replaceBrewingNotesWithSplitImages(
+      [{ ...baseNote, id: 'incoming-note', notes: 'Incoming Note' }],
+      { allowDestructiveReplace: true }
+    );
+
+    expect(replaced).toBe(true);
+    expect(mocks.notes.size).toBe(1);
+    expect(mocks.notes.has('incoming-note')).toBe(true);
+  });
+
   it('recompresses oversized note images and expires thumbnails', async () => {
     const oversizedImage = `data:image/jpeg;base64,${'a'.repeat(160 * 1024)}`;
     const smallImage = 'data:image/jpeg;base64,abcd';

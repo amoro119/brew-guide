@@ -11,7 +11,6 @@ import {
   formatConsumption as formatConsumptionUtil,
 } from '../utils';
 import { getBrewingNotes } from '@/lib/notes/relatedNotes';
-import { replaceBrewingNotesWithSplitImages } from '@/lib/notes/imageRepository';
 
 // 模块名称
 const MODULE_NAME = 'brewing-notes';
@@ -239,13 +238,6 @@ export const initializeGlobalCache = async (): Promise<void> => {
   }
 };
 
-// 强制重新初始化全局缓存 - 用于手动刷新
-const forceReinitializeGlobalCache = async (): Promise<void> => {
-  globalCache.initialized = false;
-  globalCache.isLoading = false;
-  await initializeGlobalCache();
-};
-
 // 只在客户端环境下初始化全局缓存
 if (typeof window !== 'undefined') {
   initializeGlobalCache();
@@ -255,33 +247,6 @@ if (typeof window !== 'undefined') {
 globalCache.selectedEquipment = getSelectedEquipmentPreference();
 globalCache.filterMode = getFilterModePreference();
 globalCache.sortOption = getSortOptionPreference();
-
-// 移除复杂的全局事件监听系统
-
-/**
- * 更新笔记缓存并触发更新事件的通用函数
- * 用于在保存笔记后统一更新缓存和触发事件
- */
-const updateBrewingNotesCache = async (
-  updatedNotes: BrewingNote[]
-): Promise<void> => {
-  try {
-    const replaced = await replaceBrewingNotesWithSplitImages(updatedNotes);
-    if (!replaced) return;
-
-    // 更新全局缓存
-    globalCache.notes = updatedNotes;
-    globalCache.lastUpdated = Date.now();
-    globalCache.totalConsumption = calculateConsumption(updatedNotes);
-    globalCache.initialized = true; // 🔥 标记缓存已初始化
-
-    // 触发立即更新事件，让笔记列表无延迟刷新
-    window.dispatchEvent(new Event('brewingNotesDataChanged'));
-  } catch (error) {
-    console.error('更新笔记缓存失败:', error);
-    throw error;
-  }
-};
 
 // 导出主utils文件的函数，保持兼容性
 export const calculateTotalCoffeeConsumption = calculateConsumption;
@@ -319,11 +284,4 @@ export const addSearchHistory = (query: string): void => {
   const limitedHistory = newHistory.slice(0, MAX_SEARCH_HISTORY);
 
   saveSearchHistoryPreference(limitedHistory);
-};
-
-// 从历史中移除单条记录
-const removeSearchHistoryItem = (query: string): void => {
-  const history = getSearchHistoryPreference();
-  const newHistory = history.filter(item => item !== query);
-  saveSearchHistoryPreference(newHistory);
 };
