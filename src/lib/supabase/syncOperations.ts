@@ -171,10 +171,16 @@ export const PRESETS_KEYS = [
 
 const SETTINGS_SYNC_FINGERPRINT_KEY =
   'brew-guide:realtime-sync:settingsFingerprint';
+const SETTINGS_SYNC_FINGERPRINT_VERSION = 'v2';
+const SETTINGS_SYNC_HASH_SEED = 0x9e3779b1;
 
 function getLocalStorage(): Storage | null {
-  if (typeof localStorage !== 'undefined') return localStorage;
-  if (typeof window !== 'undefined') return window.localStorage;
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage;
+    if (typeof window !== 'undefined') return window.localStorage;
+  } catch {
+    return null;
+  }
   return null;
 }
 
@@ -228,15 +234,64 @@ function normalizeSettingsFingerprintData(
 export function createSettingsSyncFingerprint(
   data: Record<string, unknown>
 ): string {
-  return JSON.stringify(normalizeSettingsFingerprintData(data));
+  const stableSettingsData = JSON.stringify(
+    normalizeSettingsFingerprintData(data)
+  );
+  const hash = hashStableString(stableSettingsData);
+  return `${SETTINGS_SYNC_FINGERPRINT_VERSION}:${stableSettingsData.length}:${hash}`;
+}
+
+function hashStableString(value: string): string {
+  let firstHash = 0xdeadbeef ^ SETTINGS_SYNC_HASH_SEED;
+  let secondHash = 0x41c6ce57 ^ SETTINGS_SYNC_HASH_SEED;
+
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    firstHash = Math.imul(firstHash ^ code, 2654435761);
+    secondHash = Math.imul(secondHash ^ code, 1597334677);
+  }
+
+  firstHash =
+    Math.imul(firstHash ^ (firstHash >>> 16), 2246822507) ^
+    Math.imul(secondHash ^ (secondHash >>> 13), 3266489909);
+  secondHash =
+    Math.imul(secondHash ^ (secondHash >>> 16), 2246822507) ^
+    Math.imul(firstHash ^ (firstHash >>> 13), 3266489909);
+
+  const high = (secondHash >>> 0).toString(16).padStart(8, '0');
+  const low = (firstHash >>> 0).toString(16).padStart(8, '0');
+  return `${high}${low}`;
 }
 
 function getStoredSettingsSyncFingerprint(): string | null {
-  return getLocalStorage()?.getItem(SETTINGS_SYNC_FINGERPRINT_KEY) ?? null;
+  const storage = getLocalStorage();
+  if (!storage) return null;
+
+  try {
+    return storage.getItem(SETTINGS_SYNC_FINGERPRINT_KEY);
+  } catch {
+    return null;
+  }
 }
 
 function persistSettingsSyncFingerprint(fingerprint: string): void {
-  getLocalStorage()?.setItem(SETTINGS_SYNC_FINGERPRINT_KEY, fingerprint);
+  const storage = getLocalStorage();
+  if (!storage) return;
+
+  try {
+    storage.setItem(SETTINGS_SYNC_FINGERPRINT_KEY, fingerprint);
+    return;
+  } catch {
+    // 旧版曾把完整设置 JSON 缓存在此 key；先删除再写入短 fingerprint，
+    // 但本地缓存失败不应影响真正的 Supabase 同步结果。
+  }
+
+  try {
+    storage.removeItem(SETTINGS_SYNC_FINGERPRINT_KEY);
+    storage.setItem(SETTINGS_SYNC_FINGERPRINT_KEY, fingerprint);
+  } catch (error) {
+    console.warn('[SyncOps] 设置同步指纹缓存失败，已跳过:', error);
+  }
 }
 
 function hasOwnSettingSection(

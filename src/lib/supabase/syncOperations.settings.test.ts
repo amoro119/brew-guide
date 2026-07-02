@@ -42,6 +42,16 @@ class MemoryStorage {
   }
 }
 
+class FailingFingerprintStorage extends MemoryStorage {
+  setItem(key: string, value: string): void {
+    if (key === SETTINGS_SYNC_FINGERPRINT_KEY) {
+      throw new Error('quota exceeded');
+    }
+
+    super.setItem(key, value);
+  }
+}
+
 const localSettings = {
   username: '',
   textZoomLevel: 1.1,
@@ -145,6 +155,20 @@ describe('settings sync fingerprint', () => {
     expect(first).toBe(second);
   });
 
+  it('creates a compact versioned hash instead of storing raw settings JSON', () => {
+    const fingerprint = createSettingsSyncFingerprint({
+      appSettings: {
+        username: 'very-long-name'.repeat(1000),
+      },
+      grinders: [],
+      customPresets: {},
+    });
+
+    expect(fingerprint).toMatch(/^v2:\d+:[0-9a-f]{16}$/);
+    expect(fingerprint.length).toBeLessThan(64);
+    expect(fingerprint).not.toContain('very-long-name');
+  });
+
   it('skips upload when the local fingerprint was already synced', async () => {
     mockLocalSettings();
     const localData = {
@@ -186,6 +210,43 @@ describe('settings sync fingerprint', () => {
     expect(localStorage.getItem(SETTINGS_SYNC_FINGERPRINT_KEY)).toBe(
       createSettingsSyncFingerprint(localData)
     );
+  });
+
+  it('does not fail settings sync when fingerprint cache exceeds quota', async () => {
+    const storage = new FailingFingerprintStorage();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: storage,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: { localStorage: storage, dispatchEvent: vi.fn() },
+      configurable: true,
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      mockLocalSettings();
+      const localData = {
+        appSettings: localSettings,
+        grinders: localGrinders,
+        customPresets: {},
+      };
+      const { client, maybeSingle, upsert } = createSettingsClient(localData);
+
+      const result = await uploadSettingsData(client, {
+        skipIfUnchanged: true,
+      });
+
+      expect(result).toMatchObject({ success: true, affectedCount: 0 });
+      expect(maybeSingle).toHaveBeenCalledTimes(1);
+      expect(upsert).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[SyncOps] 设置同步指纹缓存失败，已跳过:',
+        expect.any(Error)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('uploads settings when remote data differs from local data', async () => {
@@ -254,7 +315,9 @@ describe('settings sync fingerprint', () => {
     expect(result).toMatchObject({ success: true });
     expect(db.grinders.clear).toHaveBeenCalledTimes(1);
     expect(db.grinders.bulkPut).not.toHaveBeenCalled();
-    expect(localStorage.getItem('brew-guide:custom-presets:origins')).toBeNull();
+    expect(
+      localStorage.getItem('brew-guide:custom-presets:origins')
+    ).toBeNull();
   });
 
   it('passes abort signals to Supabase settings downloads', async () => {
