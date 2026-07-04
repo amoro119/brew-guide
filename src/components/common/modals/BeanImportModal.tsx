@@ -1,7 +1,14 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from 'react';
 import { motion } from 'framer-motion';
+import { Flashlight, FlashlightOff } from 'lucide-react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import { showToast } from '@/components/common/feedback/LightToast';
 import { useCopy } from '@/lib/hooks/useCopy';
@@ -15,6 +22,11 @@ import {
   type CustomBeanRecognitionConfig,
 } from '@/lib/api/beanRecognition';
 import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
+import {
+  isImageSelectionCancelled,
+  pickNativeGalleryImageFiles,
+  shouldUseNativeGalleryPicker,
+} from '@/lib/utils/imageCapture';
 
 // 模拟 API 开关 - 设置为 true 时使用模拟数据
 const USE_MOCK_API = false;
@@ -59,7 +71,12 @@ interface ImportedBean {
 }
 
 // 步骤类型定义
-type ImportStep = 'main' | 'json-input' | 'recognizing' | 'multi-preview';
+type ImportStep =
+  | 'main'
+  | 'json-input'
+  | 'camera-preview'
+  | 'recognizing'
+  | 'multi-preview';
 
 // 最大同时选择图片数
 const MAX_IMAGES = 5;
@@ -74,6 +91,95 @@ interface ImageRecognitionState {
   status: 'pending' | 'processing' | 'success' | 'error';
   result?: unknown;
   error?: string;
+}
+
+type CameraStatus = 'idle' | 'starting' | 'ready' | 'error';
+type TorchMediaTrackCapabilities = MediaTrackCapabilities & {
+  torch?: boolean;
+};
+type TorchMediaTrackConstraintSet = MediaTrackConstraintSet & {
+  torch?: boolean;
+};
+type ZoomMediaTrackCapabilities = TorchMediaTrackCapabilities & {
+  zoom?: {
+    min?: number;
+    max?: number;
+    step?: number;
+  };
+};
+type ZoomMediaTrackConstraintSet = TorchMediaTrackConstraintSet & {
+  zoom?: number;
+};
+type CameraZoomRange = {
+  min: number;
+  max: number;
+  step: number;
+};
+
+const CAMERA_PHOTO_TYPE = 'image/jpeg';
+const CAMERA_BASE_ZOOM = 1;
+const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
+  min: CAMERA_BASE_ZOOM,
+  max: 3,
+  step: 0.05,
+};
+
+function clampZoom(value: number, range: CameraZoomRange) {
+  return Math.min(range.max, Math.max(range.min, value));
+}
+
+function getPointerDistance(
+  first: { x: number; y: number },
+  second: { x: number; y: number }
+) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function createCameraPhotoFile(canvas: HTMLCanvasElement): Promise<File> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => {
+        if (!blob) {
+          reject(new Error('拍照失败，请重试'));
+          return;
+        }
+
+        resolve(
+          new File([blob], `bean-camera-${Date.now()}.jpg`, {
+            type: CAMERA_PHOTO_TYPE,
+            lastModified: Date.now(),
+          })
+        );
+      },
+      CAMERA_PHOTO_TYPE,
+      0.92
+    );
+  });
+}
+
+function getCameraErrorMessage(error: unknown) {
+  if (error instanceof DOMException) {
+    switch (error.name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return '没有获得摄像头权限';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return '没有找到可用摄像头';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return '摄像头正在被其他应用占用';
+      case 'OverconstrainedError':
+      case 'ConstraintNotSatisfiedError':
+        return '当前摄像头不支持预览参数';
+      case 'SecurityError':
+        return '当前环境无法使用应用内相机';
+      default:
+        return '无法打开摄像头';
+    }
+  }
+
+  return error instanceof Error ? error.message : '无法打开摄像头';
 }
 
 // 扫描线动画组件
@@ -156,18 +262,36 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   const [jsonInputValue, setJsonInputValue] = useState('');
   // 图片输入 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 摄像头预览 ref
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const activeCameraPointersRef = useRef(
+    new Map<number, { x: number; y: number }>()
+  );
+  const pinchStartRef = useRef<{
+    distance: number;
+    zoom: number;
+  } | null>(null);
   // JSON 输入框 ref
   const jsonTextareaRef = useRef<HTMLTextAreaElement>(null);
-  // 剪贴板识别状态
-  const [clipboardStatus, setClipboardStatus] = useState<'idle' | 'error'>(
-    'idle'
-  );
   // 多图选择状态
   const [selectedImages, setSelectedImages] = useState<ImageRecognitionState[]>(
     []
   );
   // 多图识别是否正在进行
   const [isMultiRecognizing, setIsMultiRecognizing] = useState(false);
+  // 应用内相机状态
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
+  const [cameraError, setCameraError] = useState('');
+  const [isCameraCapturing, setIsCameraCapturing] = useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [isHardwareZoomSupported, setIsHardwareZoomSupported] = useState(false);
+  const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(
+    DEFAULT_CAMERA_ZOOM_RANGE
+  );
+  const [cameraZoom, setCameraZoom] = useState(1);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
 
   const effectiveRecognitionPrompt = (
     settings?.experimentalBeanRecognitionPrompt || ''
@@ -176,18 +300,50 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     : DEFAULT_BEAN_RECOGNITION_PROMPT;
 
   const customRecognitionConfig: CustomBeanRecognitionConfig | undefined =
-    settings?.experimentalBeanRecognitionEnabled
-      ? {
-          enabled: true,
-          apiBaseUrl: settings.experimentalBeanRecognitionApiBaseUrl || '',
-          apiKey: settings.experimentalBeanRecognitionApiKey || '',
-          model: settings.experimentalBeanRecognitionModel || '',
-          prompt: effectiveRecognitionPrompt,
-        }
-      : undefined;
+    useMemo(
+      () =>
+        settings?.experimentalBeanRecognitionEnabled
+          ? {
+              enabled: true,
+              apiBaseUrl: settings.experimentalBeanRecognitionApiBaseUrl || '',
+              apiKey: settings.experimentalBeanRecognitionApiKey || '',
+              model: settings.experimentalBeanRecognitionModel || '',
+              prompt: effectiveRecognitionPrompt,
+            }
+          : undefined,
+      [
+        effectiveRecognitionPrompt,
+        settings?.experimentalBeanRecognitionApiBaseUrl,
+        settings?.experimentalBeanRecognitionApiKey,
+        settings?.experimentalBeanRecognitionEnabled,
+        settings?.experimentalBeanRecognitionModel,
+      ]
+    );
+
+  const stopCamera = useCallback(() => {
+    activeCameraPointersRef.current.clear();
+    pinchStartRef.current = null;
+    cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+    cameraStreamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraStatus('idle');
+    setCameraError('');
+    setIsCameraCapturing(false);
+    setIsTorchSupported(false);
+    setIsTorchOn(false);
+    setIsHardwareZoomSupported(false);
+    setCameraZoomRange(DEFAULT_CAMERA_ZOOM_RANGE);
+    setCameraZoom(1);
+    setShowZoomIndicator(false);
+  }, []);
 
   // 返回主界面
   const goBackToMain = useCallback(() => {
+    stopCamera();
     setCurrentStep('main');
     setJsonInputValue('');
     // 清理图片 URL
@@ -200,12 +356,19 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     setSelectedImages([]);
     setIsMultiRecognizing(false);
     setIsRecognizing(false);
-  }, [recognizingImageUrl, selectedImages]);
+  }, [recognizingImageUrl, selectedImages, stopCamera]);
 
   // 使用 modalHistory 管理 JSON 输入步骤的返回行为
   useModalHistory({
     id: 'bean-import-json-input',
     isOpen: showForm && currentStep === 'json-input',
+    onClose: goBackToMain,
+  });
+
+  // 使用 modalHistory 管理相机预览步骤的返回行为
+  useModalHistory({
+    id: 'bean-import-camera-preview',
+    isOpen: showForm && currentStep === 'camera-preview',
     onClose: goBackToMain,
   });
 
@@ -217,7 +380,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   });
 
   const resetImportState = useCallback(() => {
-    setClipboardStatus('idle');
+    stopCamera();
     setCurrentStep('main');
     setJsonInputValue('');
     setIsRecognizing(false);
@@ -228,7 +391,113 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     }
     selectedImages.forEach(img => URL.revokeObjectURL(img.previewUrl));
     setSelectedImages([]);
-  }, [recognizingImageUrl, selectedImages]);
+  }, [recognizingImageUrl, selectedImages, stopCamera]);
+
+  useEffect(() => {
+    if (!showForm || currentStep !== 'camera-preview') {
+      stopCamera();
+      return;
+    }
+
+    let cancelled = false;
+    let requestedStream: MediaStream | null = null;
+
+    const startCamera = async () => {
+      setCameraStatus('starting');
+      setCameraError('');
+
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setCameraStatus('error');
+        setCameraError('当前环境无法使用应用内相机');
+        return;
+      }
+
+      try {
+        requestedStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+
+        if (cancelled) {
+          requestedStream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        cameraStreamRef.current = requestedStream;
+        const [videoTrack] = requestedStream.getVideoTracks();
+        const capabilities =
+          videoTrack?.getCapabilities?.() as ZoomMediaTrackCapabilities;
+        setIsTorchSupported(Boolean(capabilities?.torch));
+        setIsTorchOn(false);
+        const zoomCapability = capabilities?.zoom;
+        const hardwareZoomMin =
+          typeof zoomCapability?.min === 'number'
+            ? zoomCapability.min
+            : CAMERA_BASE_ZOOM;
+        const hardwareZoomMax =
+          typeof zoomCapability?.max === 'number'
+            ? zoomCapability.max
+            : undefined;
+        const hasHardwareZoom =
+          typeof hardwareZoomMax === 'number' && hardwareZoomMax > 1;
+        const nextZoomRange = hasHardwareZoom
+          ? {
+              min: Math.max(CAMERA_BASE_ZOOM, hardwareZoomMin),
+              max: Math.min(hardwareZoomMax, 5),
+              step:
+                typeof zoomCapability?.step === 'number'
+                  ? zoomCapability.step
+                  : 0.05,
+            }
+          : DEFAULT_CAMERA_ZOOM_RANGE;
+        const initialZoom = clampZoom(CAMERA_BASE_ZOOM, nextZoomRange);
+        setIsHardwareZoomSupported(hasHardwareZoom);
+        setCameraZoomRange(nextZoomRange);
+        setCameraZoom(initialZoom);
+        setShowZoomIndicator(false);
+
+        const video = videoRef.current;
+        if (!video) {
+          throw new Error('相机预览初始化失败');
+        }
+
+        video.srcObject = requestedStream;
+        await video.play();
+        if (hasHardwareZoom) {
+          void videoTrack
+            ?.applyConstraints({
+              advanced: [{ zoom: initialZoom } as ZoomMediaTrackConstraintSet],
+            })
+            .catch(() => {
+              setIsHardwareZoomSupported(false);
+            });
+        }
+
+        if (!cancelled) {
+          setCameraStatus('ready');
+        }
+      } catch (error) {
+        requestedStream?.getTracks().forEach(track => track.stop());
+
+        if (cancelled) return;
+
+        cameraStreamRef.current = null;
+        setCameraStatus('error');
+        setCameraError(getCameraErrorMessage(error));
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [showForm, currentStep, stopCamera]);
 
   // 确保字段为字符串类型
   const ensureStringFields = useCallback((item: ImportedBean): ImportedBean => {
@@ -283,8 +552,9 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     [ensureStringFields, onImport, onClose]
   );
 
-  // 处理输入JSON - 进入 JSON 输入步骤
-  const handleInputJSON = useCallback(() => {
+  // 进入 JSON 输入步骤
+  const openJsonInput = useCallback((initialValue = '') => {
+    setJsonInputValue(initialValue);
     setCurrentStep('json-input');
     // 等待动画完成后聚焦输入框
     setTimeout(() => {
@@ -292,35 +562,27 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     }, 300);
   }, []);
 
-  // 处理剪贴板识别
-  const handleClipboardRecognition = useCallback(async () => {
-    // 如果当前是错误状态，切换到 JSON 输入模式
-    if (clipboardStatus === 'error') {
-      setClipboardStatus('idle');
-      handleInputJSON();
-      return;
-    }
-
+  // 处理输入入口：先尝试读取一次剪切板，无法识别再进入手动输入。
+  const handleInputJSON = useCallback(async () => {
     try {
       const clipboardText = await navigator.clipboard.readText();
       if (!clipboardText.trim()) {
-        setClipboardStatus('error');
+        openJsonInput();
         return;
       }
 
-      // 尝试提取JSON数据
       const { extractJsonFromText } = await import('@/lib/utils/jsonUtils');
       const beanData = extractJsonFromText(clipboardText);
 
       if (beanData) {
         await handleImportData(beanData);
       } else {
-        setClipboardStatus('error');
+        openJsonInput();
       }
     } catch (_error) {
-      setClipboardStatus('error');
+      openJsonInput();
     }
-  }, [handleImportData, clipboardStatus, handleInputJSON]);
+  }, [handleImportData, openJsonInput]);
 
   // 识别单张图片的核心函数
   const recognizeSingleImage = useCallback(
@@ -350,12 +612,73 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
     [customRecognitionConfig]
   );
 
-  // 处理图片上传识别（支持单张和多张）
-  const handleImageUpload = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (!files || files.length === 0) return;
+  const handleRecognizeImageFile = useCallback(
+    async (file: File) => {
+      const imageUrl = URL.createObjectURL(file);
+      setRecognizingImageUrl(imageUrl);
+      setCurrentStep('recognizing');
+      setIsRecognizing(true);
 
+      try {
+        const { data: beanData } = await recognizeSingleImage(file);
+
+        // 识别成功后，检查是否为单个豆子，如果是则传递识别图片（无论设置如何，都传递给表单，由表单决定是否自动填充）
+        const isSingleBean =
+          !Array.isArray(beanData) ||
+          (Array.isArray(beanData) && beanData.length === 1);
+
+        let recognitionImage: string | undefined;
+
+        if (isSingleBean) {
+          await new Promise<void>(resolve => {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              const base64 = reader.result as string;
+              if (base64) {
+                try {
+                  const { compressBase64Image } =
+                    await import('@/lib/utils/imageCapture');
+                  const compressedBase64 = await compressBase64Image(base64, {
+                    maxSizeMB: 0.1,
+                    maxWidthOrHeight: 1200,
+                    initialQuality: 0.8,
+                  });
+                  recognitionImage = compressedBase64;
+                } catch (_error) {
+                  recognitionImage = undefined;
+                }
+              }
+              resolve();
+            };
+            reader.onerror = () => resolve();
+            reader.readAsDataURL(file);
+          });
+        }
+
+        setIsRecognizing(false);
+        URL.revokeObjectURL(imageUrl);
+        setRecognizingImageUrl(null);
+        setCurrentStep('main');
+
+        await handleImportData(beanData, { recognitionImage });
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: error instanceof Error ? error.message : '图片识别失败',
+        });
+        setIsRecognizing(false);
+        URL.revokeObjectURL(imageUrl);
+        setRecognizingImageUrl(null);
+        setCurrentStep('main');
+      }
+    },
+    [handleImportData, recognizeSingleImage]
+  );
+
+  // 处理图片文件识别（支持单张和多张）
+  const processImageFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
       const validFiles: File[] = [];
       for (let i = 0; i < Math.min(files.length, MAX_IMAGES); i++) {
         const file = files[i];
@@ -386,64 +709,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
 
       // 单张图片：使用原有的单图流程
       if (validFiles.length === 1) {
-        const file = validFiles[0];
-        const imageUrl = URL.createObjectURL(file);
-        setRecognizingImageUrl(imageUrl);
-        setCurrentStep('recognizing');
-        setIsRecognizing(true);
-
-        try {
-          const { data: beanData } = await recognizeSingleImage(file);
-
-          // 识别成功后，检查是否为单个豆子，如果是则传递识别图片（无论设置如何，都传递给表单，由表单决定是否自动填充）
-          const isSingleBean =
-            !Array.isArray(beanData) ||
-            (Array.isArray(beanData) && beanData.length === 1);
-
-          let recognitionImage: string | undefined;
-
-          if (isSingleBean) {
-            await new Promise<void>(resolve => {
-              const reader = new FileReader();
-              reader.onload = async () => {
-                const base64 = reader.result as string;
-                if (base64) {
-                  try {
-                    const { compressBase64Image } =
-                      await import('@/lib/utils/imageCapture');
-                    const compressedBase64 = await compressBase64Image(base64, {
-                      maxSizeMB: 0.1,
-                      maxWidthOrHeight: 1200,
-                      initialQuality: 0.8,
-                    });
-                    recognitionImage = compressedBase64;
-                  } catch (_error) {
-                    recognitionImage = undefined;
-                  }
-                }
-                resolve();
-              };
-              reader.onerror = () => resolve();
-              reader.readAsDataURL(file);
-            });
-          }
-
-          setIsRecognizing(false);
-          URL.revokeObjectURL(imageUrl);
-          setRecognizingImageUrl(null);
-          setCurrentStep('main');
-
-          await handleImportData(beanData, { recognitionImage });
-        } catch (error) {
-          showToast({
-            type: 'error',
-            title: error instanceof Error ? error.message : '图片识别失败',
-          });
-          setIsRecognizing(false);
-          URL.revokeObjectURL(imageUrl);
-          setRecognizingImageUrl(null);
-          setCurrentStep('main');
-        }
+        await handleRecognizeImageFile(validFiles[0]);
       } else {
         // 多张图片：进入预览模式
         const imageStates: ImageRecognitionState[] = validFiles.map(file => ({
@@ -455,30 +721,44 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         setSelectedImages(imageStates);
         setCurrentStep('multi-preview');
       }
+    },
+    [handleRecognizeImageFile]
+  );
+
+  // 处理图片上传识别（支持单张和多张）
+  const handleImageUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      await processImageFiles(Array.from(files));
 
       // 清除文件输入，以便可以再次选择同一文件
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     },
-    [handleImportData, recognizeSingleImage]
+    [processImageFiles]
   );
 
   // 删除预览中的图片
-  const handleRemoveImage = useCallback((id: string) => {
-    setSelectedImages(prev => {
-      const toRemove = prev.find(img => img.id === id);
-      if (toRemove) {
-        URL.revokeObjectURL(toRemove.previewUrl);
-      }
-      const remaining = prev.filter(img => img.id !== id);
-      // 如果删到只剩一张或没有了，返回主界面
-      if (remaining.length === 0) {
-        setCurrentStep('main');
-      }
-      return remaining;
-    });
-  }, []);
+  const handleRemoveImage = useCallback(
+    (id: string) => {
+      setSelectedImages(prev => {
+        const toRemove = prev.find(img => img.id === id);
+        if (toRemove) {
+          URL.revokeObjectURL(toRemove.previewUrl);
+        }
+        const remaining = prev.filter(img => img.id !== id);
+        // 如果删到只剩一张或没有了，返回主界面；相机模式保留取景器。
+        if (remaining.length === 0 && currentStep !== 'camera-preview') {
+          setCurrentStep('main');
+        }
+        return remaining;
+      });
+    },
+    [currentStep]
+  );
 
   // 压缩图片为 base64
   const compressImageToBase64 = useCallback(
@@ -646,9 +926,215 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   ]);
 
   // 触发图片选择
-  const handleUploadImageClick = useCallback(() => {
-    fileInputRef.current?.click();
+  const handleUploadImageClick = useCallback(async () => {
+    if (!shouldUseNativeGalleryPicker()) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const files = await pickNativeGalleryImageFiles({ limit: MAX_IMAGES });
+      await processImageFiles(files);
+    } catch (error) {
+      if (isImageSelectionCancelled(error)) return;
+
+      showToast({
+        type: 'error',
+        title: error instanceof Error ? error.message : '无法打开系统相册',
+      });
+    }
+  }, [processImageFiles]);
+
+  const handleOpenCamera = useCallback(() => {
+    setCurrentStep('camera-preview');
   }, []);
+
+  const handleToggleTorch = useCallback(async () => {
+    if (!isTorchSupported) return;
+
+    const [videoTrack] = cameraStreamRef.current?.getVideoTracks() || [];
+    if (!videoTrack) return;
+
+    const nextTorchState = !isTorchOn;
+
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [{ torch: nextTorchState } as TorchMediaTrackConstraintSet],
+      });
+      setIsTorchOn(nextTorchState);
+    } catch (_error) {
+      setIsTorchSupported(false);
+      setIsTorchOn(false);
+      showToast({ type: 'error', title: '当前设备无法控制闪光灯' });
+    }
+  }, [isTorchOn, isTorchSupported]);
+
+  const applyCameraZoom = useCallback(
+    (value: number) => {
+      const nextZoom = Number(clampZoom(value, cameraZoomRange).toFixed(2));
+
+      setCameraZoom(nextZoom);
+      setShowZoomIndicator(nextZoom > cameraZoomRange.min + 0.01);
+
+      if (!isHardwareZoomSupported) return;
+
+      const [videoTrack] = cameraStreamRef.current?.getVideoTracks() || [];
+      if (!videoTrack) return;
+
+      void videoTrack
+        .applyConstraints({
+          advanced: [{ zoom: nextZoom } as ZoomMediaTrackConstraintSet],
+        })
+        .catch(() => {
+          setIsHardwareZoomSupported(false);
+        });
+    },
+    [cameraZoomRange, isHardwareZoomSupported]
+  );
+
+  const handleCameraPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (cameraStatus !== 'ready') return;
+      if (event.target instanceof Element && event.target.closest('button')) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      activeCameraPointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const pointers = Array.from(activeCameraPointersRef.current.values());
+      if (pointers.length === 2) {
+        pinchStartRef.current = {
+          distance: getPointerDistance(pointers[0], pointers[1]),
+          zoom: cameraZoom,
+        };
+      }
+    },
+    [cameraStatus, cameraZoom]
+  );
+
+  const handleCameraPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!activeCameraPointersRef.current.has(event.pointerId)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      activeCameraPointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const pinchStart = pinchStartRef.current;
+      const pointers = Array.from(activeCameraPointersRef.current.values());
+      if (!pinchStart || pointers.length < 2 || pinchStart.distance <= 0) {
+        return;
+      }
+
+      const distance = getPointerDistance(pointers[0], pointers[1]);
+      applyCameraZoom((pinchStart.zoom * distance) / pinchStart.distance);
+    },
+    [applyCameraZoom]
+  );
+
+  const handleCameraPointerEnd = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      activeCameraPointersRef.current.delete(event.pointerId);
+
+      if (activeCameraPointersRef.current.size < 2) {
+        pinchStartRef.current = null;
+      }
+    },
+    []
+  );
+
+  const captureCameraPhotoFile = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      throw new Error('相机画面还未准备好');
+    }
+
+    const captureZoom = isHardwareZoomSupported ? 1 : cameraZoom;
+    const outputSize = Math.min(video.videoWidth, video.videoHeight);
+    const sourceSize = Math.max(1, Math.floor(outputSize / captureZoom));
+    const sourceX = Math.floor((video.videoWidth - sourceSize) / 2);
+    const sourceY = Math.floor((video.videoHeight - sourceSize) / 2);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('无法创建拍照画布');
+    }
+
+    context.drawImage(
+      video,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      outputSize,
+      outputSize
+    );
+
+    return createCameraPhotoFile(canvas);
+  }, [cameraZoom, isHardwareZoomSupported]);
+
+  const handleCaptureCameraPhoto = useCallback(async () => {
+    if (cameraStatus !== 'ready' || isCameraCapturing || isMultiRecognizing) {
+      return;
+    }
+
+    if (selectedImages.length >= MAX_IMAGES) {
+      showToast({ type: 'info', title: `最多保留 ${MAX_IMAGES} 张照片` });
+      return;
+    }
+
+    setIsCameraCapturing(true);
+
+    try {
+      const file = await captureCameraPhotoFile();
+      const previewUrl = URL.createObjectURL(file);
+
+      setSelectedImages(prev => [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          file,
+          previewUrl,
+          status: 'pending',
+        },
+      ]);
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: error instanceof Error ? error.message : '拍照失败',
+      });
+    } finally {
+      setIsCameraCapturing(false);
+    }
+  }, [
+    captureCameraPhotoFile,
+    cameraStatus,
+    isCameraCapturing,
+    isMultiRecognizing,
+    selectedImages.length,
+  ]);
+
+  const handleRecognizeCameraImages = useCallback(async () => {
+    if (selectedImages.length === 0 || isMultiRecognizing) return;
+
+    await handleMultiRecognition();
+  }, [handleMultiRecognition, isMultiRecognizing, selectedImages.length]);
 
   // 复制提示词 - 使用统一的 useCopy hook
   const handleCopyPrompt = useCallback(async () => {
@@ -685,6 +1171,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
 
   // 关闭时重置状态
   const handleClose = useCallback(() => {
+    stopCamera();
     setCurrentStep('main');
     setJsonInputValue('');
     setIsRecognizing(false);
@@ -693,26 +1180,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       setRecognizingImageUrl(null);
     }
     onClose();
-  }, [onClose, recognizingImageUrl]);
-
-  // 操作项配置
-  const actions = [
-    {
-      id: 'image',
-      label: '图片识别咖啡豆（推荐）',
-      onClick: handleUploadImageClick,
-    },
-    {
-      id: 'clipboard',
-      label: clipboardStatus === 'error' ? '识别失败，再试一次' : '识别剪切板',
-      onClick: handleClipboardRecognition,
-    },
-    {
-      id: 'json',
-      label: '输入 JSON',
-      onClick: handleInputJSON,
-    },
-  ];
+  }, [onClose, recognizingImageUrl, stopCamera]);
 
   // 主界面内容
   const mainContent = (
@@ -743,16 +1211,27 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
 
       {/* 操作按钮列表 */}
       <div className="flex flex-col gap-2">
-        {actions.map(action => (
-          <motion.button
-            key={action.id}
-            whileTap={{ scale: 0.98 }}
-            onClick={action.onClick}
-            className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
-          >
-            {action.label}
-          </motion.button>
-        ))}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleOpenCamera}
+          className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+        >
+          拍照识别图片
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleUploadImageClick}
+          className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+        >
+          相册识别图片
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleInputJSON}
+          className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+        >
+          输入 JSON
+        </motion.button>
       </div>
     </>
   );
@@ -768,7 +1247,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       {/* 内容区域 */}
       <ActionDrawer.Content>
         <p className="text-neutral-500 dark:text-neutral-400">
-          粘贴
+          输入或粘贴
           <span className="text-neutral-800 dark:text-neutral-200">
             {' '}
             AI 生成或他人分享
@@ -808,6 +1287,265 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
           </motion.button>
         </div>
       </div>
+    </>
+  );
+
+  const cameraPreviewContent = (
+    <>
+      <div className="mb-4">
+        <div
+          data-vaul-no-drag
+          className="relative aspect-square w-full touch-none overflow-hidden rounded-3xl bg-neutral-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+          onPointerDown={handleCameraPointerDown}
+          onPointerMove={handleCameraPointerMove}
+          onPointerUp={handleCameraPointerEnd}
+          onPointerCancel={handleCameraPointerEnd}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`h-full w-full object-cover transition-[opacity,filter] duration-300 ease-out ${
+              cameraStatus === 'ready'
+                ? 'blur-0 opacity-100'
+                : 'opacity-0 blur-sm'
+            }`}
+            style={{
+              transform: isHardwareZoomSupported
+                ? undefined
+                : `scale(${cameraZoom})`,
+            }}
+          />
+
+          {cameraStatus === 'starting' && (
+            <div className="pointer-events-none absolute inset-4 opacity-25">
+              <CornerBorder position="top-left" />
+              <CornerBorder position="top-right" />
+              <CornerBorder position="bottom-left" />
+              <CornerBorder position="bottom-right" />
+            </div>
+          )}
+
+          {cameraStatus === 'error' && (
+            <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
+              <p className="text-sm leading-relaxed text-white/70">
+                {cameraError || '无法打开摄像头'}
+              </p>
+            </div>
+          )}
+
+          {cameraStatus === 'ready' && (
+            <>
+              <div className="pointer-events-none absolute inset-4">
+                <CornerBorder position="top-left" />
+                {!isTorchSupported && <CornerBorder position="top-right" />}
+                <CornerBorder position="bottom-left" />
+                <CornerBorder position="bottom-right" />
+              </div>
+
+              {isTorchSupported && (
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleToggleTorch}
+                  aria-label={isTorchOn ? '关闭闪光灯' : '打开闪光灯'}
+                  aria-pressed={isTorchOn}
+                  className={`absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition-colors ${
+                    isTorchOn
+                      ? 'bg-white text-neutral-900'
+                      : 'bg-black/45 text-white'
+                  }`}
+                >
+                  {isTorchOn ? (
+                    <FlashlightOff className="h-5 w-5" strokeWidth={2.25} />
+                  ) : (
+                    <Flashlight className="h-5 w-5" strokeWidth={2.25} />
+                  )}
+                </motion.button>
+              )}
+
+              {showZoomIndicator && (
+                <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 text-xs font-medium text-white tabular-nums">
+                  {cameraZoom.toFixed(1)}x
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="relative mb-5 h-16">
+        <div
+          className={`absolute inset-0 flex items-center transition-opacity duration-200 ease-out ${
+            selectedImages.length > 0
+              ? 'pointer-events-none opacity-0'
+              : 'opacity-100'
+          }`}
+        >
+          <p className="w-full text-sm leading-6 text-neutral-500 dark:text-neutral-400">
+            将
+            <span className="text-neutral-800 dark:text-neutral-200">
+              咖啡豆包装
+            </span>
+            放入取景框后拍照；画面发灰时，轻拭镜头会更容易识别。
+          </p>
+        </div>
+
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-out ${
+            selectedImages.length > 0
+              ? 'opacity-100'
+              : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <div className="flex max-w-full items-center justify-center gap-2 px-1">
+            {selectedImages.map(img => (
+              <motion.div
+                layout
+                key={img.id}
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', duration: 0.2, bounce: 0 }}
+                className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:bg-neutral-800 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] ${
+                  img.status === 'processing'
+                    ? 'ring-2 ring-neutral-400 ring-offset-1 ring-offset-white dark:ring-neutral-500 dark:ring-offset-neutral-900'
+                    : ''
+                }`}
+              >
+                <img
+                  src={img.previewUrl}
+                  alt="已拍照"
+                  className={`h-full w-full object-cover transition-[filter,transform] duration-200 ${
+                    img.status === 'error' ? 'brightness-50 grayscale' : ''
+                  }`}
+                />
+                {img.status === 'success' && (
+                  <div className="absolute right-1 bottom-1 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-900/80 dark:bg-white/90">
+                    <svg
+                      className="h-2.5 w-2.5 text-white dark:text-neutral-900"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                )}
+                {img.status === 'error' && (
+                  <div className="absolute right-1 bottom-1 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-500/80">
+                    <svg
+                      className="h-2.5 w-2.5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </div>
+                )}
+                {!isMultiRecognizing && img.status === 'pending' && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(img.id)}
+                    className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-bl-[8px] bg-neutral-900/55 text-white backdrop-blur-sm"
+                    aria-label="移除照片"
+                  >
+                    <svg
+                      className="h-2.5 w-2.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {cameraStatus === 'error' ? (
+        <div className="flex gap-2">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={goBackToMain}
+            className="flex-1 rounded-full bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+          >
+            取消
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleUploadImageClick}
+            className="flex-1 rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+          >
+            选择图片
+          </motion.button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <motion.button
+            whileTap={isMultiRecognizing ? undefined : { scale: 0.98 }}
+            onClick={goBackToMain}
+            disabled={isMultiRecognizing}
+            className="flex-1 rounded-full bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+          >
+            取消
+          </motion.button>
+          <div className="flex flex-[1.45] overflow-hidden rounded-full bg-neutral-100 text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white">
+            <button
+              type="button"
+              onClick={handleCaptureCameraPhoto}
+              disabled={
+                cameraStatus !== 'ready' ||
+                isCameraCapturing ||
+                isMultiRecognizing ||
+                selectedImages.length >= MAX_IMAGES
+              }
+              className={`min-w-0 flex-1 px-4 py-3 transition-opacity active:scale-[0.98] disabled:active:scale-100 ${
+                cameraStatus === 'ready' &&
+                !isCameraCapturing &&
+                !isMultiRecognizing &&
+                selectedImages.length < MAX_IMAGES
+                  ? ''
+                  : 'opacity-40'
+              }`}
+            >
+              拍照
+            </button>
+            <div className="my-3 w-px bg-neutral-300 dark:bg-neutral-700" />
+            <button
+              type="button"
+              onClick={handleRecognizeCameraImages}
+              disabled={selectedImages.length === 0 || isMultiRecognizing}
+              className={`min-w-0 flex-1 px-4 py-3 transition-opacity active:scale-[0.98] disabled:active:scale-100 ${
+                selectedImages.length > 0 && !isMultiRecognizing
+                  ? ''
+                  : 'opacity-40'
+              }`}
+            >
+              入库
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -988,6 +1726,8 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         return recognizingContent;
       case 'json-input':
         return jsonInputContent;
+      case 'camera-preview':
+        return cameraPreviewContent;
       case 'multi-preview':
         return multiPreviewContent;
       default:
@@ -1002,6 +1742,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         onClose={handleClose}
         onExitComplete={resetImportState}
         historyId="bean-import"
+        dismissible={currentStep !== 'camera-preview'}
       >
         <ActionDrawer.Switcher activeKey={currentStep}>
           {renderContent()}
