@@ -132,6 +132,7 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   const shouldShowResults = isFocused && visibleResults.length > 0;
   const shouldShowEmptyState =
     isFocused && normalizedQuery.length > 0 && visibleResults.length === 0;
+  const emptyStateQuery = deferredQuery.trim();
 
   const handleSelect = React.useCallback(
     (item: SettingsSearchItem) => {
@@ -200,7 +201,7 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
               ))
             ) : (
               <div className="px-3.5 py-3 text-sm text-neutral-500 dark:text-neutral-400">
-                没有匹配项
+                未找到“{emptyStateQuery}”的相关结果
               </div>
             )}
           </div>
@@ -215,8 +216,8 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
             onKeyDown={handleInputKeyDown}
-            aria-label="搜索设置"
-            placeholder="搜索设置"
+            aria-label="搜索"
+            placeholder="搜索"
             className="min-w-0 flex-1 bg-transparent text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
           />
           {query && (
