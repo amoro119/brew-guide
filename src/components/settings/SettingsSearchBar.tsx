@@ -181,8 +181,12 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   }, []);
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-neutral-50 via-neutral-50/95 to-neutral-50/0 px-6 pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] dark:from-neutral-900 dark:via-neutral-900/95 dark:to-neutral-900/0">
-      <div className="pointer-events-auto mx-auto w-full max-w-xl">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)]">
+      <div
+        aria-hidden="true"
+        className="fade-mask-to-t pointer-events-none absolute inset-0 bg-[var(--background)]"
+      />
+      <div className="pointer-events-auto relative mx-auto w-full max-w-xl">
         {(shouldShowResults || shouldShowEmptyState) && (
           <div className="mb-2 overflow-hidden rounded-xl border border-black/5 bg-neutral-100/95 shadow-lg shadow-black/5 backdrop-blur-xl dark:border-white/5 dark:bg-neutral-800/95 dark:shadow-black/20">
             {shouldShowResults ? (
