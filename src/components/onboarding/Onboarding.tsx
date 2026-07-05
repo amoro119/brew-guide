@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Capacitor } from '@capacitor/core';
 import { Lock, Layers, Share2 } from 'lucide-react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
+import { PWAInstallGuideContent } from '@/components/layout/PWAInstallGuideDrawer';
 import SettingToggle from '@/components/settings/atomic/SettingToggle';
 import {
   SettingsOptions,
@@ -23,6 +24,10 @@ import PersistentStorageManager, {
   isPersistentStorageSupported,
   isPWAMode,
 } from '@/lib/utils/persistentStorage';
+import {
+  canShowIOSPWAInstallGuide,
+  getIsWeChat,
+} from '@/lib/utils/pwaInstallEnvironment';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 
 interface OnboardingProps {
@@ -30,7 +35,11 @@ interface OnboardingProps {
   onComplete: () => void;
 }
 
-type OnboardingStep = 'welcome' | 'features';
+type OnboardingStep =
+  | 'wechat-warning'
+  | 'pwa-install-guide'
+  | 'welcome'
+  | 'features';
 type NavigationSettingsValue = NonNullable<
   SettingsOptions['navigationSettings']
 >;
@@ -54,9 +63,18 @@ type OnboardingAction =
     }
   | { type: 'navigation-changed'; navigationSettings: NavigationSettingsValue };
 
+const getInitialStep = (): OnboardingStep => {
+  if (typeof window === 'undefined') return 'welcome';
+  if (Capacitor.isNativePlatform?.() === true) return 'welcome';
+  if (getIsWeChat()) return 'wechat-warning';
+  if (canShowIOSPWAInstallGuide()) return 'pwa-install-guide';
+
+  return 'welcome';
+};
+
 const createInitialState = (): OnboardingState => ({
   isOpen: true,
-  step: 'welcome',
+  step: getInitialStep(),
   isCompleting: false,
   navigationSettings: normalizeNavigationSettings(
     defaultSettings.navigationSettings
@@ -230,6 +248,13 @@ const Onboarding: React.FC<OnboardingProps> = ({
     }
   };
 
+  const handleAcknowledgeIntroStep = () => {
+    dispatch({
+      type: 'go-to-step',
+      step: step === 'welcome' ? 'features' : 'welcome',
+    });
+  };
+
   return (
     <ActionDrawer
       isOpen={isOpen}
@@ -240,7 +265,39 @@ const Onboarding: React.FC<OnboardingProps> = ({
       onExitComplete={handleExitComplete}
     >
       <ActionDrawer.Switcher activeKey={step}>
-        {step === 'welcome' ? (
+        {step === 'wechat-warning' ? (
+          <div>
+            <ActionDrawer.Content className="mb-24!">
+              <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                不建议在微信内打开，请点右上角“…”选择“在浏览器打开”。
+              </p>
+            </ActionDrawer.Content>
+
+            <ActionDrawer.Actions>
+              <ActionDrawer.SecondaryButton
+                className="w-full"
+                onClick={handleAcknowledgeIntroStep}
+              >
+                知道了
+              </ActionDrawer.SecondaryButton>
+            </ActionDrawer.Actions>
+          </div>
+        ) : step === 'pwa-install-guide' ? (
+          <div>
+            <ActionDrawer.Content className="mb-24!">
+              <PWAInstallGuideContent />
+            </ActionDrawer.Content>
+
+            <ActionDrawer.Actions>
+              <ActionDrawer.SecondaryButton
+                className="w-full"
+                onClick={handleAcknowledgeIntroStep}
+              >
+                知道了
+              </ActionDrawer.SecondaryButton>
+            </ActionDrawer.Actions>
+          </div>
+        ) : step === 'welcome' ? (
           <div>
             <div className="mb-6 flex flex-col items-start gap-6">
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[1.125rem]">
@@ -278,14 +335,12 @@ const Onboarding: React.FC<OnboardingProps> = ({
             </ActionDrawer.Content>
 
             <ActionDrawer.Actions>
-              <ActionDrawer.PrimaryButton
+              <ActionDrawer.SecondaryButton
                 className="w-full"
-                onClick={() =>
-                  dispatch({ type: 'go-to-step', step: 'features' })
-                }
+                onClick={handleAcknowledgeIntroStep}
               >
                 继续
-              </ActionDrawer.PrimaryButton>
+              </ActionDrawer.SecondaryButton>
             </ActionDrawer.Actions>
           </div>
         ) : (
@@ -333,13 +388,13 @@ const Onboarding: React.FC<OnboardingProps> = ({
             </ActionDrawer.Content>
 
             <ActionDrawer.Actions>
-              <ActionDrawer.PrimaryButton
+              <ActionDrawer.SecondaryButton
                 className="w-full"
                 onClick={handleComplete}
                 disabled={isCompleting}
               >
                 开始使用
-              </ActionDrawer.PrimaryButton>
+              </ActionDrawer.SecondaryButton>
             </ActionDrawer.Actions>
           </div>
         )}

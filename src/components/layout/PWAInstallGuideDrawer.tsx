@@ -2,7 +2,7 @@
 
 import React from 'react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
-import { SquarePlus, X } from 'lucide-react';
+import { SquarePlus } from 'lucide-react';
 
 interface PWAInstallGuideDrawerProps {
   isOpen: boolean;
@@ -28,68 +28,76 @@ const IOSShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+export const PWAInstallGuideContent: React.FC = () => {
+  const stepNumberClass =
+    'ml-3 mr-6 inline-flex w-[1ch] justify-center text-4xl leading-none font-medium tabular-nums text-neutral-500 dark:text-neutral-400';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-2xl font-medium text-neutral-900 dark:text-neutral-100">
+          安装 iOS PWA 应用
+        </p>
+      </div>
+
+      <div className="space-y-7">
+        <div className="flex">
+          <span className={stepNumberClass}>1</span>
+          <div className="space-y-2">
+            <div className="-mt-1 inline-flex items-center rounded-full bg-neutral-900 p-3.5 dark:bg-neutral-100">
+              <IOSShareIcon className="h-5 w-5 text-neutral-100 dark:text-neutral-800" />
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-200">
+              按下屏幕底部的这个按钮
+            </p>
+          </div>
+        </div>
+
+        <div className="flex">
+          <span className={stepNumberClass}>2</span>
+          <div className="space-y-2">
+            <div className="-mt-1 inline-flex items-center gap-2 rounded-full bg-neutral-900 p-3.5 text-sm font-semibold text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900">
+              <SquarePlus className="h-5 w-5 stroke-[1.5] text-neutral-100 dark:text-neutral-800" />
+              <span className="text-neutral-100 dark:text-neutral-900">
+                添加到主屏幕
+              </span>
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-200">
+              从菜单中按下此按钮
+            </p>
+          </div>
+        </div>
+
+        <div className="flex">
+          <span className={stepNumberClass}>3</span>
+          <div className="space-y-2">
+            <div className="-mt-1 inline-flex h-12 items-center gap-2 rounded-full bg-neutral-900 p-3.5 text-sm leading-none font-semibold text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900">
+              <span className="text-neutral-100 dark:text-neutral-900">
+                添加
+              </span>
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-200">
+              按下右上角的这个按钮
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PWAInstallGuideDrawer: React.FC<PWAInstallGuideDrawerProps> = ({
   isOpen,
   onClose,
 }) => {
-  const stepNumberClass =
-    'ml-3 mr-6 inline-flex w-[1ch] justify-center text-4xl leading-none font-medium tabular-nums text-neutral-500 dark:text-neutral-400';
-
   return (
     <ActionDrawer
       isOpen={isOpen}
       onClose={onClose}
       historyId="pwa-install-guide-drawer"
     >
-      <ActionDrawer.Content className="mb-0! space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-2xl font-medium text-neutral-900 dark:text-neutral-100">
-            安装 iOS PWA 应用
-          </p>
-        </div>
-
-        <div className="space-y-7">
-          <div className="flex">
-            <span className={stepNumberClass}>1</span>
-            <div className="space-y-2">
-              <div className="-mt-1 inline-flex items-center rounded-full bg-neutral-900 p-3.5 dark:bg-neutral-100">
-                <IOSShareIcon className="h-5 w-5 text-neutral-100 dark:text-neutral-800" />
-              </div>
-              <p className="text-sm text-neutral-600 dark:text-neutral-200">
-                按下屏幕底部的这个按钮
-              </p>
-            </div>
-          </div>
-
-          <div className="flex">
-            <span className={stepNumberClass}>2</span>
-            <div className="space-y-2">
-              <div className="-mt-1 inline-flex items-center gap-2 rounded-full bg-neutral-900 p-3.5 text-sm font-semibold text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900">
-                <SquarePlus className="h-5 w-5 stroke-[1.5] text-neutral-100 dark:text-neutral-800" />
-                <span className="text-neutral-100 dark:text-neutral-900">
-                  添加到主屏幕
-                </span>
-              </div>
-              <p className="text-sm text-neutral-600 dark:text-neutral-200">
-                从菜单中按下此按钮
-              </p>
-            </div>
-          </div>
-
-          <div className="flex">
-            <span className={stepNumberClass}>3</span>
-            <div className="space-y-2">
-              <div className="-mt-1 inline-flex h-12 items-center gap-2 rounded-full bg-neutral-900 p-3.5 text-sm leading-none font-semibold text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900">
-                <span className="text-neutral-100 dark:text-neutral-900">
-                  添加
-                </span>
-              </div>
-              <p className="text-sm text-neutral-600 dark:text-neutral-200">
-                按下右上角的这个按钮
-              </p>
-            </div>
-          </div>
-        </div>
+      <ActionDrawer.Content className="mb-0!">
+        <PWAInstallGuideContent />
       </ActionDrawer.Content>
     </ActionDrawer>
   );
