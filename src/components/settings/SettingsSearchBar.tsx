@@ -121,8 +121,10 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
         }`}
       >
         <div className="flex items-center gap-2">
-          <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-black/5 bg-neutral-100/95 px-4 shadow-lg shadow-black/5 backdrop-blur-xl dark:border-white/5 dark:bg-neutral-800/95 dark:shadow-black/20">
-            <Search className="size-4 shrink-0 text-neutral-400 dark:text-neutral-500" />
+          <div className="flex h-11 min-w-0 flex-1 items-center gap-[7px] rounded-full border border-black/5 bg-neutral-100/95 pr-4 pl-[7px] shadow-lg shadow-black/5 backdrop-blur-xl dark:border-white/5 dark:bg-neutral-800/95 dark:shadow-black/20">
+            <span className="flex size-7 shrink-0 items-center justify-center">
+              <Search className="size-4 text-neutral-400 dark:text-neutral-500" />
+            </span>
             <input
               ref={inputRef}
               value={query}
