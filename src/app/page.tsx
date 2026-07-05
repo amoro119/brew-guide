@@ -2347,8 +2347,13 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   ) => {
     try {
       // 尝试从文本中提取数据
-      const extractedData = await import('@/lib/utils/jsonUtils').then(
-        ({ extractJsonFromText }) => extractJsonFromText(jsonData)
+      const [{ extractJsonFromText }, { normalizeRecognizedBeanPayload }] =
+        await Promise.all([
+          import('@/lib/utils/jsonUtils'),
+          import('@/lib/api/beanRecognition'),
+        ]);
+      const extractedData = normalizeRecognizedBeanPayload(
+        extractJsonFromText(jsonData)
       );
 
       if (!extractedData) {

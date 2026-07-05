@@ -197,6 +197,48 @@ describe('recognition image upload validation', () => {
     });
   });
 
+  it('deduplicates repeated blend components from model output', async () => {
+    mockModelResponse(
+      '{"name":"2026 瑰夏村 金标 Oma 157","blendComponents":[{"origin":"瑰夏村","process":"水洗","variety":"Oma 157"},{"variety":"Oma 157 Oma 157"}],"notes":"海拔2000m/批次1931"}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '2026 瑰夏村 金标 Oma 157',
+      beanType: 'filter',
+      blendComponents: [
+        { origin: '瑰夏村', process: '水洗', variety: 'Oma 157' },
+      ],
+      notes: '海拔2000m/批次1931',
+    });
+  });
+
+  it('prefers a named variety over a batch number when normalizing components', async () => {
+    mockModelResponse(
+      '{"name":"2026 瑰夏村 金标 Oma 157","blendComponents":[{"origin":"瑰夏村","process":"水洗","variety":"1931"}],"notes":"海拔2000m/烘焙机：Fuji Royal R105"}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '2026 瑰夏村 金标 Oma 157',
+      beanType: 'filter',
+      blendComponents: [
+        { origin: '瑰夏村', process: '水洗', variety: 'Oma 157' },
+      ],
+      notes: '海拔2000m/烘焙机：Fuji Royal R105',
+    });
+  });
+
   it('moves region text out of the name and drops advertising notes', async () => {
     mockModelResponse(
       '{"name":"Alo 西达摩 班莎 奇拉卡","notes":"540天锁鲜装","blendComponents":[{"origin":"埃塞俄比亚","process":"精致水洗","variety":"74158"}]}'

@@ -62,6 +62,7 @@ name 必填；roaster；capacity；remaining；price；roastDate；roastLevel；
 - beanType 只用 filter/espresso/omni；拼配、深烘或大包装通常为 espresso；标注全能为 omni；否则默认 filter。
 - flavor 为字符串数组。
 - blendComponents 必须是“对象数组”，严禁输出字符串数组；每个对象字段只能是 origin/estate/process/variety。批次和海拔不要放入 blendComponents，但咖啡品种编号如 74158 可以放入 variety。严禁写 blenderComponents、components、blend_components。
+- 只有明确拼配或多个产地/处理法时才输出多个 blendComponents；单品包装中品种单独成行时，合入同一个 component，不要为了品种另起 component。同一个品种不要重复成多个对象，也不要在 variety 中重复书写，例如 Oma 157 不要写成 "Oma 157 Oma 157"。Oma 157 这类字母+数字是品种；1931/批次1931 是批次，写入 notes。
 - 产地与处理法按图片表格或文本顺序一一配对；产地/处理法不要放入 notes。
 - notes 只放规范补充信息，例如批次、海拔、生豆商、系列；多条内容用 / 分隔；不要写物流、促销、包装技术、锁鲜技术、人物背书等广告信息。
 - 不编造，不输出上述字段以外的键。
@@ -408,7 +409,10 @@ function parseBeanResponse(aiText) {
 
     const normalizeNote = note => {
       if (Array.isArray(note)) {
-        return note.map(item => String(item).trim()).filter(Boolean).join('/');
+        return note
+          .map(item => String(item).trim())
+          .filter(Boolean)
+          .join('/');
       }
       return note;
     };
@@ -459,7 +463,9 @@ function parseBeanResponse(aiText) {
         return components;
       }
       if (components.every(item => item && typeof item === 'object')) {
-        return components.map(component => cleanValue(component, allowedComponentKeys));
+        return components.map(component =>
+          cleanValue(component, allowedComponentKeys)
+        );
       }
       const values = components
         .filter(item => typeof item === 'string')
@@ -519,6 +525,127 @@ function parseBeanResponse(aiText) {
       });
     };
 
+    const normalizeBlendComponentDuplicates = target => {
+      if (!Array.isArray(target.blendComponents)) return;
+
+      const componentFields = ['origin', 'estate', 'process', 'variety'];
+      const normalizeComponentText = value =>
+        typeof value === 'string'
+          ? value.replace(/\s+/g, ' ').trim().toLowerCase()
+          : '';
+      const collapseRepeatedText = value => {
+        const normalized = value.replace(/\s+/g, ' ').trim();
+        const tokens = normalized.split(' ');
+        if (tokens.length < 2 || tokens.length % 2 !== 0) return normalized;
+
+        const midpoint = tokens.length / 2;
+        const first = tokens.slice(0, midpoint).join(' ');
+        const second = tokens.slice(midpoint).join(' ');
+        return first.toLowerCase() === second.toLowerCase()
+          ? first
+          : normalized;
+      };
+      const extractNamedVarietyFromName = name => {
+        if (typeof name !== 'string') return '';
+        const match = name.match(/\b((?:Oma|SL)\s*-?\s*\d{2,4})\b/i);
+        return match
+          ? match[1]
+              .replace(/\s*-\s*/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+          : '';
+      };
+      const namedVariety = extractNamedVarietyFromName(target.name);
+
+      const getComponentKeys = component =>
+        componentFields.filter(key => {
+          const value = component?.[key];
+          return typeof value === 'string' && value.trim();
+        });
+
+      const components = target.blendComponents
+        .map(component =>
+          component && typeof component === 'object'
+            ? cleanValue(component, allowedComponentKeys)
+            : component
+        )
+        .filter(component => component && typeof component === 'object')
+        .map(component => {
+          const next = { ...component };
+          if (typeof next.variety === 'string') {
+            next.variety = collapseRepeatedText(next.variety);
+          }
+          if (
+            namedVariety &&
+            /^\d{4,6}$/.test(normalizeComponentText(next.variety))
+          ) {
+            next.variety = namedVariety;
+          }
+          return next;
+        });
+
+      const removedIndexes = new Set();
+
+      components.forEach((component, index) => {
+        const componentKeys = getComponentKeys(component);
+        if (componentKeys.length !== 1 || componentKeys[0] !== 'variety') {
+          return;
+        }
+
+        const variety = component.variety;
+        const normalizedVariety = normalizeComponentText(variety);
+        const duplicatedByCompleteComponent = components.some(
+          (candidate, candidateIndex) =>
+            candidateIndex !== index &&
+            !removedIndexes.has(candidateIndex) &&
+            normalizeComponentText(candidate.variety) === normalizedVariety &&
+            getComponentKeys(candidate).some(key => key !== 'variety')
+        );
+
+        if (duplicatedByCompleteComponent) {
+          removedIndexes.add(index);
+          return;
+        }
+
+        const mergeTargets = components
+          .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+          .filter(
+            ({ candidate, candidateIndex }) =>
+              candidateIndex !== index &&
+              !removedIndexes.has(candidateIndex) &&
+              !candidate.variety &&
+              getComponentKeys(candidate).some(key => key !== 'variety')
+          );
+
+        if (mergeTargets.length === 1) {
+          mergeTargets[0].candidate.variety = variety;
+          removedIndexes.add(index);
+        }
+      });
+
+      const seenSignatures = new Set();
+      const normalizedComponents = components.filter((component, index) => {
+        if (removedIndexes.has(index)) return false;
+
+        const componentKeys = getComponentKeys(component);
+        if (componentKeys.length === 0) return false;
+
+        const signature = componentKeys
+          .map(key => `${key}:${normalizeComponentText(component[key])}`)
+          .join('|');
+        if (seenSignatures.has(signature)) return false;
+
+        seenSignatures.add(signature);
+        return true;
+      });
+
+      if (normalizedComponents.length > 0) {
+        target.blendComponents = normalizedComponents;
+      } else {
+        delete target.blendComponents;
+      }
+    };
+
     const moveRegionalNotesToOrigin = target => {
       if (
         typeof target.notes !== 'string' ||
@@ -548,7 +675,10 @@ function parseBeanResponse(aiText) {
       const regionMatch = target.name.match(/(西达摩\s*班莎|古吉\s*罕贝拉)/);
       if (!regionMatch) return;
       const region = regionMatch[1].replace(/\s+/g, ' ');
-      target.name = target.name.replace(regionMatch[1], '').replace(/\s+/g, ' ').trim();
+      target.name = target.name
+        .replace(regionMatch[1], '')
+        .replace(/\s+/g, ' ')
+        .trim();
       const component = target.blendComponents[0];
       if (!String(component.origin || '').includes(region)) {
         component.origin = [component.origin, region]
@@ -569,13 +699,14 @@ function parseBeanResponse(aiText) {
     };
 
     const moveGreenBeanMerchantOutOfRoaster = target => {
-      if (typeof target.roaster !== 'string' || !/裂豆师/.test(target.roaster)) {
+      if (
+        typeof target.roaster !== 'string' ||
+        !/裂豆师/.test(target.roaster)
+      ) {
         return;
       }
       const note = '生豆商：裂豆师';
-      target.notes = target.notes
-        ? `${target.notes}/${note}`
-        : note;
+      target.notes = target.notes ? `${target.notes}/${note}` : note;
       delete target.roaster;
     };
 
@@ -597,6 +728,7 @@ function parseBeanResponse(aiText) {
       bean.blendComponents = normalizeFlatComponents(bean.blendComponents);
     }
     normalizeComponentLocations(bean);
+    normalizeBlendComponentDuplicates(bean);
     extractVarietyFromNotes(bean);
     if (bean.notes) {
       bean.notes = normalizeAltitudeNote(normalizeNote(bean.notes));

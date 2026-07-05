@@ -6,9 +6,7 @@ import {
 } from './shared/recognition';
 
 export const DEFAULT_BEAN_RECOGNITION_MODEL = 'doubao-seed-2.0-mini';
-const DEPRECATED_BEAN_RECOGNITION_MODELS = new Set([
-  'qwen-vl-max-2025-01-25',
-]);
+const DEPRECATED_BEAN_RECOGNITION_MODELS = new Set(['qwen-vl-max-2025-01-25']);
 const BEAN_RECOGNITION_MAX_TOKENS = 1200;
 
 export const DEFAULT_BEAN_RECOGNITION_PROMPT = `任务：从咖啡豆包装图片提取可见文字信息，返回可导入JSON。
@@ -29,6 +27,7 @@ name 必填；roaster；capacity；remaining；price；roastDate；roastLevel；
 - beanType 只用 filter/espresso/omni；拼配、深烘或大包装通常为 espresso；标注全能为 omni；否则默认 filter。
 - flavor 为字符串数组。
 - blendComponents 必须是“对象数组”，严禁输出字符串数组；每个对象字段只能是 origin/estate/process/variety。批次和海拔不要放入 blendComponents，但咖啡品种编号如 74158 可以放入 variety。严禁写 blenderComponents、components、blend_components。
+- 只有明确拼配或多个产地/处理法时才输出多个 blendComponents；单品包装中品种单独成行时，合入同一个 component，不要为了品种另起 component。同一个品种不要重复成多个对象，也不要在 variety 中重复书写，例如 Oma 157 不要写成 "Oma 157 Oma 157"。Oma 157 这类字母+数字是品种；1931/批次1931 是批次，写入 notes。
 - 产地与处理法按图片表格或文本顺序一一配对；产地/处理法不要放入 notes。
 - notes 只放规范补充信息，例如批次、海拔、生豆商、系列；多条内容用 / 分隔；不要写物流、促销、包装技术、锁鲜技术、人物背书等广告信息。
 - 不编造，不输出上述字段以外的键。
@@ -78,6 +77,155 @@ function extractJsonPayload(raw: string): unknown {
     content = content.replace(/^```\s*/, '').replace(/\s*```$/, '');
   }
   return JSON.parse(content);
+}
+
+type RecognizedBeanRecord = Record<string, unknown>;
+const BLEND_COMPONENT_FIELDS = [
+  'origin',
+  'estate',
+  'process',
+  'variety',
+] as const;
+
+function isRecord(value: unknown): value is RecognizedBeanRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeComponentText(value: unknown): string {
+  return typeof value === 'string'
+    ? value.replace(/\s+/g, ' ').trim().toLowerCase()
+    : '';
+}
+
+function collapseRepeatedText(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const tokens = normalized.split(' ');
+  if (tokens.length < 2 || tokens.length % 2 !== 0) return normalized;
+
+  const midpoint = tokens.length / 2;
+  const first = tokens.slice(0, midpoint).join(' ');
+  const second = tokens.slice(midpoint).join(' ');
+  return first.toLowerCase() === second.toLowerCase() ? first : normalized;
+}
+
+function extractNamedVarietyFromName(name: unknown): string {
+  if (typeof name !== 'string') return '';
+  const match = name.match(/\b((?:Oma|SL)\s*-?\s*\d{2,4})\b/i);
+  return match
+    ? match[1]
+        .replace(/\s*-\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : '';
+}
+
+function getComponentKeys(component: RecognizedBeanRecord): string[] {
+  return BLEND_COMPONENT_FIELDS.filter(key => {
+    const value = component[key];
+    return typeof value === 'string' && value.trim();
+  });
+}
+
+function normalizeBlendComponentDuplicates(
+  components: unknown,
+  beanName?: unknown
+): RecognizedBeanRecord[] | undefined {
+  if (!Array.isArray(components)) return undefined;
+
+  const namedVariety = extractNamedVarietyFromName(beanName);
+  const nextComponents = components.filter(isRecord).map(component => {
+    const next = { ...component };
+    if (typeof next.variety === 'string') {
+      next.variety = collapseRepeatedText(next.variety);
+    }
+    if (
+      namedVariety &&
+      /^\d{4,6}$/.test(normalizeComponentText(next.variety))
+    ) {
+      next.variety = namedVariety;
+    }
+    return next;
+  });
+  const removedIndexes = new Set<number>();
+
+  nextComponents.forEach((component, index) => {
+    const componentKeys = getComponentKeys(component);
+    if (componentKeys.length !== 1 || componentKeys[0] !== 'variety') {
+      return;
+    }
+
+    const variety = component.variety;
+    const normalizedVariety = normalizeComponentText(variety);
+    const duplicatedByCompleteComponent = nextComponents.some(
+      (candidate, candidateIndex) =>
+        candidateIndex !== index &&
+        !removedIndexes.has(candidateIndex) &&
+        normalizeComponentText(candidate.variety) === normalizedVariety &&
+        getComponentKeys(candidate).some(key => key !== 'variety')
+    );
+
+    if (duplicatedByCompleteComponent) {
+      removedIndexes.add(index);
+      return;
+    }
+
+    const mergeTargets = nextComponents
+      .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+      .filter(
+        ({ candidate, candidateIndex }) =>
+          candidateIndex !== index &&
+          !removedIndexes.has(candidateIndex) &&
+          !candidate.variety &&
+          getComponentKeys(candidate).some(key => key !== 'variety')
+      );
+
+    if (mergeTargets.length === 1) {
+      mergeTargets[0].candidate.variety = variety;
+      removedIndexes.add(index);
+    }
+  });
+
+  const seenSignatures = new Set<string>();
+  const normalizedComponents = nextComponents.filter((component, index) => {
+    if (removedIndexes.has(index)) return false;
+
+    const componentKeys = getComponentKeys(component);
+    if (componentKeys.length === 0) return false;
+
+    const signature = componentKeys
+      .map(key => `${key}:${normalizeComponentText(component[key])}`)
+      .join('|');
+    if (seenSignatures.has(signature)) return false;
+
+    seenSignatures.add(signature);
+    return true;
+  });
+
+  return normalizedComponents.length > 0 ? normalizedComponents : undefined;
+}
+
+function normalizeRecognizedBean(bean: unknown): unknown {
+  if (!isRecord(bean)) return bean;
+
+  const normalizedBean = { ...bean };
+  const blendComponents = normalizeBlendComponentDuplicates(
+    normalizedBean.blendComponents,
+    normalizedBean.name
+  );
+
+  if (blendComponents) {
+    normalizedBean.blendComponents = blendComponents;
+  } else if (Array.isArray(normalizedBean.blendComponents)) {
+    delete normalizedBean.blendComponents;
+  }
+
+  return normalizedBean;
+}
+
+export function normalizeRecognizedBeanPayload(payload: unknown): unknown {
+  return Array.isArray(payload)
+    ? payload.map(normalizeRecognizedBean)
+    : normalizeRecognizedBean(payload);
 }
 
 async function recognizeBeanImageWithCustomAPI(
@@ -135,7 +283,7 @@ async function recognizeBeanImageWithCustomAPI(
 
     const content = result?.choices?.[0]?.message?.content;
     if (typeof content === 'string' && content.trim()) {
-      return extractJsonPayload(content);
+      return normalizeRecognizedBeanPayload(extractJsonPayload(content));
     }
     if (Array.isArray(content)) {
       const merged = content
@@ -143,16 +291,16 @@ async function recognizeBeanImageWithCustomAPI(
         .join('')
         .trim();
       if (merged) {
-        return extractJsonPayload(merged);
+        return normalizeRecognizedBeanPayload(extractJsonPayload(merged));
       }
     }
 
     if (result?.data !== undefined) {
-      return result.data;
+      return normalizeRecognizedBeanPayload(result.data);
     }
 
     if (Array.isArray(result) || (result && typeof result === 'object')) {
-      return result;
+      return normalizeRecognizedBeanPayload(result);
     }
 
     throw new Error('实验性识别返回格式不支持，请检查 API 兼容性');
@@ -210,7 +358,7 @@ export async function recognizeBeanImage(
       throw new Error(result.error || '识别失败');
     }
 
-    return result.data;
+    return normalizeRecognizedBeanPayload(result.data);
   } catch (error) {
     if (error instanceof Error && error.message.includes('404')) {
       throw new Error('API 服务未配置，请检查 EdgeOne Functions 部署状态');
