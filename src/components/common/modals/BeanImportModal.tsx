@@ -319,6 +319,8 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         settings?.experimentalBeanRecognitionModel,
       ]
     );
+  const isDrawerDismissible =
+    currentStep !== 'camera-preview' && currentStep !== 'recognizing';
 
   const stopCamera = useCallback(() => {
     activeCameraPointersRef.current.clear();
@@ -1171,6 +1173,10 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
 
   // 关闭时重置状态
   const handleClose = useCallback(() => {
+    if (!isDrawerDismissible) {
+      return;
+    }
+
     stopCamera();
     setCurrentStep('main');
     setJsonInputValue('');
@@ -1180,7 +1186,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
       setRecognizingImageUrl(null);
     }
     onClose();
-  }, [onClose, recognizingImageUrl, stopCamera]);
+  }, [isDrawerDismissible, onClose, recognizingImageUrl, stopCamera]);
 
   // 主界面内容
   const mainContent = (
@@ -1742,7 +1748,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         onClose={handleClose}
         onExitComplete={resetImportState}
         historyId="bean-import"
-        dismissible={currentStep !== 'camera-preview'}
+        dismissible={isDrawerDismissible}
       >
         <ActionDrawer.Switcher activeKey={currentStep}>
           {renderContent()}
