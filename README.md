@@ -2,7 +2,7 @@
 
 Brew Guide 是一个面向精品咖啡爱好者的开源应用，聚焦冲煮辅助、库存管理与品鉴记录等实际需求。
 
-[在线体验](https://coffee.chu3.top/) · [下载与安装](https://chu3.top/brewguide) · [更新日志](https://chu3.top/notes/brew-guide-changelog) · [帮助文档](https://chu3.top/brewguide-help)
+[在线体验](https://coffee.chu3.top/) · [下载与安装](https://chu3.top/brewguide) · [更新日志](https://chu3.top/brewguide/changelog) · [帮助文档](https://chu3.top/brewguide-help)
 
 ![应用截图](https://pic1.imgdb.cn/item/6913fbc43203f7be00f6dedd.png)
 
