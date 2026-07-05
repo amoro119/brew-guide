@@ -2,6 +2,7 @@ import type { CustomEquipment, Method } from '@/lib/core/config';
 import { commonMethods, equipmentList } from '@/lib/core/config';
 import type { SettingsOptions } from '@/lib/core/db';
 import type { Grinder } from '@/lib/stores/grinderStore';
+import type { LucideIcon } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
 import {
   CONFIGURABLE_COFFEE_BEAN_VIEW_ORDER,
@@ -47,11 +48,22 @@ export interface SettingsSearchTarget {
 export interface SettingsSearchItem extends SettingsSearchTarget {
   id: string;
   label: string;
+  icon?: LucideIcon;
   value?: string;
   description?: string;
   groupLabel?: string;
+  entryPath?: string[];
   keywords?: string[];
 }
+
+export interface SettingsSearchEntryMetadata {
+  label: string;
+  icon?: LucideIcon;
+}
+
+export type SettingsSearchEntryMetadataMap = Partial<
+  Record<SettingsSearchPageId, SettingsSearchEntryMetadata>
+>;
 
 interface BuildSettingsSearchItemsOptions {
   settings: SettingsOptions;
@@ -107,9 +119,11 @@ const buildSettingsSearchText = (item: SettingsSearchItem) =>
       item.value,
       item.description,
       item.groupLabel,
+      ...(item.entryPath || []),
       ...(item.keywords || []),
       getPinyinText(item.label),
       item.groupLabel ? getPinyinText(item.groupLabel) : '',
+      ...(item.entryPath || []).map(getPinyinText),
       ...(item.keywords || []).map(getPinyinText),
     ]
       .filter(Boolean)
@@ -129,13 +143,41 @@ export const filterSettingsSearchItems = (
   });
 };
 
+const buildEntryPath = (
+  entryLabel: string | undefined,
+  groupLabel: string | undefined
+) => {
+  if (!entryLabel) return groupLabel ? [groupLabel] : undefined;
+  if (!groupLabel || entryLabel === groupLabel) return [entryLabel];
+  if (entryLabel.includes(groupLabel) || groupLabel.includes(entryLabel)) {
+    return [entryLabel];
+  }
+  return [entryLabel, groupLabel];
+};
+
+export const applySettingsSearchEntryMetadata = (
+  items: SettingsSearchItem[],
+  metadata: SettingsSearchEntryMetadataMap
+) =>
+  items.map(item => {
+    const entry = metadata[item.pageId];
+    return {
+      ...item,
+      icon: item.icon ?? entry?.icon,
+      entryPath:
+        item.entryPath ?? buildEntryPath(entry?.label, item.groupLabel),
+    };
+  });
+
 const createItem = ({
   pageId,
   settingId,
   label,
+  icon,
   value,
   description,
   groupLabel,
+  entryPath,
   keywords,
 }: SearchItemInput): SettingsSearchItem => {
   const resolvedSettingId = settingId ?? makeSettingRowSearchId(label);
@@ -144,9 +186,11 @@ const createItem = ({
     pageId,
     settingId: resolvedSettingId,
     label,
+    icon,
     value,
     description,
     groupLabel,
+    entryPath,
     keywords,
   };
 };

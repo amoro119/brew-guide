@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { SettingsSearchItem } from './settingsSearch';
 
 interface SettingsSearchResultsProps {
@@ -11,27 +11,6 @@ interface SettingsSearchResultsProps {
   onSelect: (item: SettingsSearchItem) => void;
 }
 
-const groupSearchResults = (items: SettingsSearchItem[]) => {
-  const groups: Array<{ label: string; items: SettingsSearchItem[] }> = [];
-  const groupMap = new Map<string, SettingsSearchItem[]>();
-
-  items.forEach(item => {
-    const label = item.groupLabel || '结果';
-    const groupItems = groupMap.get(label);
-
-    if (groupItems) {
-      groupItems.push(item);
-      return;
-    }
-
-    const nextGroupItems = [item];
-    groupMap.set(label, nextGroupItems);
-    groups.push({ label, items: nextGroupItems });
-  });
-
-  return groups;
-};
-
 const SettingsSearchResultRow: React.FC<{
   item: SettingsSearchItem;
   isLast: boolean;
@@ -40,6 +19,8 @@ const SettingsSearchResultRow: React.FC<{
   const selectSearchResult = React.useCallback(() => {
     onSelect(item);
   }, [item, onSelect]);
+  const Icon = item.icon ?? Search;
+  const entryPath = item.entryPath?.join(' → ');
 
   return (
     <button
@@ -49,7 +30,7 @@ const SettingsSearchResultRow: React.FC<{
     >
       <div className="flex items-center pr-[7px]">
         <div className="flex size-7 items-center justify-center rounded-md bg-neutral-200/30 dark:bg-neutral-700/10">
-          <Search className="size-4 stroke-[1.75px] text-neutral-500 dark:text-neutral-400" />
+          <Icon className="size-4 stroke-[1.5px] text-neutral-600 dark:text-neutral-300" />
         </div>
       </div>
 
@@ -60,20 +41,11 @@ const SettingsSearchResultRow: React.FC<{
       >
         <div className="flex min-w-0 flex-col items-start gap-0.5">
           <span className="max-w-full truncate leading-none">{item.label}</span>
-          {(item.description || item.value) && (
+          {entryPath && (
             <span className="max-w-full truncate text-xs font-normal text-neutral-400 dark:text-neutral-500">
-              {item.description || item.value}
+              {entryPath}
             </span>
           )}
-        </div>
-
-        <div className="ml-4 flex shrink-0 items-center gap-2">
-          {item.value && item.description && (
-            <span className="text-sm text-neutral-400 dark:text-neutral-500">
-              {item.value}
-            </span>
-          )}
-          <ChevronRight className="size-4 text-neutral-400/60" />
         </div>
       </div>
     </button>
@@ -87,10 +59,6 @@ const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
   onSelect,
 }) => {
   const trimmedQuery = query.trim();
-  const groupedResults = React.useMemo(
-    () => groupSearchResults(results),
-    [results]
-  );
 
   if (!trimmedQuery) {
     return null;
@@ -107,24 +75,17 @@ const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
   }
 
   return (
-    <div className="pt-2 pb-8">
-      {groupedResults.map(group => (
-        <div key={group.label} className={`${paddingClass} pb-5`}>
-          <h3 className="mb-2 px-2 text-xs font-semibold tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            {group.label}
-          </h3>
-          <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800/40">
-            {group.items.map((item, index) => (
-              <SettingsSearchResultRow
-                key={item.id}
-                item={item}
-                isLast={index === group.items.length - 1}
-                onSelect={onSelect}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className={`${paddingClass} pt-2 pb-8`}>
+      <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800/40">
+        {results.map((item, index) => (
+          <SettingsSearchResultRow
+            key={item.id}
+            item={item}
+            isLast={index === results.length - 1}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
     </div>
   );
 };

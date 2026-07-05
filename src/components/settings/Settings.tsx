@@ -29,8 +29,10 @@ import SettingGroup, { type SettingItemData } from './SettingItem';
 import SettingsSearchBar from './SettingsSearchBar';
 import SettingsSearchResults from './SettingsSearchResults';
 import {
+  applySettingsSearchEntryMetadata,
   buildSettingsSearchItems,
   filterSettingsSearchItems,
+  type SettingsSearchEntryMetadataMap,
   type SettingsSearchItem,
   type SettingsSearchPageId,
   type SettingsSearchTarget,
@@ -692,7 +694,7 @@ const Settings: React.FC<SettingsProps> = ({
       onClick: subSettingsHandlers.onOpenAboutSettings,
     },
   ];
-  const settingsHomeSearchItems: SettingsSearchItem[] = [
+  const settingsEntryGroups = [
     {
       groupLabel: '显示与界面',
       items: interfaceSettingsItems,
@@ -709,37 +711,60 @@ const Settings: React.FC<SettingsProps> = ({
       groupLabel: '关于',
       items: aboutSettingsItems,
     },
-  ].flatMap(group =>
-    group.items
-      .filter(
-        (
-          item
-        ): item is SettingItemData & {
-          settingId: SettingsSearchPageId;
-        } => Boolean(item.settingId)
-      )
-      .map(item => ({
-        id: `settings-entry:${item.settingId}`,
-        pageId: item.settingId,
-        settingId: item.settingId,
-        label: item.label,
-        value: item.value,
-        description: item.description,
-        groupLabel: group.groupLabel,
-      }))
-  );
-  const settingsSearchItems = [
-    ...settingsHomeSearchItems,
-    ...buildSettingsSearchItems({
-      settings: settings as SettingsOptions,
-      visibleModules: navigationState.visibleTabs,
-      hasVisibleNotificationSettings,
-      beans,
-      customEquipments,
-      customMethodsByEquipment,
-      grinders,
-    }),
   ];
+  const settingsSearchEntryMetadata =
+    settingsEntryGroups.reduce<SettingsSearchEntryMetadataMap>(
+      (metadata, group) => {
+        group.items.forEach(item => {
+          if (item.settingId) {
+            metadata[item.settingId as SettingsSearchPageId] = {
+              label: item.label,
+              icon: item.icon,
+            };
+          }
+        });
+        return metadata;
+      },
+      {}
+    );
+  const settingsHomeSearchItems: SettingsSearchItem[] =
+    settingsEntryGroups.flatMap(group =>
+      group.items
+        .filter(
+          (
+            item
+          ): item is SettingItemData & {
+            settingId: SettingsSearchPageId;
+          } => Boolean(item.settingId)
+        )
+        .map(item => ({
+          id: `settings-entry:${item.settingId}`,
+          pageId: item.settingId,
+          settingId: item.settingId,
+          label: item.label,
+          icon: item.icon,
+          value: item.value,
+          description: item.description,
+          groupLabel: group.groupLabel,
+          entryPath:
+            group.groupLabel === item.label ? undefined : [group.groupLabel],
+        }))
+    );
+  const settingsSearchItems = applySettingsSearchEntryMetadata(
+    [
+      ...settingsHomeSearchItems,
+      ...buildSettingsSearchItems({
+        settings: settings as SettingsOptions,
+        visibleModules: navigationState.visibleTabs,
+        hasVisibleNotificationSettings,
+        beans,
+        customEquipments,
+        customMethodsByEquipment,
+        grinders,
+      }),
+    ],
+    settingsSearchEntryMetadata
+  );
   const settingsSearchResults = filterSettingsSearchItems(
     settingsSearchItems,
     settingsSearchQuery
