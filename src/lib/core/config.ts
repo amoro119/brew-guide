@@ -1625,4 +1625,5 @@ export const sponsorsList = [
   'Ray',
   'Jennia',
   '王杰',
+  '🍉吐司',
 ];

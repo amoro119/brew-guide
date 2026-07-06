@@ -2,11 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import {
-  APP_VERSION,
-  sponsorsList,
-  type CustomEquipment,
-} from '@/lib/core/config';
+import { APP_VERSION, type CustomEquipment } from '@/lib/core/config';
 import { getVersionLabel } from '@/lib/core/buildInfo';
 import { pinyin } from 'pinyin-pro';
 import hapticsUtils from '@/lib/ui/haptics';
@@ -46,6 +42,7 @@ import { useGrinderStore } from '@/lib/stores/grinderStore';
 import { deriveNavigationSettings } from '@/lib/navigation/navigationSettings';
 import { buildSettingsFeatureGroups } from './settingsFeatureRegistry';
 import { getNotificationSettingsVisibility } from './notificationSettingsVisibility';
+import { useSponsorsList } from '@/lib/sponsors/useSponsorsList';
 
 import { useTheme } from 'next-themes';
 import {
@@ -181,7 +178,11 @@ const settingsFeatureGroupLabels: Record<string, string> = {
 
 // 赞助者名单组件
 function SponsorList() {
-  const grouped = useMemo(() => groupByFirstLetter(sponsorsList), []);
+  const sponsorsList = useSponsorsList();
+  const grouped = useMemo(
+    () => groupByFirstLetter(sponsorsList),
+    [sponsorsList]
+  );
 
   return (
     <div className="mt-8 divide-y divide-neutral-100 dark:divide-neutral-800">
