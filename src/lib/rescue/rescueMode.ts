@@ -23,7 +23,16 @@ interface RescueExportData {
 }
 
 const CUSTOM_PRESETS_PREFIX = 'brew-guide:custom-presets:';
-const CUSTOM_PRESETS_KEYS = ['origins', 'estates', 'processes', 'varieties'];
+const CUSTOM_PRESETS_KEYS = [
+  'origins',
+  'countries',
+  'regions',
+  'estates',
+  'altitudes',
+  'processes',
+  'batches',
+  'varieties',
+];
 
 const formatDateWithTimezone = (date: Date): string => {
   const pad = (num: number) => num.toString().padStart(2, '0');

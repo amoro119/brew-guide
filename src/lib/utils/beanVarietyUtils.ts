@@ -270,6 +270,23 @@ export const getBeanOrigins = (bean: CoffeeBean): string[] => {
 export const getBeanOriginSummaries = (bean: CoffeeBean): string[] =>
   getBeanComponentFieldValues(bean, 'origin');
 
+export const extractUniqueOriginSummaries = (beans: CoffeeBean[]): string[] => {
+  const originCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanOriginSummaries(bean).forEach(origin => {
+      originCount.set(origin, (originCount.get(origin) || 0) + 1);
+    });
+  });
+
+  return Array.from(originCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
+};
+
 /**
  * 获取咖啡豆的结构化产国信息；不会从旧 origin 推断。
  */
@@ -295,6 +312,57 @@ export const extractUniqueCountries = (beans: CoffeeBean[]): string[] => {
   });
 
   return Array.from(countryCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
+};
+
+export const extractUniqueRegions = (beans: CoffeeBean[]): string[] => {
+  const regionCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanRegions(bean).forEach(region => {
+      regionCount.set(region, (regionCount.get(region) || 0) + 1);
+    });
+  });
+
+  return Array.from(regionCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
+};
+
+export const extractUniqueAltitudes = (beans: CoffeeBean[]): string[] => {
+  const altitudeCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanAltitudes(bean).forEach(altitude => {
+      altitudeCount.set(altitude, (altitudeCount.get(altitude) || 0) + 1);
+    });
+  });
+
+  return Array.from(altitudeCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
+};
+
+export const extractUniqueBatches = (beans: CoffeeBean[]): string[] => {
+  const batchCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanBatches(bean).forEach(batch => {
+      batchCount.set(batch, (batchCount.get(batch) || 0) + 1);
+    });
+  });
+
+  return Array.from(batchCount.entries())
     .sort((a, b) => {
       if (a[1] !== b[1]) return b[1] - a[1];
       return a[0].localeCompare(b[0], 'zh-CN');

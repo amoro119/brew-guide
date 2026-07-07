@@ -548,8 +548,12 @@ const isBrowser = typeof window !== 'undefined';
 // 从本地存储获取自定义预设
 export type CoffeeBeanPresetKey =
   | 'origins'
+  | 'countries'
+  | 'regions'
   | 'estates'
+  | 'altitudes'
   | 'processes'
+  | 'batches'
   | 'varieties'
   | 'roasters'
   | 'flavors'
@@ -557,7 +561,14 @@ export type CoffeeBeanPresetKey =
 
 export type BlendPresetKey = Extract<
   CoffeeBeanPresetKey,
-  'origins' | 'estates' | 'processes' | 'varieties'
+  | 'origins'
+  | 'countries'
+  | 'regions'
+  | 'estates'
+  | 'altitudes'
+  | 'processes'
+  | 'batches'
+  | 'varieties'
 >;
 
 const normalizePresetValue = (value: string) => value.trim();

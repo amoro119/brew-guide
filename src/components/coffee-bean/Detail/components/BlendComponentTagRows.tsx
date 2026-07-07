@@ -11,6 +11,7 @@ import {
   resolveBeanFieldConfig,
   type BeanFieldId,
 } from '@/lib/coffee-beans/beanFields';
+import type { BlendPresetKey } from '@/components/coffee-bean/Form/constants';
 
 type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
 
@@ -24,7 +25,7 @@ const fieldConfigs: Array<{
   field: TextBlendField;
   label: string;
   placeholder: string;
-  suggestionKey?: 'origins' | 'estates' | 'processes' | 'varieties';
+  suggestionKey?: BlendPresetKey;
 }> = [
   {
     field: 'origin',
@@ -36,13 +37,13 @@ const fieldConfigs: Array<{
     field: 'country',
     label: '产国',
     placeholder: '输入产国，逗号分隔',
-    suggestionKey: 'origins',
+    suggestionKey: 'countries',
   },
   {
     field: 'region',
     label: '产区',
     placeholder: '输入产区，逗号分隔',
-    suggestionKey: 'origins',
+    suggestionKey: 'regions',
   },
   {
     field: 'estate',
@@ -54,6 +55,7 @@ const fieldConfigs: Array<{
     field: 'altitude',
     label: '海拔',
     placeholder: '输入海拔，逗号分隔',
+    suggestionKey: 'altitudes',
   },
   {
     field: 'process',
@@ -65,6 +67,7 @@ const fieldConfigs: Array<{
     field: 'batch',
     label: '批次',
     placeholder: '输入批次，逗号分隔',
+    suggestionKey: 'batches',
   },
   {
     field: 'variety',

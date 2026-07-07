@@ -1,17 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import {
+  extractUniqueAltitudes,
+  extractUniqueBatches,
+  extractUniqueCountries,
   extractUniqueEstates,
-  extractUniqueOrigins,
+  extractUniqueOriginSummaries,
   extractUniqueProcesses,
+  extractUniqueRegions,
   extractUniqueVarieties,
 } from '@/lib/utils/beanVarietyUtils';
 import type { BlendComponent } from '@/types/app';
-import { getFullPresets, getVisiblePresetSuggestions } from '../constants';
+import {
+  getFullPresets,
+  getVisiblePresetSuggestions,
+  type BlendPresetKey,
+} from '../constants';
 
-type PresetKey = 'origins' | 'estates' | 'processes' | 'varieties';
 type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
-type BlendComponentSuggestions = Record<PresetKey, string[]>;
+type BlendComponentSuggestions = Record<BlendPresetKey, string[]>;
 type SuggestionMatch = {
   value: string;
   start: number;
@@ -21,11 +28,15 @@ type SuggestionMatch = {
 
 const suggestionFieldMap: Array<{
   field: TextBlendField;
-  suggestionKey: PresetKey;
+  suggestionKey: BlendPresetKey;
 }> = [
   { field: 'origin', suggestionKey: 'origins' },
+  { field: 'country', suggestionKey: 'countries' },
+  { field: 'region', suggestionKey: 'regions' },
   { field: 'estate', suggestionKey: 'estates' },
+  { field: 'altitude', suggestionKey: 'altitudes' },
   { field: 'process', suggestionKey: 'processes' },
+  { field: 'batch', suggestionKey: 'batches' },
   { field: 'variety', suggestionKey: 'varieties' },
 ];
 
@@ -40,7 +51,7 @@ const createEmptyBlendComponent = (): BlendComponent => ({
   variety: '',
 });
 
-const mergePresetSuggestions = (usedValues: string[], key: PresetKey) => {
+const mergePresetSuggestions = (usedValues: string[], key: BlendPresetKey) => {
   const presets = getFullPresets(key);
   return getVisiblePresetSuggestions(key, [
     ...usedValues,
@@ -272,7 +283,18 @@ export function useBlendComponentSuggestions() {
   }, []);
 
   const origins = useMemo(
-    () => mergePresetSuggestions(extractUniqueOrigins(beans), 'origins'),
+    () =>
+      mergePresetSuggestions(extractUniqueOriginSummaries(beans), 'origins'),
+    [beans, revision]
+  );
+
+  const countries = useMemo(
+    () => mergePresetSuggestions(extractUniqueCountries(beans), 'countries'),
+    [beans, revision]
+  );
+
+  const regions = useMemo(
+    () => mergePresetSuggestions(extractUniqueRegions(beans), 'regions'),
     [beans, revision]
   );
 
@@ -281,8 +303,18 @@ export function useBlendComponentSuggestions() {
     [beans, revision]
   );
 
+  const altitudes = useMemo(
+    () => mergePresetSuggestions(extractUniqueAltitudes(beans), 'altitudes'),
+    [beans, revision]
+  );
+
   const processes = useMemo(
     () => mergePresetSuggestions(extractUniqueProcesses(beans), 'processes'),
+    [beans, revision]
+  );
+
+  const batches = useMemo(
+    () => mergePresetSuggestions(extractUniqueBatches(beans), 'batches'),
     [beans, revision]
   );
 
@@ -293,8 +325,12 @@ export function useBlendComponentSuggestions() {
 
   return {
     origins,
+    countries,
+    regions,
     estates,
+    altitudes,
     processes,
+    batches,
     varieties,
     refresh,
   };

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CoffeeBean } from '@/types/app';
 import {
+  extractUniqueAltitudes,
+  extractUniqueBatches,
+  extractUniqueCountries,
+  extractUniqueOriginSummaries,
+  extractUniqueRegions,
   getBeanAltitudes,
   getBeanBatches,
   getBeanCountries,
@@ -37,5 +42,10 @@ describe('beanVarietyUtils structured bean fields', () => {
     expect(getBeanRegions(bean)).toEqual(['西达摩']);
     expect(getBeanAltitudes(bean)).toEqual(['2100m']);
     expect(getBeanBatches(bean)).toEqual(['A12']);
+    expect(extractUniqueOriginSummaries([bean])).toEqual(['埃塞俄比亚 西达摩']);
+    expect(extractUniqueCountries([bean])).toEqual(['埃塞俄比亚']);
+    expect(extractUniqueRegions([bean])).toEqual(['西达摩']);
+    expect(extractUniqueAltitudes([bean])).toEqual(['2100m']);
+    expect(extractUniqueBatches([bean])).toEqual(['A12']);
   });
 });

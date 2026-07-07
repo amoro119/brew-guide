@@ -164,8 +164,12 @@ const REMOTE_SELECT_PAGE_SIZE = 1000;
 export const PRESETS_PREFIX = 'brew-guide:custom-presets:';
 export const PRESETS_KEYS = [
   'origins',
+  'countries',
+  'regions',
   'estates',
+  'altitudes',
   'processes',
+  'batches',
   'varieties',
 ] as const;
 

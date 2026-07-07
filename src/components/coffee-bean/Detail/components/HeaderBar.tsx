@@ -13,6 +13,7 @@ import {
   DEFAULT_PROCESSES,
   DEFAULT_VARIETIES,
   addCustomPreset,
+  type BlendPresetKey,
 } from '@/components/coffee-bean/Form/constants';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import { formatBeanDisplayName } from '@/lib/utils/beanVarietyUtils';
@@ -165,7 +166,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
     try {
       // 保存自定义的预设值
       const addPresetValues = (
-        key: 'origins' | 'estates' | 'processes' | 'varieties',
+        key: BlendPresetKey,
         defaultValues: string[],
         value?: string
       ) => {
@@ -178,10 +179,12 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
 
       components.forEach(component => {
         addPresetValues('origins', DEFAULT_ORIGINS, component.origin);
-        addPresetValues('origins', DEFAULT_ORIGINS, component.country);
-        addPresetValues('origins', DEFAULT_ORIGINS, component.region);
+        addPresetValues('countries', [], component.country);
+        addPresetValues('regions', [], component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
+        addPresetValues('altitudes', [], component.altitude);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
+        addPresetValues('batches', [], component.batch);
         addPresetValues('varieties', DEFAULT_VARIETIES, component.variety);
       });
 

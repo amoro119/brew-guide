@@ -24,6 +24,7 @@ import {
   DEFAULT_ESTATES,
   DEFAULT_PROCESSES,
   DEFAULT_VARIETIES,
+  type BlendPresetKey,
 } from './constants';
 import { defaultSettings } from '@/components/settings/Settings';
 import {
@@ -615,7 +616,7 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       }
 
       const addPresetValues = (
-        key: 'origins' | 'estates' | 'processes' | 'varieties',
+        key: BlendPresetKey,
         defaultValues: string[],
         value?: string
       ) => {
@@ -629,10 +630,12 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       // 保存自定义的预设值
       blendComponents.forEach(component => {
         addPresetValues('origins', DEFAULT_ORIGINS, component.origin);
-        addPresetValues('origins', DEFAULT_ORIGINS, component.country);
-        addPresetValues('origins', DEFAULT_ORIGINS, component.region);
+        addPresetValues('countries', [], component.country);
+        addPresetValues('regions', [], component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
+        addPresetValues('altitudes', [], component.altitude);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
+        addPresetValues('batches', [], component.batch);
         addPresetValues('varieties', DEFAULT_VARIETIES, component.variety);
       });
 
