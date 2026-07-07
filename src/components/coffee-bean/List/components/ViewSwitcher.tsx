@@ -14,6 +14,8 @@ import {
   BeanState,
   BeanFilterMode,
   BEAN_STATE_LABELS,
+  BEAN_FIELD_ID_BY_FILTER_MODE,
+  getBeanFilterModeLabel,
 } from '../types';
 import {
   SortOption,
@@ -49,6 +51,7 @@ import {
   getBeanSummaryLimitMode,
 } from '@/lib/utils/beanSummaryDisplay';
 import type { CoffeeBeanGroup } from '@/lib/core/db';
+import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
 import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
 // Apple风格动画配置
 const FILTER_ANIMATION = {
@@ -122,14 +125,22 @@ export const getInventoryAllClickAction = ({
   selectedRoaster?: string | null;
   selectedBeanGroupId?: string | null;
 }): InventoryAllClickAction => {
-  if (filterMode === 'variety' && selectedVariety != null) {
+  const fieldId = BEAN_FIELD_ID_BY_FILTER_MODE[filterMode];
+  if (fieldId === 'variety' && selectedVariety != null) {
     return 'clear-variety';
   }
-  if (filterMode === 'origin' && selectedOrigin != null) {
+  if (
+    (fieldId === 'origin' ||
+      fieldId === 'country' ||
+      fieldId === 'region' ||
+      fieldId === 'estate' ||
+      fieldId === 'altitude') &&
+    selectedOrigin != null
+  ) {
     return 'clear-origin';
   }
   if (
-    filterMode === 'processingMethod' &&
+    (fieldId === 'process' || fieldId === 'batch') &&
     selectedProcessingMethod != null
   ) {
     return 'clear-processing-method';
@@ -392,6 +403,7 @@ interface FilterModeSectionProps {
   onFilterModeChange: (mode: BeanFilterMode) => void;
   selectedBeanState?: BeanState;
   hasBeanGroups?: boolean;
+  enabledBeanFieldFilterModes?: BeanFilterMode[];
 }
 
 const FilterModeSection: React.FC<FilterModeSectionProps> = ({
@@ -399,6 +411,7 @@ const FilterModeSection: React.FC<FilterModeSectionProps> = ({
   onFilterModeChange,
   selectedBeanState = 'roasted',
   hasBeanGroups = false,
+  enabledBeanFieldFilterModes = ['origin', 'processingMethod', 'variety'],
 }) => {
   const isGreenBean = selectedBeanState === 'green';
 
@@ -431,24 +444,15 @@ const FilterModeSection: React.FC<FilterModeSectionProps> = ({
             按分组
           </FilterButton>
         )}
-        <FilterButton
-          isActive={filterMode === 'origin'}
-          onClick={() => onFilterModeChange('origin')}
-        >
-          按产地
-        </FilterButton>
-        <FilterButton
-          isActive={filterMode === 'processingMethod'}
-          onClick={() => onFilterModeChange('processingMethod')}
-        >
-          按处理法
-        </FilterButton>
-        <FilterButton
-          isActive={filterMode === 'variety'}
-          onClick={() => onFilterModeChange('variety')}
-        >
-          按品种
-        </FilterButton>
+        {enabledBeanFieldFilterModes.map(mode => (
+          <FilterButton
+            key={mode}
+            isActive={filterMode === mode}
+            onClick={() => onFilterModeChange(mode)}
+          >
+            {getBeanFilterModeLabel(mode)}
+          </FilterButton>
+        ))}
       </div>
     </div>
   );
@@ -509,6 +513,8 @@ interface ViewSwitcherProps {
   onProcessingMethodClick?: (method: string | null) => void;
   availableOrigins?: string[];
   availableProcessingMethods?: string[];
+  availableBeanFieldValues?: Partial<Record<BeanFieldId, string[]>>;
+  enabledBeanFieldFilterModes?: BeanFilterMode[];
   availableFlavorPeriods?: FlavorPeriodStatus[];
   availableRoasters?: string[];
   availableBeanGroups?: CoffeeBeanGroup[];
@@ -595,6 +601,8 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   onProcessingMethodClick,
   availableOrigins = [],
   availableProcessingMethods = [],
+  availableBeanFieldValues = {},
+  enabledBeanFieldFilterModes,
   availableFlavorPeriods = [],
   availableRoasters = [],
   availableBeanGroups = EMPTY_BEAN_GROUPS,
@@ -775,6 +783,52 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     selectedBeanType,
     showBeanSummary,
   ]);
+  const currentBeanFieldId = BEAN_FIELD_ID_BY_FILTER_MODE[filterMode];
+  const selectedBeanFieldValue =
+    currentBeanFieldId === 'variety'
+      ? selectedVariety
+      : currentBeanFieldId === 'process' || currentBeanFieldId === 'batch'
+        ? selectedProcessingMethod
+        : currentBeanFieldId
+          ? selectedOrigin
+          : null;
+  const availableCurrentBeanFieldValues: string[] = currentBeanFieldId
+    ? (availableBeanFieldValues[currentBeanFieldId] ??
+      (currentBeanFieldId === 'variety'
+        ? availableVarieties
+        : currentBeanFieldId === 'process'
+          ? availableProcessingMethods
+          : currentBeanFieldId === 'origin'
+            ? availableOrigins
+            : []) ??
+      [])
+    : [];
+  const handleBeanFieldValueClick = useCallback(
+    (value: string) => {
+      if (!currentBeanFieldId || selectedBeanFieldValue === value) {
+        return;
+      }
+
+      if (currentBeanFieldId === 'variety') {
+        onVarietyClick?.(value);
+        return;
+      }
+
+      if (currentBeanFieldId === 'process' || currentBeanFieldId === 'batch') {
+        onProcessingMethodClick?.(value);
+        return;
+      }
+
+      onOriginClick?.(value);
+    },
+    [
+      currentBeanFieldId,
+      onOriginClick,
+      onProcessingMethodClick,
+      onVarietyClick,
+      selectedBeanFieldValue,
+    ]
+  );
   const hasBeanGroups = hasConfiguredBeanGroups;
 
   // 筛选展开栏状态
@@ -1337,17 +1391,13 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                   <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                     <TabButton
                       isActive={
-                        (filterMode === 'variety' &&
-                          selectedVariety === null) ||
-                        (filterMode === 'origin' && selectedOrigin === null) ||
+                        (currentBeanFieldId &&
+                          selectedBeanFieldValue === null) ||
                         (filterMode === 'flavorPeriod' &&
                           selectedFlavorPeriod === null) ||
                         (filterMode === 'roaster' &&
                           selectedRoaster === null) ||
-                        (filterMode === 'group' &&
-                          selectedBeanGroupId === null) ||
-                        (filterMode === 'processingMethod' &&
-                          selectedProcessingMethod === null)
+                        (filterMode === 'group' && selectedBeanGroupId === null)
                       }
                       onClick={handleInventoryAllClick}
                       onDoubleClick={handleBeanTypeDoubleClick}
@@ -1396,54 +1446,17 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       `}</style>
 
                       {/* 根据分类模式显示不同的筛选按钮 */}
-                      {filterMode === 'variety' &&
-                        availableVarieties?.map((variety: string) => (
+                      {currentBeanFieldId &&
+                        availableCurrentBeanFieldValues.map(value => (
                           <TabButton
-                            key={variety}
-                            isActive={selectedVariety === variety}
-                            onClick={() =>
-                              selectedVariety !== variety &&
-                              onVarietyClick?.(variety)
-                            }
+                            key={value}
+                            isActive={selectedBeanFieldValue === value}
+                            onClick={() => handleBeanFieldValueClick(value)}
                             className="mr-3"
-                            dataTab={variety}
-                            layoutId="inventory-variety-underline"
+                            dataTab={value}
+                            layoutId={`inventory-${filterMode}-underline`}
                           >
-                            {variety}
-                          </TabButton>
-                        ))}
-
-                      {filterMode === 'origin' &&
-                        availableOrigins?.map((origin: string) => (
-                          <TabButton
-                            key={origin}
-                            isActive={selectedOrigin === origin}
-                            onClick={() =>
-                              selectedOrigin !== origin &&
-                              onOriginClick?.(origin)
-                            }
-                            className="mr-3"
-                            dataTab={origin}
-                            layoutId="inventory-origin-underline"
-                          >
-                            {origin}
-                          </TabButton>
-                        ))}
-
-                      {filterMode === 'processingMethod' &&
-                        availableProcessingMethods?.map((method: string) => (
-                          <TabButton
-                            key={method}
-                            isActive={selectedProcessingMethod === method}
-                            onClick={() =>
-                              selectedProcessingMethod !== method &&
-                              onProcessingMethodClick?.(method)
-                            }
-                            className="mr-3"
-                            dataTab={method}
-                            layoutId="inventory-processingMethod-underline"
-                          >
-                            {method}
+                            {value}
                           </TabButton>
                         ))}
 
@@ -1608,6 +1621,9 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                               onFilterModeChange={onFilterModeChange}
                               selectedBeanState={selectedBeanState}
                               hasBeanGroups={hasBeanGroups}
+                              enabledBeanFieldFilterModes={
+                                enabledBeanFieldFilterModes
+                              }
                             />
                           )}
 

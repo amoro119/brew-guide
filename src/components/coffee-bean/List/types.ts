@@ -2,6 +2,7 @@ import { CoffeeBean } from '@/types/app';
 import { VIEW_OPTIONS, VIEW_LABELS, type ViewOption } from './constants';
 import type { ReactNode } from 'react';
 import type { NavigationSwipeControl } from '@/lib/navigation/navigationSwipe';
+import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
 
 // ExtendedCoffeeBean 已移除，直接使用 CoffeeBean
 export type ExtendedCoffeeBean = CoffeeBean;
@@ -13,7 +14,12 @@ export { VIEW_OPTIONS, VIEW_LABELS, type ViewOption };
 export type BeanFilterMode =
   | 'roaster'
   | 'origin'
+  | 'country'
+  | 'region'
+  | 'estate'
+  | 'altitude'
   | 'processingMethod'
+  | 'batch'
   | 'variety'
   | 'flavorPeriod'
   | 'group';
@@ -22,11 +28,45 @@ export type BeanFilterMode =
 const BEAN_FILTER_LABELS: Record<BeanFilterMode, string> = {
   roaster: '按烘焙商',
   origin: '按产地',
+  country: '按产国',
+  region: '按产区',
+  estate: '按庄园',
+  altitude: '按海拔',
   processingMethod: '按处理法',
+  batch: '按批次',
   variety: '按品种',
   flavorPeriod: '按赏味期',
   group: '按分组',
 };
+
+export const BEAN_FIELD_FILTER_MODE_BY_FIELD_ID: Partial<
+  Record<BeanFieldId, BeanFilterMode>
+> = {
+  origin: 'origin',
+  country: 'country',
+  region: 'region',
+  estate: 'estate',
+  altitude: 'altitude',
+  process: 'processingMethod',
+  batch: 'batch',
+  variety: 'variety',
+};
+
+export const BEAN_FIELD_ID_BY_FILTER_MODE: Partial<
+  Record<BeanFilterMode, BeanFieldId>
+> = {
+  origin: 'origin',
+  country: 'country',
+  region: 'region',
+  estate: 'estate',
+  altitude: 'altitude',
+  processingMethod: 'process',
+  batch: 'batch',
+  variety: 'variety',
+};
+
+export const getBeanFilterModeLabel = (mode: BeanFilterMode): string =>
+  BEAN_FILTER_LABELS[mode];
 
 export interface CoffeeBeansProps {
   isOpen: boolean;

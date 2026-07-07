@@ -234,7 +234,7 @@ describe('beanListPipeline', () => {
     ).toEqual(['legacy']);
   });
 
-  it('uses structured origin display for origin filtering without treating legacy origin as country', () => {
+  it('keeps origin filtering on the legacy origin field only', () => {
     const structuredBean = buildBean({
       id: 'structured',
       blendComponents: [{ origin: '旧产地', country: '埃塞俄比亚' }],
@@ -248,8 +248,33 @@ describe('beanListPipeline', () => {
       selectedOrigin: '埃塞俄比亚',
     });
 
-    expect(snapshot.filteredBeans.map(bean => bean.id)).toEqual([
-      'structured',
-    ]);
+    expect(snapshot.filteredBeans.map(bean => bean.id)).toEqual([]);
+    expect(snapshot.availableOrigins).toEqual(['埃塞俄比亚 西达摩', '旧产地']);
+  });
+
+  it('uses enabled structured field values as independent category values', () => {
+    const structuredBean = buildBean({
+      id: 'structured',
+      blendComponents: [
+        {
+          origin: '旧产地',
+          country: '埃塞俄比亚',
+          region: '耶加雪菲',
+          estate: '班驰玛吉',
+          altitude: '1200',
+        },
+      ],
+    });
+    const snapshot = createSnapshot([structuredBean], {
+      filterMode: 'country',
+      selectedOrigin: '埃塞俄比亚',
+    });
+
+    expect(snapshot.filteredBeans.map(bean => bean.id)).toEqual(['structured']);
+    expect(snapshot.availableBeanFieldValues.origin).toEqual(['旧产地']);
+    expect(snapshot.availableBeanFieldValues.country).toEqual(['埃塞俄比亚']);
+    expect(snapshot.availableBeanFieldValues.region).toEqual(['耶加雪菲']);
+    expect(snapshot.availableBeanFieldValues.estate).toEqual(['班驰玛吉']);
+    expect(snapshot.availableBeanFieldValues.altitude).toEqual(['1200']);
   });
 });

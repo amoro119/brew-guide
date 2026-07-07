@@ -27,6 +27,8 @@ import {
   VIEW_OPTIONS,
   ViewOption,
   BeanFilterMode,
+  BEAN_FIELD_FILTER_MODE_BY_FIELD_ID,
+  BEAN_FIELD_ID_BY_FILTER_MODE,
 } from './types';
 import {
   globalCache,
@@ -100,6 +102,10 @@ import {
 import EmptyBeanTipDrawer, {
   shouldShowEmptyBeanTip,
 } from './components/EmptyBeanTipDrawer';
+import {
+  getEnabledBeanFieldIds,
+  resolveBeanFieldConfig,
+} from '@/lib/coffee-beans/beanFields';
 import {
   buildBeanSummaryDetailItems,
   calculateBeanSummaryEstimatedCups,
@@ -351,6 +357,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     availableVarieties,
     availableOrigins,
     availableProcessingMethods,
+    availableBeanFieldValues,
     availableFlavorPeriods,
     availableRoasters,
     availableBeanGroups,
@@ -501,6 +508,28 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   );
   const coffeeBeanGroups = useSettingsStore(
     state => state.settings.coffeeBeanGroups
+  );
+  const beanFieldConfigSetting = useSettingsStore(
+    state => state.settings.beanFieldConfig
+  );
+  const showEstateField = useSettingsStore(
+    state => state.settings.showEstateField === true
+  );
+  const enabledBeanFieldFilterModes = useMemo(
+    () =>
+      getEnabledBeanFieldIds(
+        resolveBeanFieldConfig({
+          beanFieldConfig: beanFieldConfigSetting,
+          showEstateField,
+        })
+      )
+        .map(fieldId => BEAN_FIELD_FILTER_MODE_BY_FIELD_ID[fieldId])
+        .filter((mode): mode is BeanFilterMode => Boolean(mode)),
+    [beanFieldConfigSetting, showEstateField]
+  );
+  const enabledBeanFieldFilterModeSet = useMemo(
+    () => new Set<BeanFilterMode>(enabledBeanFieldFilterModes),
+    [enabledBeanFieldFilterModes]
   );
 
   // 预计杯数设置
@@ -1128,6 +1157,18 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
 
   useEffect(() => {
     if (
+      BEAN_FIELD_ID_BY_FILTER_MODE[filterMode] &&
+      !enabledBeanFieldFilterModeSet.has(filterMode)
+    ) {
+      handleFilterModeChange(
+        selectedBeanState === 'roasted'
+          ? 'flavorPeriod'
+          : (enabledBeanFieldFilterModes[0] ?? 'roaster')
+      );
+      return;
+    }
+
+    if (
       filterMode === 'group' &&
       (!coffeeBeanGroups || coffeeBeanGroups.length === 0)
     ) {
@@ -1143,9 +1184,12 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     }
   }, [
     coffeeBeanGroups,
+    enabledBeanFieldFilterModeSet,
+    enabledBeanFieldFilterModes,
     filterMode,
     handleBeanGroupClick,
     handleFilterModeChange,
+    selectedBeanState,
     selectedBeanGroupId,
   ]);
 
@@ -1913,6 +1957,8 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         onBeanGroupClick={handleBeanGroupClick}
         availableOrigins={availableOrigins}
         availableProcessingMethods={availableProcessingMethods}
+        availableBeanFieldValues={availableBeanFieldValues}
+        enabledBeanFieldFilterModes={enabledBeanFieldFilterModes}
         availableFlavorPeriods={availableFlavorPeriods}
         availableRoasters={availableRoasters}
         availableBeanGroups={availableBeanGroups}

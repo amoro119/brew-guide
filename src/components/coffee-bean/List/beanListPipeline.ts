@@ -6,18 +6,26 @@ import type {
   BeanState,
   BeanType,
 } from './types';
+import { BEAN_FIELD_ID_BY_FILTER_MODE } from './types';
 import type { CoffeeBeanGroup } from '@/lib/core/db';
-import { getBeanRoasterName } from '@/lib/utils/coffeeBeanUtils';
+import {
+  getBeanRoasterName,
+  normalizeDelimitedTextList,
+} from '@/lib/utils/coffeeBeanUtils';
 import {
   FlavorPeriodStatus,
   extractUniqueRoasters,
   getBeanFlavorPeriodStatus,
-  getBeanOrigins,
   getBeanProcesses,
   getBeanVarieties,
 } from '@/lib/utils/beanVarietyUtils';
 import { getSortedCoffeeBeanGroups } from '@/lib/utils/coffeeBeanGroupUtils';
-import { getComponentSearchText } from '@/lib/coffee-beans/beanFields';
+import {
+  BEAN_COMPONENT_TEXT_FIELD_IDS,
+  type BeanFieldId,
+  getComponentFieldValue,
+  getComponentSearchText,
+} from '@/lib/coffee-beans/beanFields';
 
 type SearchField = {
   text: string;
@@ -32,6 +40,7 @@ export interface BeanListRecord {
   varieties: string[];
   origins: string[];
   processes: string[];
+  beanFieldValues: Partial<Record<BeanFieldId, string[]>>;
   roaster: string;
   flavorStatus: FlavorPeriodStatus;
   searchDocument: string;
@@ -74,6 +83,7 @@ export interface BeanInventorySnapshot {
   availableVarieties: string[];
   availableOrigins: string[];
   availableProcessingMethods: string[];
+  availableBeanFieldValues: Partial<Record<BeanFieldId, string[]>>;
   availableFlavorPeriods: FlavorPeriodStatus[];
   availableRoasters: string[];
   availableBeanGroups: CoffeeBeanGroup[];
@@ -199,6 +209,32 @@ const sortFlavorStatuses = (
 ): FlavorPeriodStatus[] =>
   FLAVOR_PERIOD_FILTER_PRIORITY.filter(status => counts.has(status));
 
+const getBeanFieldValues = (
+  bean: ExtendedCoffeeBean,
+  fieldId: BeanFieldId
+): string[] => {
+  const values: string[] = [];
+
+  bean.blendComponents?.forEach(component => {
+    values.push(
+      ...normalizeDelimitedTextList(getComponentFieldValue(component, fieldId))
+    );
+  });
+
+  return Array.from(new Set(values));
+};
+
+const buildBeanFieldValues = (
+  bean: ExtendedCoffeeBean
+): Partial<Record<BeanFieldId, string[]>> =>
+  BEAN_COMPONENT_TEXT_FIELD_IDS.reduce<Partial<Record<BeanFieldId, string[]>>>(
+    (result, fieldId) => {
+      result[fieldId] = getBeanFieldValues(bean, fieldId);
+      return result;
+    },
+    {}
+  );
+
 const sortInventoryRecords = (
   records: BeanListRecord[],
   sortOption: SortOption,
@@ -239,24 +275,40 @@ const matchesSelectedGroup = (
   selectedGroupIds: Set<string> | null
 ): boolean => (selectedGroupIds ? selectedGroupIds.has(record.bean.id) : true);
 
+const getSelectedFieldValue = (
+  options: BeanInventorySnapshotOptions
+): string | null => {
+  switch (options.filterMode) {
+    case 'processingMethod':
+    case 'batch':
+      return options.selectedProcessingMethod;
+    case 'variety':
+      return options.selectedVariety;
+    case 'origin':
+    case 'country':
+    case 'region':
+    case 'estate':
+    case 'altitude':
+      return options.selectedOrigin;
+    default:
+      return null;
+  }
+};
+
 const matchesFilterMode = (
   record: BeanListRecord,
   options: BeanInventorySnapshotOptions,
   selectedGroupIds: Set<string> | null
 ): boolean => {
+  const fieldId = BEAN_FIELD_ID_BY_FILTER_MODE[options.filterMode];
+  if (fieldId) {
+    const selectedValue = getSelectedFieldValue(options);
+    return selectedValue
+      ? (record.beanFieldValues[fieldId] || []).includes(selectedValue)
+      : true;
+  }
+
   switch (options.filterMode) {
-    case 'variety':
-      return options.selectedVariety
-        ? record.varieties.includes(options.selectedVariety)
-        : true;
-    case 'origin':
-      return options.selectedOrigin
-        ? record.origins.includes(options.selectedOrigin)
-        : true;
-    case 'processingMethod':
-      return options.selectedProcessingMethod
-        ? record.processes.includes(options.selectedProcessingMethod)
-        : true;
     case 'flavorPeriod':
       if (!options.selectedFlavorPeriod) return true;
       return (
@@ -326,15 +378,17 @@ export const buildBeanListRecords = (
 ): BeanListRecord[] =>
   beans.map(bean => {
     const searchFields = buildSearchFields(bean);
+    const beanFieldValues = buildBeanFieldValues(bean);
 
     return {
       bean,
       beanState: bean.beanState || 'roasted',
       beanType: bean.beanType || null,
       isEmpty: isBeanEmpty(bean),
-      varieties: getBeanVarieties(bean),
-      origins: getBeanOrigins(bean),
-      processes: getBeanProcesses(bean),
+      varieties: beanFieldValues.variety || getBeanVarieties(bean),
+      origins: beanFieldValues.origin || [],
+      processes: beanFieldValues.process || getBeanProcesses(bean),
+      beanFieldValues,
       roaster: getBeanRoasterName(bean),
       flavorStatus: getBeanFlavorPeriodStatus(bean),
       searchDocument: searchFields.map(field => field.text).join('\n'),
@@ -406,6 +460,11 @@ export const createBeanInventorySnapshot = (
   const availableOriginNonEmptyCounts = new Map<string, number>();
   const availableProcessCounts = new Map<string, number>();
   const availableProcessNonEmptyCounts = new Map<string, number>();
+  const availableBeanFieldCounts = new Map<BeanFieldId, Map<string, number>>();
+  const availableBeanFieldNonEmptyCounts = new Map<
+    BeanFieldId,
+    Map<string, number>
+  >();
   const availableFlavorCounts = new Map<FlavorPeriodStatus, number>();
   const availableBeanCandidates: ExtendedCoffeeBean[] = [];
 
@@ -456,6 +515,26 @@ export const createBeanInventorySnapshot = (
           incrementMapCount(availableProcessNonEmptyCounts, process);
         }
       }
+      BEAN_COMPONENT_TEXT_FIELD_IDS.forEach(fieldId => {
+        let fieldCounts = availableBeanFieldCounts.get(fieldId);
+        if (!fieldCounts) {
+          fieldCounts = new Map<string, number>();
+          availableBeanFieldCounts.set(fieldId, fieldCounts);
+        }
+
+        let fieldNonEmptyCounts = availableBeanFieldNonEmptyCounts.get(fieldId);
+        if (!fieldNonEmptyCounts) {
+          fieldNonEmptyCounts = new Map<string, number>();
+          availableBeanFieldNonEmptyCounts.set(fieldId, fieldNonEmptyCounts);
+        }
+
+        (record.beanFieldValues[fieldId] || []).forEach(value => {
+          incrementMapCount(fieldCounts, value);
+          if (!record.isEmpty) {
+            incrementMapCount(fieldNonEmptyCounts, value);
+          }
+        });
+      });
       if (!record.isEmpty) {
         incrementMapCount(availableFlavorCounts, record.flavorStatus);
       }
@@ -493,6 +572,15 @@ export const createBeanInventorySnapshot = (
     : [];
 
   const availableRoasters = extractUniqueRoasters(availableBeanCandidates);
+  const availableBeanFieldValues = BEAN_COMPONENT_TEXT_FIELD_IDS.reduce<
+    Partial<Record<BeanFieldId, string[]>>
+  >((result, fieldId) => {
+    result[fieldId] = sortCategoryEntries(
+      availableBeanFieldCounts.get(fieldId) || new Map(),
+      availableBeanFieldNonEmptyCounts.get(fieldId) || new Map()
+    );
+    return result;
+  }, {});
 
   return {
     filteredRecords: sortedFilteredRecords,
@@ -515,6 +603,7 @@ export const createBeanInventorySnapshot = (
       availableProcessCounts,
       availableProcessNonEmptyCounts
     ),
+    availableBeanFieldValues,
     availableFlavorPeriods: sortFlavorStatuses(availableFlavorCounts),
     availableRoasters,
     availableBeanGroups: getSortedCoffeeBeanGroups(

@@ -22,4 +22,14 @@ describe('getInventoryAllClickAction', () => {
       })
     ).toBe('clear-bean-type');
   });
+
+  it('clears structured origin field filters before widening bean type', () => {
+    expect(
+      getInventoryAllClickAction({
+        selectedBeanType: 'filter',
+        filterMode: 'country',
+        selectedOrigin: '埃塞俄比亚',
+      })
+    ).toBe('clear-origin');
+  });
 });

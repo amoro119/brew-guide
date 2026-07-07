@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CoffeeBeanGroup } from '@/lib/core/db';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import type { FlavorPeriodStatus } from '@/lib/utils/beanVarietyUtils';
+import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
 import type {
   BeanFilterMode,
   BeanState,
@@ -44,6 +45,7 @@ interface UseEnhancedBeanFilteringReturn {
   availableVarieties: string[];
   availableOrigins: string[];
   availableProcessingMethods: string[];
+  availableBeanFieldValues: Partial<Record<BeanFieldId, string[]>>;
   availableFlavorPeriods: FlavorPeriodStatus[];
   availableRoasters: string[];
   availableBeanGroups: CoffeeBeanGroup[];
@@ -118,6 +120,7 @@ export const useEnhancedBeanFiltering = ({
     availableVarieties: snapshot.availableVarieties,
     availableOrigins: snapshot.availableOrigins,
     availableProcessingMethods: snapshot.availableProcessingMethods,
+    availableBeanFieldValues: snapshot.availableBeanFieldValues,
     availableFlavorPeriods: snapshot.availableFlavorPeriods,
     availableRoasters: snapshot.availableRoasters,
     availableBeanGroups: snapshot.availableBeanGroups,
