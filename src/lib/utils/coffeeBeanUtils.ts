@@ -13,8 +13,12 @@ const TEXT_LIST_SPLIT_REGEX = /[\n,，、;；]+/;
 
 const createEmptyBlendComponent = (): BlendComponent => ({
   origin: '',
+  country: '',
+  region: '',
   estate: '',
+  altitude: '',
   process: '',
+  batch: '',
   variety: '',
 });
 

@@ -118,6 +118,10 @@ import {
   type ImageViewerPayload,
 } from '@/lib/ui/imageViewer';
 import {
+  BEAN_COMPONENT_TEXT_FIELD_IDS,
+  normalizeCoffeeBeanForFieldConfig,
+} from '@/lib/coffee-beans/beanFields';
+import {
   normalizeBrewingNoteParams,
   normalizeBrewingNoteSelection,
 } from '@/lib/notes/noteDisplay';
@@ -145,8 +149,12 @@ interface ExtendedStep extends Step {
 interface BlendComponent {
   percentage?: number;
   origin?: string;
+  country?: string;
+  region?: string;
   estate?: string;
+  altitude?: string;
   process?: string;
+  batch?: string;
   variety?: string;
 }
 
@@ -2353,7 +2361,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           import('@/lib/api/beanRecognition'),
         ]);
       const extractedData = normalizeRecognizedBeanPayload(
-        extractJsonFromText(jsonData)
+        extractJsonFromText(jsonData),
+        settings
       );
 
       if (!extractedData) {
@@ -2468,20 +2477,13 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                 comp &&
                 typeof comp === 'object' &&
                 comp !== null &&
-                ('origin' in comp ||
-                  'estate' in comp ||
-                  'process' in comp ||
-                  'variety' in comp)
+                BEAN_COMPONENT_TEXT_FIELD_IDS.some(field => field in comp)
             );
 
             if (validComponents.length > 0) {
               bean.blendComponents = validComponents.map((comp: unknown) => {
                 const component = comp as Record<string, unknown>;
-                return {
-                  origin: (component.origin as string) || '',
-                  estate: (component.estate as string) || '',
-                  process: (component.process as string) || '',
-                  variety: (component.variety as string) || '',
+                const nextComponent: BlendComponent = {
                   // 只在明确有百分比时才设置百分比值，否则保持为undefined
                   ...(component.percentage !== undefined
                     ? {
@@ -2494,6 +2496,12 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                       }
                     : {}),
                 };
+                BEAN_COMPONENT_TEXT_FIELD_IDS.forEach(field => {
+                  if (component[field] !== undefined) {
+                    nextComponent[field] = String(component[field] || '');
+                  }
+                });
+                return nextComponent;
               });
             }
           } else {
@@ -2503,22 +2511,25 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
               unknown
             >;
             const legacyOrigin = beanDataRecord.origin as string;
+            const legacyCountry = beanDataRecord.country as string;
+            const legacyRegion = beanDataRecord.region as string;
             const legacyEstate = beanDataRecord.estate as string;
+            const legacyAltitude = beanDataRecord.altitude as string;
             const legacyProcess = beanDataRecord.process as string;
+            const legacyBatch = beanDataRecord.batch as string;
             const legacyVariety = beanDataRecord.variety as string;
 
-            if (
-              legacyOrigin ||
-              legacyEstate ||
-              legacyProcess ||
-              legacyVariety
-            ) {
+            if (BEAN_COMPONENT_TEXT_FIELD_IDS.some(field => beanDataRecord[field])) {
               bean.blendComponents = [
                 {
                   percentage: 100,
                   origin: legacyOrigin || '',
+                  country: legacyCountry || '',
+                  region: legacyRegion || '',
                   estate: legacyEstate || '',
+                  altitude: legacyAltitude || '',
                   process: legacyProcess || '',
+                  batch: legacyBatch || '',
                   variety: legacyVariety || '',
                 },
               ];
@@ -2528,7 +2539,11 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           // beanType字段保持可选，不强制设置默认值
 
           // 添加到数据库
-          const newBean = await store.addBean(bean);
+          const normalizedBean = normalizeCoffeeBeanForFieldConfig(
+            bean,
+            settings
+          );
+          const newBean = await store.addBean(normalizedBean);
           lastImportedBean = newBean;
           importCount++;
         }

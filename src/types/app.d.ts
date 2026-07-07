@@ -14,9 +14,13 @@ export type BrewingNoteParams = Partial<
 // 拼配成分接口定义
 export interface BlendComponent {
   percentage?: number; // 百分比 (1-100)，可选
-  origin?: string; // 产地
+  origin?: string; // 产地概括（legacy / fallback）
+  country?: string; // 产国
+  region?: string; // 产区
   estate?: string; // 庄园
+  altitude?: string; // 海拔
   process?: string; // 处理法
+  batch?: string; // 批次
   variety?: string; // 品种
 }
 

@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 import { BrewingNote, Method, CustomEquipment } from './config';
 import type { EstimatedCupDoseSettings } from '@/lib/settings/estimatedCupDose';
 import { CoffeeBean } from '@/types/app';
+import type { BeanFieldConfig } from '@/lib/coffee-beans/beanFields';
 import {
   type CoffeeBeanImageRecord,
   type CoffeeBeanImageThumbnailRecord,
@@ -287,6 +288,7 @@ export interface AppSettings {
 
   // 识图设置
   autoFillRecognitionImage?: boolean;
+  beanFieldConfig?: BeanFieldConfig;
   showEstateField?: boolean;
   immersiveAdd?: boolean;
   experimentalBeanRecognitionEnabled?: boolean;

@@ -5,6 +5,12 @@ import { BlendComponent } from '@/types/app';
 import { useBlendComponentSuggestions } from '@/components/coffee-bean/Form/hooks/useBlendComponentSuggestions';
 import { usePresetSuggestions } from '@/components/coffee-bean/Form/hooks/usePresetSuggestions';
 import TagAutocompleteInput from './TagAutocompleteInput';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
+import {
+  getEnabledBeanFieldIds,
+  resolveBeanFieldConfig,
+  type BeanFieldId,
+} from '@/lib/coffee-beans/beanFields';
 
 type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
 
@@ -18,12 +24,24 @@ const fieldConfigs: Array<{
   field: TextBlendField;
   label: string;
   placeholder: string;
-  suggestionKey: 'origins' | 'estates' | 'processes' | 'varieties';
+  suggestionKey?: 'origins' | 'estates' | 'processes' | 'varieties';
 }> = [
   {
     field: 'origin',
     label: '产地',
     placeholder: '输入产地，逗号分隔',
+    suggestionKey: 'origins',
+  },
+  {
+    field: 'country',
+    label: '产国',
+    placeholder: '输入产国，逗号分隔',
+    suggestionKey: 'origins',
+  },
+  {
+    field: 'region',
+    label: '产区',
+    placeholder: '输入产区，逗号分隔',
     suggestionKey: 'origins',
   },
   {
@@ -33,10 +51,20 @@ const fieldConfigs: Array<{
     suggestionKey: 'estates',
   },
   {
+    field: 'altitude',
+    label: '海拔',
+    placeholder: '输入海拔，逗号分隔',
+  },
+  {
     field: 'process',
     label: '处理法',
     placeholder: '输入处理法，逗号分隔',
     suggestionKey: 'processes',
+  },
+  {
+    field: 'batch',
+    label: '批次',
+    placeholder: '输入批次，逗号分隔',
   },
   {
     field: 'variety',
@@ -81,8 +109,8 @@ const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
   const entries = getFieldEntries(components, config.field);
   const placeholder = entries.length === 0 ? config.placeholder : '+ ';
   const presetSuggestions = usePresetSuggestions(
-    config.suggestionKey,
-    suggestions[config.suggestionKey]
+    config.suggestionKey || 'origins',
+    config.suggestionKey ? suggestions[config.suggestionKey] : []
   );
 
   return (
@@ -142,9 +170,25 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
   onChange,
 }) => {
   const suggestions = useBlendComponentSuggestions();
-  const visibleFields = showEstateField
-    ? fieldConfigs
-    : fieldConfigs.filter(config => config.field !== 'estate');
+  const settings = useSettingsStore(state => state.settings);
+  const enabledFieldIds = getEnabledBeanFieldIds(
+    resolveBeanFieldConfig(settings)
+  );
+  const visibleFieldIds = new Set<BeanFieldId>(enabledFieldIds);
+
+  fieldConfigs.forEach(config => {
+    if (components.some(component => component[config.field]?.trim())) {
+      visibleFieldIds.add(config.field as BeanFieldId);
+    }
+  });
+
+  if (showEstateField) {
+    visibleFieldIds.add('estate');
+  }
+
+  const visibleFields = fieldConfigs.filter(config =>
+    visibleFieldIds.has(config.field as BeanFieldId)
+  );
 
   return (
     <div className="space-y-3">

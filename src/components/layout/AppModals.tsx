@@ -59,8 +59,12 @@ interface ExtendedCoffeeBean extends CoffeeBean {
   blendComponents?: {
     percentage?: number;
     origin?: string;
+    country?: string;
+    region?: string;
     estate?: string;
+    altitude?: string;
     process?: string;
+    batch?: string;
     variety?: string;
   }[];
 }

@@ -199,4 +199,57 @@ describe('beanListPipeline', () => {
       )
     ).toEqual(['matching-filter']);
   });
+
+  it('searches structured bean component fields and legacy origin', () => {
+    const structuredBean = buildBean({
+      id: 'structured',
+      name: 'Structured Bean',
+      blendComponents: [
+        {
+          country: '埃塞俄比亚',
+          region: '西达摩',
+          estate: '博纳',
+          altitude: '2100m',
+          process: '水洗',
+          batch: 'A12',
+        },
+      ],
+    });
+    const legacyBean = buildBean({
+      id: 'legacy',
+      name: 'Legacy Bean',
+      blendComponents: [{ origin: '哥伦比亚 蕙兰' }],
+    });
+    const snapshot = createSnapshot([structuredBean, legacyBean]);
+
+    expect(
+      searchBeanRecords(snapshot.filteredRecords, '博纳').map(
+        record => record.bean.id
+      )
+    ).toEqual(['structured']);
+    expect(
+      searchBeanRecords(snapshot.filteredRecords, '蕙兰').map(
+        record => record.bean.id
+      )
+    ).toEqual(['legacy']);
+  });
+
+  it('uses structured origin display for origin filtering without treating legacy origin as country', () => {
+    const structuredBean = buildBean({
+      id: 'structured',
+      blendComponents: [{ origin: '旧产地', country: '埃塞俄比亚' }],
+    });
+    const legacyBean = buildBean({
+      id: 'legacy',
+      blendComponents: [{ origin: '埃塞俄比亚 西达摩' }],
+    });
+    const snapshot = createSnapshot([structuredBean, legacyBean], {
+      filterMode: 'origin',
+      selectedOrigin: '埃塞俄比亚',
+    });
+
+    expect(snapshot.filteredBeans.map(bean => bean.id)).toEqual([
+      'structured',
+    ]);
+  });
 });

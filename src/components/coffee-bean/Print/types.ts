@@ -14,6 +14,7 @@ export interface EditableContent {
   roastDate: string;
   packDate: string;
   process: string;
+  batch: string;
   variety: string;
   flavor: string[];
   notes: string;
@@ -44,6 +45,7 @@ export interface PrintConfig {
     packDate: boolean;
     flavor: boolean;
     process: boolean;
+    batch: boolean;
     variety: boolean;
     notes: boolean;
     weight: boolean;

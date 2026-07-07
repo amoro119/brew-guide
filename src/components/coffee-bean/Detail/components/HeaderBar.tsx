@@ -178,6 +178,8 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
 
       components.forEach(component => {
         addPresetValues('origins', DEFAULT_ORIGINS, component.origin);
+        addPresetValues('origins', DEFAULT_ORIGINS, component.country);
+        addPresetValues('origins', DEFAULT_ORIGINS, component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
         addPresetValues('varieties', DEFAULT_VARIETIES, component.variety);

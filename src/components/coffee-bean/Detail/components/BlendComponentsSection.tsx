@@ -2,6 +2,10 @@
 
 import React from 'react';
 import { CoffeeBean } from '@/types/app';
+import {
+  getComponentOriginDisplay,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
 
 interface BlendComponentsSectionProps {
   bean: CoffeeBean | null;
@@ -21,8 +25,10 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
   const visibleComponents = bean.blendComponents
     .map((component, index) => ({
       index,
-      origin: component.origin?.trim() || '',
+      origin: getComponentOriginDisplay(component),
+      hasStructuredOrigin: hasStructuredOriginFields(component),
       estate: component.estate?.trim() || '',
+      batch: component.batch?.trim() || '',
       variety: component.variety?.trim() || '',
       process: component.process?.trim() || '',
       percentage: component.percentage,
@@ -31,6 +37,7 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
       component =>
         component.origin ||
         component.estate ||
+        component.batch ||
         component.variety ||
         component.process ||
         component.percentage !== undefined
@@ -43,7 +50,7 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
   // 处理拼配成分字段编辑
   const handleBlendFieldEdit = (
     index: number,
-    field: 'origin' | 'estate' | 'process' | 'variety',
+    field: 'origin' | 'estate' | 'process' | 'batch' | 'variety',
     value: string
   ) => {
     const updatedComponents = [...bean.blendComponents!];
@@ -68,25 +75,28 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
             {/* 产地 */}
             {comp.origin && (
               <span
-                contentEditable
+                contentEditable={!comp.hasStructuredOrigin}
                 suppressContentEditableWarning
                 onBlur={e => {
+                  if (comp.hasStructuredOrigin) return;
                   const newValue = e.currentTarget.textContent?.trim() || '';
                   if (newValue !== comp.origin) {
                     handleBlendFieldEdit(comp.index, 'origin', newValue);
                   }
                 }}
-                className="cursor-text outline-none"
+                className={`outline-none ${
+                  comp.hasStructuredOrigin ? '' : 'cursor-text'
+                }`}
               >
                 {comp.origin}
               </span>
             )}
             {/* 分隔符 */}
-            {comp.origin && comp.estate && (
+            {comp.origin && comp.estate && !comp.hasStructuredOrigin && (
               <span className="text-neutral-400 dark:text-neutral-600">·</span>
             )}
             {/* 庄园 */}
-            {comp.estate && (
+            {comp.estate && !comp.hasStructuredOrigin && (
               <span
                 contentEditable
                 suppressContentEditableWarning
@@ -102,7 +112,26 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
               </span>
             )}
             {/* 分隔符 */}
-            {(comp.origin || comp.estate) && comp.variety && (
+            {(comp.origin || comp.estate) && comp.batch && (
+              <span className="text-neutral-400 dark:text-neutral-600">·</span>
+            )}
+            {/* 批次 */}
+            {comp.batch && (
+              <span
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={e => {
+                  const newValue = e.currentTarget.textContent?.trim() || '';
+                  if (newValue !== comp.batch) {
+                    handleBlendFieldEdit(comp.index, 'batch', newValue);
+                  }
+                }}
+                className="cursor-text outline-none"
+              >
+                {comp.batch}
+              </span>
+            )}
+            {(comp.origin || comp.estate || comp.batch) && comp.variety && (
               <span className="text-neutral-400 dark:text-neutral-600">·</span>
             )}
             {/* 品种 */}
@@ -122,7 +151,8 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
               </span>
             )}
             {/* 分隔符 */}
-            {(comp.origin || comp.estate || comp.variety) && comp.process && (
+            {(comp.origin || comp.estate || comp.batch || comp.variety) &&
+              comp.process && (
               <span className="text-neutral-400 dark:text-neutral-600">·</span>
             )}
             {/* 处理法 */}

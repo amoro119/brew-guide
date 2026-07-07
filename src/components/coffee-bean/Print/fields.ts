@@ -17,6 +17,7 @@ export const PRINT_FIELD_ORDER: PrintFieldKey[] = [
   'origin',
   'estate',
   'process',
+  'batch',
   'variety',
   'roastLevel',
   'flavor',
@@ -45,6 +46,7 @@ export const PRINT_FIELD_LABELS: Record<PrintFieldKey, string> = {
   origin: '产地',
   estate: '庄园',
   process: '处理',
+  batch: '批次',
   variety: '品种',
   roastLevel: '烘焙',
   flavor: '风味',
@@ -59,6 +61,7 @@ export const PRINT_EDITOR_FIELD_LABELS: Record<PrintFieldKey, string> = {
   origin: '产地',
   estate: '庄园',
   process: '处理法',
+  batch: '批次',
   variety: '品种',
   roastLevel: '烘焙度',
   flavor: '风味',
@@ -74,6 +77,7 @@ export const PRINT_TEXT_FIELD_PLACEHOLDERS: Record<PrintTextFieldKey, string> =
     estate: '庄园信息',
     roastLevel: '烘焙度',
     process: '例如：水洗、日晒',
+    batch: '例如：A12、Lot 24',
     variety: '例如：卡杜拉、瑰夏',
     weight: '例如：15',
   };
@@ -103,6 +107,8 @@ export const hasPrintFieldContent = (
       return hasValue(content.estate);
     case 'process':
       return hasValue(content.process);
+    case 'batch':
+      return hasValue(content.batch);
     case 'variety':
       return hasValue(content.variety);
     case 'roastLevel':

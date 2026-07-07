@@ -30,8 +30,12 @@ const normalizeBlendComponents = (
       ? { percentage: component.percentage }
       : {}),
     origin: normalizeText(component.origin),
+    country: normalizeText(component.country),
+    region: normalizeText(component.region),
     estate: normalizeText(component.estate),
+    altitude: normalizeText(component.altitude),
     process: normalizeText(component.process),
+    batch: normalizeText(component.batch),
     variety: normalizeText(component.variety),
   }));
 };

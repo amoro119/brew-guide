@@ -29,6 +29,7 @@ import { useStatsData, StatsMetadata } from './useStatsData';
 import { useGreenBeanStatsData } from './useGreenBeanStatsData';
 import StatsExplainer, { StatsExplanation } from './StatsExplainer';
 import {
+  extractUniqueCountries,
   extractUniqueOrigins,
   extractUniqueVarieties,
   formatBeanDisplayName,
@@ -1124,13 +1125,19 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
 
   // 计算产地数量映射（用于地图上显示不同大小的点）
   const originCountMap = useMemo(() => {
-    return new Map(originStats);
-  }, [originStats]);
+    const countryCount = new Map<string, number>();
+    filteredBeans.forEach(bean => {
+      extractUniqueCountries([bean]).forEach(country => {
+        countryCount.set(country, (countryCount.get(country) || 0) + 1);
+      });
+    });
+    return countryCount.size > 0 ? countryCount : new Map(originStats);
+  }, [filteredBeans, originStats]);
 
   // 获取所有产地名称（用于地图）
   const originNames = useMemo(() => {
-    return originStats.map(([name]) => name);
-  }, [originStats]);
+    return Array.from(originCountMap.keys());
+  }, [originCountMap]);
 
   const bestBeanStats = useMemo<AttributeCardItem[]>(() => {
     return (

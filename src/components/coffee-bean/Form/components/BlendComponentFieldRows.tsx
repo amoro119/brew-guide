@@ -3,6 +3,12 @@ import { BlendComponent } from '@/types/app';
 import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
 import { useBlendComponentSuggestions } from '../hooks/useBlendComponentSuggestions';
 import { usePresetSuggestions } from '../hooks/usePresetSuggestions';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
+import {
+  getEnabledBeanFieldIds,
+  resolveBeanFieldConfig,
+  type BeanFieldId,
+} from '@/lib/coffee-beans/beanFields';
 
 type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
 type SuggestionKey = 'origins' | 'estates' | 'processes' | 'varieties';
@@ -18,12 +24,24 @@ const fieldConfigs: Array<{
   field: TextBlendField;
   label: string;
   placeholder: string;
-  suggestionKey: SuggestionKey;
+  suggestionKey?: SuggestionKey;
 }> = [
   {
     field: 'origin',
     label: '产地',
     placeholder: '产地',
+    suggestionKey: 'origins',
+  },
+  {
+    field: 'country',
+    label: '产国',
+    placeholder: '产国',
+    suggestionKey: 'origins',
+  },
+  {
+    field: 'region',
+    label: '产区',
+    placeholder: '产区',
     suggestionKey: 'origins',
   },
   {
@@ -33,10 +51,20 @@ const fieldConfigs: Array<{
     suggestionKey: 'estates',
   },
   {
+    field: 'altitude',
+    label: '海拔',
+    placeholder: '海拔',
+  },
+  {
     field: 'process',
     label: '处理法',
     placeholder: '处理法',
     suggestionKey: 'processes',
+  },
+  {
+    field: 'batch',
+    label: '批次',
+    placeholder: '批次',
   },
   {
     field: 'variety',
@@ -62,8 +90,8 @@ const BlendComponentFieldInput: React.FC<BlendComponentFieldInputProps> = ({
   onChange,
 }) => {
   const presetSuggestions = usePresetSuggestions(
-    config.suggestionKey,
-    suggestions[config.suggestionKey]
+    config.suggestionKey || 'origins',
+    config.suggestionKey ? suggestions[config.suggestionKey] : []
   );
 
   return (
@@ -87,13 +115,31 @@ const BlendComponentFieldRows: React.FC<BlendComponentFieldRowsProps> = ({
   onChange,
 }) => {
   const suggestions = useBlendComponentSuggestions();
-  const visibleFields = showEstateField
-    ? fieldConfigs
-    : fieldConfigs.filter(config => config.field !== 'estate');
+  const settings = useSettingsStore(state => state.settings);
+  const enabledFieldIds = getEnabledBeanFieldIds(
+    resolveBeanFieldConfig(settings)
+  );
+  const visibleFieldIds = new Set<BeanFieldId>(enabledFieldIds);
+
+  fieldConfigs.forEach(config => {
+    if (component[config.field]?.trim()) {
+      visibleFieldIds.add(config.field as BeanFieldId);
+    }
+  });
+
+  if (showEstateField) {
+    visibleFieldIds.add('estate');
+  }
+
+  const visibleFields = fieldConfigs.filter(config =>
+    visibleFieldIds.has(config.field as BeanFieldId)
+  );
 
   return (
     <div
-      className={`grid gap-3 ${showEstateField ? 'grid-cols-2' : 'grid-cols-3'}`}
+      className={`grid gap-3 ${
+        visibleFields.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'
+      }`}
     >
       {visibleFields.map(config => (
         <BlendComponentFieldInput

@@ -72,6 +72,77 @@ blendComponents 形状示例：
 不要这样输出：
 {"blendComponents":["埃塞俄比亚","博纳","水洗","74158"]}`;
 
+const BEAN_COMPONENT_FIELD_DEFINITIONS = [
+  ['origin', '产地'],
+  ['country', '产国'],
+  ['region', '产区'],
+  ['estate', '庄园'],
+  ['altitude', '海拔'],
+  ['process', '处理法'],
+  ['batch', '批次'],
+  ['variety', '品种'],
+];
+const BEAN_COMPONENT_FIELD_IDS = BEAN_COMPONENT_FIELD_DEFINITIONS.map(
+  ([id]) => id
+);
+const DEFAULT_BEAN_FIELD_CONFIG = {
+  version: 1,
+  fields: BEAN_COMPONENT_FIELD_IDS.map((id, index) => ({
+    id,
+    enabled: ['origin', 'process', 'variety'].includes(id),
+    order: index,
+  })),
+};
+
+function normalizeBeanFieldConfig(rawConfig) {
+  if (!rawConfig || !Array.isArray(rawConfig.fields)) {
+    return DEFAULT_BEAN_FIELD_CONFIG;
+  }
+  const configured = new Map(
+    rawConfig.fields
+      .filter(field => BEAN_COMPONENT_FIELD_IDS.includes(field?.id))
+      .map(field => [field.id, field.enabled !== false])
+  );
+  if (configured.size === 0) return DEFAULT_BEAN_FIELD_CONFIG;
+
+  return {
+    version: 1,
+    fields: BEAN_COMPONENT_FIELD_IDS.map((id, index) => ({
+      id,
+      enabled: configured.get(id) ?? false,
+      order:
+        rawConfig.fields.find(field => field?.id === id)?.order ?? index,
+    })).sort((left, right) => left.order - right.order),
+  };
+}
+
+function buildBeanRecognitionPrompt(fieldConfig) {
+  const config = normalizeBeanFieldConfig(fieldConfig);
+  const enabledFields = config.fields
+    .filter(field => field.enabled)
+    .map(field => field.id);
+  const enabledSet = new Set(enabledFields);
+  const fieldLabels = BEAN_COMPONENT_FIELD_DEFINITIONS.filter(([id]) =>
+    enabledSet.has(id)
+  )
+    .map(([id, label]) => `${id}=${label}`)
+    .join('；');
+  const disabledLabels = BEAN_COMPONENT_FIELD_DEFINITIONS.filter(
+    ([id]) => !enabledSet.has(id)
+  )
+    .map(([, label]) => label)
+    .join('、');
+
+  return `${BEAN_RECOGNITION_PROMPT}
+
+最终咖啡豆字段约束（必须优先于上文）：
+- blendComponents 每个对象只允许输出这些成分字段：${enabledFields.join('/') || '无'}；字段含义：${fieldLabels || '无'}。
+- 不在允许列表里的成分信息不要写入 blendComponents；如果图片中明确可见，写入 notes，例如 ${disabledLabels ? `${disabledLabels} 写入 notes` : '未启用字段写入 notes'}。
+- origin 是未结构化的“产地概括”，只有允许 origin 时才输出；不要把 origin 当成产国。
+- batch 是批次，altitude 是海拔；只有对应字段启用时才写入 blendComponents，否则写入 notes。
+- 严禁输出未允许的 blendComponents 键。`;
+}
+
 const runtimeConfigCache = {
   allowedOriginsRaw: null,
   allowedOriginsParsed: { allowAll: true, list: [] },
@@ -327,9 +398,15 @@ function extractAssistantText(result) {
   return '';
 }
 
-function parseBeanResponse(aiText) {
+function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
   const payload = stripCodeFence(aiText);
   let beanData = JSON.parse(payload);
+  const normalizedFieldConfig = normalizeBeanFieldConfig(fieldConfig);
+  const enabledComponentKeys = new Set(
+    normalizedFieldConfig.fields
+      .filter(field => field.enabled)
+      .map(field => field.id)
+  );
 
   if (beanData && typeof beanData === 'object' && !Array.isArray(beanData)) {
     const possibleKeys = ['单豆', '多豆', '咖啡豆', 'beans', 'data'];
@@ -373,12 +450,7 @@ function parseBeanResponse(aiText) {
       'components',
       'notes',
     ]);
-    const allowedComponentKeys = new Set([
-      'origin',
-      'estate',
-      'process',
-      'variety',
-    ]);
+    const allowedComponentKeys = new Set(BEAN_COMPONENT_FIELD_IDS);
     const processPattern = /水洗|日晒|蜜处理|厌氧|发酵|湿刨|半水洗|自然/;
 
     const cleanValue = (value, allowedKeys = null) => {
@@ -425,8 +497,13 @@ function parseBeanResponse(aiText) {
       const varietyMatch = Array.from(noteText.matchAll(/\b\d{4,6}\b/g))
         .map(match => match[0])
         .filter(match => !new RegExp(`${match}\\s*M`, 'i').test(noteText))
+        .filter(match => !new RegExp(`批次\\s*[:：]?\\s*${match}`).test(noteText))
         .pop();
-      if (varietyMatch && !target.blendComponents[0]?.variety) {
+      if (
+        enabledComponentKeys.has('variety') &&
+        varietyMatch &&
+        !target.blendComponents[0]?.variety
+      ) {
         target.blendComponents[0] = {
           ...target.blendComponents[0],
           variety: varietyMatch,
@@ -528,7 +605,7 @@ function parseBeanResponse(aiText) {
     const normalizeBlendComponentDuplicates = target => {
       if (!Array.isArray(target.blendComponents)) return;
 
-      const componentFields = ['origin', 'estate', 'process', 'variety'];
+      const componentFields = BEAN_COMPONENT_FIELD_IDS;
       const normalizeComponentText = value =>
         typeof value === 'string'
           ? value.replace(/\s+/g, ' ').trim().toLowerCase()
@@ -710,6 +787,58 @@ function parseBeanResponse(aiText) {
       delete target.roaster;
     };
 
+    const applyBeanFieldConfig = target => {
+      if (!Array.isArray(target.blendComponents)) return;
+      const noteParts =
+        typeof target.notes === 'string' && target.notes.trim()
+          ? target.notes
+              .split(/\s*\/\s*/)
+              .map(part => part.trim())
+              .filter(Boolean)
+          : [];
+      const appendNote = note => {
+        if (note && !noteParts.includes(note)) noteParts.push(note);
+      };
+
+      target.blendComponents = target.blendComponents
+        .map((component, componentIndex) => {
+          if (!component || typeof component !== 'object') return component;
+          const next = {};
+          if (component.percentage !== undefined) {
+            next.percentage = component.percentage;
+          }
+          BEAN_COMPONENT_FIELD_DEFINITIONS.forEach(([id, label]) => {
+            const value =
+              typeof component[id] === 'string' ? component[id].trim() : '';
+            if (!value) return;
+            if (enabledComponentKeys.has(id)) {
+              next[id] = value;
+              return;
+            }
+            const prefix =
+              target.blendComponents.length > 1
+                ? `成分${componentIndex + 1} `
+                : '';
+            appendNote(`${prefix}${label}：${value}`);
+          });
+          return next;
+        })
+        .filter(component =>
+          BEAN_COMPONENT_FIELD_IDS.some(
+            field => typeof component?.[field] === 'string' && component[field]
+          )
+        );
+
+      if (target.blendComponents.length === 0) {
+        delete target.blendComponents;
+      }
+      if (noteParts.length > 0) {
+        target.notes = noteParts.join('/');
+      } else {
+        delete target.notes;
+      }
+    };
+
     bean = cleanValue(bean, allowedBeanKeys);
     if (
       !bean.blendComponents &&
@@ -736,6 +865,7 @@ function parseBeanResponse(aiText) {
     }
     moveRegionalNotesToOrigin(bean);
     moveRegionFromNameToOrigin(bean);
+    applyBeanFieldConfig(bean);
     dropAdvertisingNote(bean);
     moveGreenBeanMerchantOutOfRoaster(bean);
     if (!bean.beanType) {
@@ -825,6 +955,7 @@ function parseMethodResponse(aiText) {
 async function parseImageFromRequest(request) {
   const formData = await request.formData();
   const file = formData.get('image');
+  const beanFieldConfigValue = formData.get('beanFieldConfig');
 
   if (!(file instanceof File)) {
     throw new Error('请上传图片文件');
@@ -847,9 +978,21 @@ async function parseImageFromRequest(request) {
   const mimeType = resolveImageMimeType(file, buffer);
 
   const base64 = buffer.toString('base64');
+  let beanFieldConfig = DEFAULT_BEAN_FIELD_CONFIG;
+  if (typeof beanFieldConfigValue === 'string' && beanFieldConfigValue.trim()) {
+    try {
+      beanFieldConfig = normalizeBeanFieldConfig(
+        JSON.parse(beanFieldConfigValue)
+      );
+    } catch {
+      beanFieldConfig = DEFAULT_BEAN_FIELD_CONFIG;
+    }
+  }
+
   return {
     mimeType,
     imageUrl: `data:${mimeType};base64,${base64}`,
+    beanFieldConfig,
   };
 }
 
@@ -865,7 +1008,7 @@ async function handleBeanRecognition(context) {
   }
 
   try {
-    const { imageUrl } = await parseImageFromRequest(request);
+    const { imageUrl, beanFieldConfig } = await parseImageFromRequest(request);
     const result = await callModelJSON({
       url: QINIU_CHAT_COMPLETIONS,
       apiKey,
@@ -873,7 +1016,10 @@ async function handleBeanRecognition(context) {
       payload: {
         model: env.BEAN_RECOGNITION_MODEL || DEFAULT_VISION_RECOGNITION_MODEL,
         messages: [
-          { role: 'system', content: BEAN_RECOGNITION_PROMPT },
+          {
+            role: 'system',
+            content: buildBeanRecognitionPrompt(beanFieldConfig),
+          },
           {
             role: 'user',
             content: [{ type: 'image_url', image_url: { url: imageUrl } }],
@@ -893,7 +1039,7 @@ async function handleBeanRecognition(context) {
       return errorResponse(request, env, '无法识别图片中的咖啡豆信息', 500);
     }
 
-    const beanData = parseBeanResponse(aiText);
+    const beanData = parseBeanResponse(aiText, beanFieldConfig);
     return jsonResponse(request, env, {
       success: true,
       data: beanData,

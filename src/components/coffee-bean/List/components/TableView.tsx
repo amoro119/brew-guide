@@ -37,6 +37,7 @@ import {
 import FlavorStatusRing from './FlavorStatusRing';
 import TableHoverPreview, { type HoverPreviewBean } from './TableHoverPreview';
 import { getCoffeeBeanImageSource } from '@/lib/coffee-beans/imageRepository';
+import { getComponentOriginDisplay } from '@/lib/coffee-beans/beanFields';
 import {
   getDateDisplayColumnLabel,
   getDefaultVisibleColumns,
@@ -639,7 +640,7 @@ const TableView: React.FC<TableViewProps> = ({
         ...getColumnSizing('beanType'),
       }),
       origin: columnHelper.accessor(
-        row => row.blendComponents?.[0]?.origin || '',
+        row => getComponentOriginDisplay(row.blendComponents?.[0]) || '',
         {
           id: 'origin',
           header: '产地',

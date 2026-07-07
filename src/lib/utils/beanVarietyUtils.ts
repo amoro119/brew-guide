@@ -13,6 +13,7 @@ import {
   normalizeDelimitedTextList,
   removeRoasterFromDisplayName,
 } from './coffeeBeanUtils';
+import { getComponentOriginDisplay } from '@/lib/coffee-beans/beanFields';
 
 /**
  * 检查文本是否为有效值
@@ -28,8 +29,12 @@ export interface ExtendedCoffeeBean extends CoffeeBean {
   blendComponents?: {
     percentage?: number;
     origin?: string;
+    country?: string;
+    region?: string;
     estate?: string;
+    altitude?: string;
     process?: string;
+    batch?: string;
     variety?: string;
   }[];
 }
@@ -226,14 +231,49 @@ export const getBeanOrigins = (bean: CoffeeBean): string[] => {
   // 从blendComponents获取产地信息
   if (bean.blendComponents && Array.isArray(bean.blendComponents)) {
     bean.blendComponents.forEach(component => {
-      if (isValidText(component.origin)) {
-        origins.push(...normalizeDelimitedTextList(component.origin));
+      const originDisplay = getComponentOriginDisplay(component);
+      if (isValidText(originDisplay)) {
+        origins.push(originDisplay);
       }
     });
   }
 
   // 去重并返回
   return Array.from(new Set(origins));
+};
+
+/**
+ * 获取咖啡豆的结构化产国信息；不会从旧 origin 推断。
+ */
+export const getBeanCountries = (bean: CoffeeBean): string[] => {
+  const countries: string[] = [];
+
+  if (bean.blendComponents && Array.isArray(bean.blendComponents)) {
+    bean.blendComponents.forEach(component => {
+      if (isValidText(component.country)) {
+        countries.push(...normalizeDelimitedTextList(component.country));
+      }
+    });
+  }
+
+  return Array.from(new Set(countries));
+};
+
+export const extractUniqueCountries = (beans: CoffeeBean[]): string[] => {
+  const countryCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanCountries(bean).forEach(country => {
+      countryCount.set(country, (countryCount.get(country) || 0) + 1);
+    });
+  });
+
+  return Array.from(countryCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
 };
 
 /**

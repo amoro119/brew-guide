@@ -5,6 +5,10 @@ import {
 } from '@/lib/core/config';
 import { type CoffeeBean, type BlendComponent } from '@/types/app';
 import {
+  getComponentOriginDisplay,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
+import {
   isLegacyFormat,
   migrateStages,
   type LegacyStage,
@@ -629,8 +633,12 @@ function generateBeanTemplateJson() {
     {
       "percentage": 100,
       "origin": "",
+      "country": "",
+      "region": "",
       "estate": "",
+      "altitude": "",
       "process": "",
+      "batch": "",
       "variety": ""
     }
   ],
@@ -704,18 +712,25 @@ export function beanToReadableText(
       const hasValidBlendInfo = bean.blendComponents.some(
         component =>
           component.origin ||
+          component.country ||
+          component.region ||
           component.estate ||
+          component.altitude ||
           component.process ||
+          component.batch ||
           component.variety
       );
 
       if (hasValidBlendInfo) {
         text += `拼配成分:\n`;
         bean.blendComponents.forEach((component, index) => {
+          const usesStructuredOrigin = hasStructuredOriginFields(component);
           const componentText = [
-            component.origin || '',
-            component.estate || '',
+            getComponentOriginDisplay(component),
+            usesStructuredOrigin ? '' : component.estate || '',
+            usesStructuredOrigin ? '' : component.altitude || '',
             component.process || '',
+            component.batch || '',
             component.variety || '',
           ]
             .filter(v => v) // 过滤掉空值
@@ -734,14 +749,27 @@ export function beanToReadableText(
       if (
         component &&
         (component.origin ||
+          component.country ||
+          component.region ||
           component.estate ||
+          component.altitude ||
           component.process ||
+          component.batch ||
           component.variety)
       ) {
         text += `成分信息:\n`;
-        if (component.origin) text += `产地: ${component.origin}\n`;
-        if (component.estate) text += `庄园: ${component.estate}\n`;
+        if (hasStructuredOriginFields(component)) {
+          if (component.country) text += `产国: ${component.country}\n`;
+          if (component.region) text += `产区: ${component.region}\n`;
+          if (component.estate) text += `庄园: ${component.estate}\n`;
+          if (component.altitude) text += `海拔: ${component.altitude}\n`;
+        } else if (component.origin) {
+          text += `产地: ${component.origin}\n`;
+          if (component.estate) text += `庄园: ${component.estate}\n`;
+          if (component.altitude) text += `海拔: ${component.altitude}\n`;
+        }
         if (component.process) text += `处理法: ${component.process}\n`;
+        if (component.batch) text += `批次: ${component.batch}\n`;
         if (component.variety) text += `品种: ${component.variety}\n`;
       }
     }
@@ -1037,25 +1065,37 @@ function parseCoffeeBeanText(text: string): Partial<CoffeeBean> | null {
     bean.roastDate = dateMatch[1].trim();
   }
 
-  // 提取单品豆的成分信息（产地、庄园、处理法、品种）
+  // 提取单品豆的成分信息
   const originMatch = text.match(/产地:\s*(.*?)(?:\n|$)/);
+  const countryMatch = text.match(/产国:\s*(.*?)(?:\n|$)/);
+  const regionMatch = text.match(/产区:\s*(.*?)(?:\n|$)/);
   const estateMatch = text.match(/庄园:\s*(.*?)(?:\n|$)/);
+  const altitudeMatch = text.match(/海拔:\s*(.*?)(?:\n|$)/);
   const processMatch = text.match(/处理法:\s*(.*?)(?:\n|$)/);
+  const batchMatch = text.match(/批次:\s*(.*?)(?:\n|$)/);
   const varietyMatch = text.match(/品种:\s*(.*?)(?:\n|$)/);
 
   // 如果有任何成分信息，创建blendComponents
   if (
     originMatch?.[1] ||
+    countryMatch?.[1] ||
+    regionMatch?.[1] ||
     estateMatch?.[1] ||
+    altitudeMatch?.[1] ||
     processMatch?.[1] ||
+    batchMatch?.[1] ||
     varietyMatch?.[1]
   ) {
     bean.blendComponents = [
       {
         percentage: 100,
         origin: originMatch?.[1]?.trim() || '',
+        country: countryMatch?.[1]?.trim() || '',
+        region: regionMatch?.[1]?.trim() || '',
         estate: estateMatch?.[1]?.trim() || '',
+        altitude: altitudeMatch?.[1]?.trim() || '',
         process: processMatch?.[1]?.trim() || '',
+        batch: batchMatch?.[1]?.trim() || '',
         variety: varietyMatch?.[1]?.trim() || '',
       },
     ];

@@ -354,6 +354,15 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
             onUpdateField={updateTextField}
           />
         );
+      case 'batch':
+        return (
+          <InlineTextArea
+            field="batch"
+            value={content.batch}
+            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.batch}
+            onUpdateField={updateTextField}
+          />
+        );
       case 'variety':
         return (
           <InlineTextArea

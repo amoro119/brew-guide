@@ -6,6 +6,10 @@ import HighlightText from '@/components/common/ui/HighlightText';
 import { BEAN_TYPES } from '../types';
 import BlendComponentTagRows from './BlendComponentTagRows';
 import { updateBlendComponentsDelimitedField } from '@/lib/utils/coffeeBeanUtils';
+import {
+  getComponentOriginDisplay,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
 import { useRoastLevelSuggestions } from '@/components/coffee-bean/Form/hooks/useCoffeeBeanFieldSuggestions';
 import SuggestionDropdown, {
   SUGGESTION_DROPDOWN_Z_INDEX,
@@ -128,6 +132,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const originRef = useRef<HTMLDivElement>(null);
   const estateRef = useRef<HTMLDivElement>(null);
   const processRef = useRef<HTMLDivElement>(null);
+  const batchRef = useRef<HTMLDivElement>(null);
   const varietyRef = useRef<HTMLDivElement>(null);
   const currentBean = isAddMode ? tempBean : bean;
   const roastLevelSuggestions = useRoastLevelSuggestions();
@@ -141,8 +146,11 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
 
   // 获取当前值
   const origin = firstComponent?.origin || '';
+  const originDisplay = getComponentOriginDisplay(firstComponent);
+  const hasStructuredOrigin = hasStructuredOriginFields(firstComponent);
   const estate = firstComponent?.estate || '';
   const process = firstComponent?.process || '';
+  const batch = firstComponent?.batch || '';
   const variety = firstComponent?.variety || '';
   const roastLevel = currentBean?.roastLevel || '';
   const shouldShowEstateField =
@@ -160,6 +168,9 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
       if (processRef.current && firstComponent.process) {
         processRef.current.textContent = firstComponent.process;
       }
+      if (batchRef.current && firstComponent.batch) {
+        batchRef.current.textContent = firstComponent.batch;
+      }
       if (varietyRef.current && firstComponent.variety) {
         varietyRef.current.textContent = firstComponent.variety;
       }
@@ -170,7 +181,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   // 处理成分编辑
   const handleBlendComponentUpdate = (
     index: number,
-    field: 'origin' | 'estate' | 'process' | 'variety',
+    field: Exclude<keyof NonNullable<CoffeeBean['blendComponents']>[number], 'percentage'>,
     value: string
   ) => {
     const updatedComponents = updateBlendComponentsDelimitedField(
@@ -223,6 +234,16 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
     }
   };
 
+  const handleBatchInput = () => {
+    if (batchRef.current) {
+      handleBlendComponentUpdate(
+        0,
+        'batch',
+        batchRef.current.textContent || ''
+      );
+    }
+  };
+
   const handleFlavorPeriodDayChange = (
     field: 'startDay' | 'endDay',
     value: string
@@ -234,11 +255,61 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
     });
   };
 
+  const renderEditableInfoRow = ({
+    label,
+    value,
+    fieldRef,
+    onBlur,
+    editable = true,
+  }: {
+    label: string;
+    value: string;
+    fieldRef?: React.RefObject<HTMLDivElement | null>;
+    onBlur?: () => void;
+    editable?: boolean;
+  }) => {
+    if (isAddMode || !value) return null;
+
+    return (
+      <div className="flex items-start">
+        <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+          {label}
+        </div>
+        <div className="relative flex-1">
+          <div
+            ref={fieldRef}
+            contentEditable={editable}
+            suppressContentEditableWarning
+            onBlur={onBlur}
+            className={`text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100 ${
+              editable ? 'cursor-text' : ''
+            }`}
+            style={{ minHeight: '1.25em' }}
+          >
+            {searchQuery ? (
+              <HighlightText text={value} highlight={searchQuery} />
+            ) : (
+              value
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // 单品豆且有成分信息时显示可编辑区域
   if (isMultipleBlend && !isAddMode) return null;
 
   // 查看模式下至少有一个字段有值才显示；添加模式下总是显示
-  if (!isAddMode && !origin && !estate && !process && !variety && !roastLevel) {
+  if (
+    !isAddMode &&
+    !originDisplay &&
+    !estate &&
+    !process &&
+    !batch &&
+    !variety &&
+    !roastLevel
+  ) {
     return null;
   }
 
@@ -276,169 +347,38 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
         />
       )}
 
-      {/* 产地 */}
-      {!isAddMode && origin && (
-        <div className="flex items-start">
-          <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-            产地
-          </div>
-          <div className="relative flex-1">
-            {isAddMode && !origin && (
-              <span
-                className="pointer-events-none absolute top-0 left-0 text-xs font-medium text-neutral-400 dark:text-neutral-500"
-                data-placeholder="origin"
-              >
-                输入产地
-              </span>
-            )}
-            <div
-              ref={originRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={e => {
-                const placeholder =
-                  e.currentTarget.parentElement?.querySelector(
-                    '[data-placeholder="origin"]'
-                  ) as HTMLElement;
-                if (placeholder) {
-                  placeholder.style.display = e.currentTarget.textContent
-                    ? 'none'
-                    : '';
-                }
-              }}
-              onBlur={handleOriginInput}
-              className="cursor-text text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
-              style={{ minHeight: '1.25em' }}
-            >
-              {searchQuery ? (
-                <HighlightText text={origin} highlight={searchQuery} />
-              ) : (
-                origin
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 庄园 */}
-      {!isAddMode && estate && (
-        <div className="flex items-start">
-          <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-            庄园
-          </div>
-          <div className="relative flex-1">
-            {isAddMode && !estate && (
-              <span
-                className="pointer-events-none absolute top-0 left-0 text-xs font-medium text-neutral-400 dark:text-neutral-500"
-                data-placeholder="estate"
-              >
-                输入庄园
-              </span>
-            )}
-            <div
-              ref={estateRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={e => {
-                const placeholder =
-                  e.currentTarget.parentElement?.querySelector(
-                    '[data-placeholder="estate"]'
-                  ) as HTMLElement;
-                if (placeholder) {
-                  placeholder.style.display = e.currentTarget.textContent
-                    ? 'none'
-                    : '';
-                }
-              }}
-              onBlur={handleEstateInput}
-              className="cursor-text text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
-              style={{ minHeight: '1.25em' }}
-            >
-              {estate}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 处理法 */}
-      {!isAddMode && process && (
-        <div className="flex items-start">
-          <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-            处理法
-          </div>
-          <div className="relative flex-1">
-            {isAddMode && !process && (
-              <span
-                className="pointer-events-none absolute top-0 left-0 text-xs font-medium text-neutral-400 dark:text-neutral-500"
-                data-placeholder="process"
-              >
-                输入处理法
-              </span>
-            )}
-            <div
-              ref={processRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={e => {
-                const placeholder =
-                  e.currentTarget.parentElement?.querySelector(
-                    '[data-placeholder="process"]'
-                  ) as HTMLElement;
-                if (placeholder) {
-                  placeholder.style.display = e.currentTarget.textContent
-                    ? 'none'
-                    : '';
-                }
-              }}
-              onBlur={handleProcessInput}
-              className="cursor-text text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
-              style={{ minHeight: '1.25em' }}
-            >
-              {process}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 品种 */}
-      {!isAddMode && variety && (
-        <div className="flex items-start">
-          <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-            品种
-          </div>
-          <div className="relative flex-1">
-            {isAddMode && !variety && (
-              <span
-                className="pointer-events-none absolute top-0 left-0 text-xs font-medium text-neutral-400 dark:text-neutral-500"
-                data-placeholder="variety"
-              >
-                输入品种
-              </span>
-            )}
-            <div
-              ref={varietyRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={e => {
-                const placeholder =
-                  e.currentTarget.parentElement?.querySelector(
-                    '[data-placeholder="variety"]'
-                  ) as HTMLElement;
-                if (placeholder) {
-                  placeholder.style.display = e.currentTarget.textContent
-                    ? 'none'
-                    : '';
-                }
-              }}
-              onBlur={handleVarietyInput}
-              className="cursor-text text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
-              style={{ minHeight: '1.25em' }}
-            >
-              {variety}
-            </div>
-          </div>
-        </div>
-      )}
+      {renderEditableInfoRow({
+        label: '产地',
+        value: originDisplay,
+        fieldRef: originRef,
+        onBlur: hasStructuredOrigin ? undefined : handleOriginInput,
+        editable: !hasStructuredOrigin,
+      })}
+      {!hasStructuredOrigin &&
+        renderEditableInfoRow({
+          label: '庄园',
+          value: estate,
+          fieldRef: estateRef,
+          onBlur: handleEstateInput,
+        })}
+      {renderEditableInfoRow({
+        label: '处理法',
+        value: process,
+        fieldRef: processRef,
+        onBlur: handleProcessInput,
+      })}
+      {renderEditableInfoRow({
+        label: '批次',
+        value: batch,
+        fieldRef: batchRef,
+        onBlur: handleBatchInput,
+      })}
+      {renderEditableInfoRow({
+        label: '品种',
+        value: variety,
+        fieldRef: varietyRef,
+        onBlur: handleVarietyInput,
+      })}
 
       {/* 烘焙度 */}
       {(isAddMode || roastLevel) && (

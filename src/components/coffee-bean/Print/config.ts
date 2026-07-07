@@ -60,6 +60,7 @@ export const DEFAULT_CONFIG: PrintConfig = {
     packDate: false,
     flavor: true,
     process: true,
+    batch: false,
     variety: true,
     notes: true,
     weight: false,

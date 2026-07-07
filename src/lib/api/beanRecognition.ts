@@ -4,6 +4,15 @@ import {
   normalizeRecognitionErrorMessage,
   validateRecognitionImageFile,
 } from './shared/recognition';
+import {
+  BEAN_FIELD_DEFINITIONS,
+  getBeanFieldDefinition,
+  getEnabledBeanFieldIds,
+  normalizeCoffeeBeanPayloadForFieldConfig,
+  resolveBeanFieldConfig,
+  type BeanFieldId,
+} from '@/lib/coffee-beans/beanFields';
+import type { AppSettings } from '@/lib/core/db';
 
 export const DEFAULT_BEAN_RECOGNITION_MODEL = 'doubao-seed-2.0-mini';
 const DEPRECATED_BEAN_RECOGNITION_MODELS = new Set(['qwen-vl-max-2025-01-25']);
@@ -45,6 +54,50 @@ export interface CustomBeanRecognitionConfig {
   prompt: string;
 }
 
+export type BeanRecognitionFieldSettings = Pick<
+  AppSettings,
+  'beanFieldConfig' | 'showEstateField'
+>;
+
+export function buildBeanRecognitionPrompt(
+  basePrompt: string = DEFAULT_BEAN_RECOGNITION_PROMPT,
+  fieldSettings?: BeanRecognitionFieldSettings | null
+): string {
+  const config = resolveBeanFieldConfig(fieldSettings);
+  const enabledFieldIds = getEnabledBeanFieldIds(config);
+  const enabledFieldSet = new Set(enabledFieldIds);
+  const disabledFields = BEAN_FIELD_DEFINITIONS.filter(
+    definition => !enabledFieldSet.has(definition.id)
+  );
+  const allowedFields = enabledFieldIds.join('/') || '无';
+  const allowedFieldLabels = enabledFieldIds
+    .map(id => `${id}=${getBeanFieldDefinition(id).label}`)
+    .join('；');
+  const disabledFieldLabels = disabledFields
+    .map(definition => definition.label)
+    .join('、');
+  const structuredOriginFields: BeanFieldId[] = [
+    'country',
+    'region',
+    'estate',
+    'altitude',
+  ];
+  const enabledStructuredOriginLabels = structuredOriginFields
+    .filter(id => enabledFieldSet.has(id))
+    .map(id => getBeanFieldDefinition(id).label)
+    .join('、');
+
+  return `${basePrompt.trim()}
+
+最终咖啡豆字段约束（必须优先于上文和用户自定义提示词）：
+- blendComponents 每个对象只允许输出这些成分字段：${allowedFields}；字段含义：${allowedFieldLabels || '无'}。
+- 不在允许列表里的成分信息不要写入 blendComponents；如果图片中明确可见，写入 notes，例如 ${disabledFieldLabels ? `${disabledFieldLabels} 写入 notes` : '未启用字段写入 notes'}。
+- origin 是未结构化的“产地概括”，只有允许 origin 时才输出；不要把 origin 当成产国。
+- ${enabledStructuredOriginLabels ? `已启用精细产地字段：${enabledStructuredOriginLabels}；能明确区分时分别写入对应字段。` : '未启用精细产地字段；产国、产区、庄园、海拔不要写入 blendComponents。'}
+- batch 是批次，altitude 是海拔；只有对应字段启用时才写入 blendComponents，否则写入 notes。
+- 严禁输出未允许的 blendComponents 键。`;
+}
+
 export function resolveBeanRecognitionModel(model?: string): string {
   const trimmed = model?.trim() || '';
   if (!trimmed || DEPRECATED_BEAN_RECOGNITION_MODELS.has(trimmed)) {
@@ -82,8 +135,12 @@ function extractJsonPayload(raw: string): unknown {
 type RecognizedBeanRecord = Record<string, unknown>;
 const BLEND_COMPONENT_FIELDS = [
   'origin',
+  'country',
+  'region',
   'estate',
+  'altitude',
   'process',
+  'batch',
   'variety',
 ] as const;
 
@@ -222,15 +279,24 @@ function normalizeRecognizedBean(bean: unknown): unknown {
   return normalizedBean;
 }
 
-export function normalizeRecognizedBeanPayload(payload: unknown): unknown {
-  return Array.isArray(payload)
+export function normalizeRecognizedBeanPayload(
+  payload: unknown,
+  fieldSettings?: BeanRecognitionFieldSettings | null
+): unknown {
+  const normalizedPayload = Array.isArray(payload)
     ? payload.map(normalizeRecognizedBean)
     : normalizeRecognizedBean(payload);
+
+  return normalizeCoffeeBeanPayloadForFieldConfig(
+    normalizedPayload,
+    fieldSettings
+  );
 }
 
 async function recognizeBeanImageWithCustomAPI(
   imageFile: File,
-  customConfig: CustomBeanRecognitionConfig
+  customConfig: CustomBeanRecognitionConfig,
+  fieldSettings?: BeanRecognitionFieldSettings | null
 ): Promise<unknown> {
   try {
     const baseUrl = customConfig.apiBaseUrl.trim().replace(/\/+$/, '');
@@ -256,7 +322,13 @@ async function recognizeBeanImageWithCustomAPI(
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: customConfig.prompt },
+          {
+            role: 'system',
+            content: buildBeanRecognitionPrompt(
+              customConfig.prompt,
+              fieldSettings
+            ),
+          },
           {
             role: 'user',
             content: [{ type: 'image_url', image_url: { url: imageUrl } }],
@@ -283,7 +355,10 @@ async function recognizeBeanImageWithCustomAPI(
 
     const content = result?.choices?.[0]?.message?.content;
     if (typeof content === 'string' && content.trim()) {
-      return normalizeRecognizedBeanPayload(extractJsonPayload(content));
+      return normalizeRecognizedBeanPayload(
+        extractJsonPayload(content),
+        fieldSettings
+      );
     }
     if (Array.isArray(content)) {
       const merged = content
@@ -291,16 +366,19 @@ async function recognizeBeanImageWithCustomAPI(
         .join('')
         .trim();
       if (merged) {
-        return normalizeRecognizedBeanPayload(extractJsonPayload(merged));
+        return normalizeRecognizedBeanPayload(
+          extractJsonPayload(merged),
+          fieldSettings
+        );
       }
     }
 
     if (result?.data !== undefined) {
-      return normalizeRecognizedBeanPayload(result.data);
+      return normalizeRecognizedBeanPayload(result.data, fieldSettings);
     }
 
     if (Array.isArray(result) || (result && typeof result === 'object')) {
-      return normalizeRecognizedBeanPayload(result);
+      return normalizeRecognizedBeanPayload(result, fieldSettings);
     }
 
     throw new Error('实验性识别返回格式不支持，请检查 API 兼容性');
@@ -321,19 +399,28 @@ async function recognizeBeanImageWithCustomAPI(
 export async function recognizeBeanImage(
   imageFile: File,
   onProgress?: (chunk: string) => void,
-  customConfig?: CustomBeanRecognitionConfig
+  customConfig?: CustomBeanRecognitionConfig,
+  fieldSettings?: BeanRecognitionFieldSettings | null
 ): Promise<unknown> {
   // 验证文件安全性
   validateRecognitionImageFile(imageFile);
 
   if (customConfig?.enabled) {
-    return recognizeBeanImageWithCustomAPI(imageFile, customConfig);
+    return recognizeBeanImageWithCustomAPI(
+      imageFile,
+      customConfig,
+      fieldSettings
+    );
   }
 
   const apiUrl = `${API_CONFIG.baseURL}/api/recognize-bean`;
 
   const formData = new FormData();
   formData.append('image', imageFile);
+  formData.append(
+    'beanFieldConfig',
+    JSON.stringify(resolveBeanFieldConfig(fieldSettings))
+  );
 
   try {
     const response = await fetchWithTimeout(apiUrl, {
@@ -358,7 +445,7 @@ export async function recognizeBeanImage(
       throw new Error(result.error || '识别失败');
     }
 
-    return normalizeRecognizedBeanPayload(result.data);
+    return normalizeRecognizedBeanPayload(result.data, fieldSettings);
   } catch (error) {
     if (error instanceof Error && error.message.includes('404')) {
       throw new Error('API 服务未配置，请检查 EdgeOne Functions 部署状态');

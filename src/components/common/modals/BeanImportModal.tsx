@@ -18,9 +18,11 @@ import AddCircleIcon from '@public/images/icons/ui/add-circle.svg';
 import AddBoxIcon from '@public/images/icons/ui/add-box.svg';
 import { SettingsOptions } from '@/components/settings/Settings';
 import {
+  buildBeanRecognitionPrompt,
   DEFAULT_BEAN_RECOGNITION_PROMPT,
   type CustomBeanRecognitionConfig,
 } from '@/lib/api/beanRecognition';
+import { normalizeCoffeeBeanPayloadForFieldConfig } from '@/lib/coffee-beans/beanFields';
 import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
 import {
   isImageSelectionCancelled,
@@ -293,11 +295,22 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
   const [cameraZoom, setCameraZoom] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
 
-  const effectiveRecognitionPrompt = (
+  const baseRecognitionPrompt = (
     settings?.experimentalBeanRecognitionPrompt || ''
   ).trim()
     ? (settings?.experimentalBeanRecognitionPrompt as string).trim()
     : DEFAULT_BEAN_RECOGNITION_PROMPT;
+  const fieldSettings = useMemo(
+    () => ({
+      beanFieldConfig: settings?.beanFieldConfig,
+      showEstateField: settings?.showEstateField,
+    }),
+    [settings?.beanFieldConfig, settings?.showEstateField]
+  );
+  const effectiveRecognitionPrompt = useMemo(
+    () => buildBeanRecognitionPrompt(baseRecognitionPrompt, fieldSettings),
+    [baseRecognitionPrompt, fieldSettings]
+  );
 
   const customRecognitionConfig: CustomBeanRecognitionConfig | undefined =
     useMemo(
@@ -308,11 +321,11 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
               apiBaseUrl: settings.experimentalBeanRecognitionApiBaseUrl || '',
               apiKey: settings.experimentalBeanRecognitionApiKey || '',
               model: settings.experimentalBeanRecognitionModel || '',
-              prompt: effectiveRecognitionPrompt,
+              prompt: baseRecognitionPrompt,
             }
           : undefined,
       [
-        effectiveRecognitionPrompt,
+        baseRecognitionPrompt,
         settings?.experimentalBeanRecognitionApiBaseUrl,
         settings?.experimentalBeanRecognitionApiKey,
         settings?.experimentalBeanRecognitionEnabled,
@@ -538,8 +551,13 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         }
 
         // 处理数据
-        const processedBeans = dataArray.map(bean => ({
-          ...ensureStringFields(bean as unknown as ImportedBean),
+        const normalizedData = normalizeCoffeeBeanPayloadForFieldConfig(
+          dataArray,
+          fieldSettings
+        ) as ImportedBean[];
+
+        const processedBeans = normalizedData.map(bean => ({
+          ...ensureStringFields(bean),
           timestamp: Date.now(),
         }));
 
@@ -551,7 +569,7 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         showToast({ type: 'error', title: `添加失败: ${errorMessage}` });
       }
     },
-    [ensureStringFields, onImport, onClose]
+    [ensureStringFields, fieldSettings, onImport, onClose]
   );
 
   // 进入 JSON 输入步骤
@@ -605,13 +623,14 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         beanData = await recognizeBeanImage(
           compressedFile,
           undefined,
-          customRecognitionConfig
+          customRecognitionConfig,
+          fieldSettings
         );
       }
 
       return { data: beanData, file };
     },
-    [customRecognitionConfig]
+    [customRecognitionConfig, fieldSettings]
   );
 
   const handleRecognizeImageFile = useCallback(

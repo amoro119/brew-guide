@@ -133,7 +133,18 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
               sourceBean.blendComponents &&
               sourceBean.blendComponents.length > 0
                 ? sourceBean.blendComponents
-                : [{ origin: '', estate: '', process: '', variety: '' }],
+                : [
+                    {
+                      origin: '',
+                      country: '',
+                      region: '',
+                      estate: '',
+                      altitude: '',
+                      process: '',
+                      batch: '',
+                      variety: '',
+                    },
+                  ],
           },
           {
             roasterFieldEnabled: storeSettings.roasterFieldEnabled,
@@ -155,7 +166,16 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
           flavor: [],
           notes: '',
           blendComponents: [
-            { origin: '', estate: '', process: '', variety: '' },
+            {
+              origin: '',
+              country: '',
+              region: '',
+              estate: '',
+              altitude: '',
+              process: '',
+              batch: '',
+              variety: '',
+            },
           ],
         },
         {

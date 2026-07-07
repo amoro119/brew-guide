@@ -4,6 +4,10 @@ import { normalizeDate, parseDateToTimestamp } from '@/lib/utils/dateUtils';
 import { isPrintFieldVisible } from './fields';
 import { getBeanEstates, RoasterSettings } from '@/lib/utils/beanVarietyUtils';
 import { TempFileManager } from '@/lib/utils/tempFileManager';
+import {
+  getComponentOriginDisplay,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
 
 // 格式化日期
 export const formatDate = (dateStr: string): string => {
@@ -102,6 +106,9 @@ export const getBottomInfoLine = (
   if (isPrintFieldVisible('process', config, c)) {
     parts.push(c.process.trim());
   }
+  if (isPrintFieldVisible('batch', config, c)) {
+    parts.push(c.batch.trim());
+  }
   if (isPrintFieldVisible('variety', config, c)) {
     parts.push(c.variety.trim());
   }
@@ -132,13 +139,34 @@ export const getPreviewDimensions = (config: PrintConfig) => {
 // 从 bean 提取组件信息
 const extractComponentInfo = (
   bean: CoffeeBean,
-  field: 'origin' | 'process' | 'variety'
+  field: 'origin' | 'process' | 'batch' | 'variety'
 ): string => {
   if (!bean.blendComponents?.length) return '';
   const values = new Set(
     bean.blendComponents
       .map(c => c[field])
       .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+  );
+  return Array.from(values).join(', ');
+};
+
+const extractOriginInfo = (bean: CoffeeBean): string => {
+  if (!bean.blendComponents?.length) return '';
+  const values = new Set(
+    bean.blendComponents
+      .map(component => getComponentOriginDisplay(component))
+      .filter(value => value.trim() !== '')
+  );
+  return Array.from(values).join(', ');
+};
+
+const extractEstateInfo = (bean: CoffeeBean): string => {
+  if (!bean.blendComponents?.length) return '';
+  const values = new Set(
+    bean.blendComponents
+      .filter(component => !hasStructuredOriginFields(component))
+      .flatMap(component => getBeanEstates({ ...bean, blendComponents: [component] }))
+      .filter(value => value.trim() !== '')
   );
   return Array.from(values).join(', ');
 };
@@ -162,6 +190,7 @@ export const createInitialContent = (
       roastDate: '',
       packDate,
       process: '',
+      batch: '',
       variety: '',
       flavor: [],
       notes: '',
@@ -173,12 +202,13 @@ export const createInitialContent = (
   return {
     name: bean.name || '',
     roaster: bean.roaster || '',
-    origin: extractComponentInfo(bean, 'origin'),
-    estate: getBeanEstates(bean).join(', '),
+    origin: extractOriginInfo(bean),
+    estate: extractEstateInfo(bean),
     roastLevel: bean.roastLevel || '',
     roastDate: bean.roastDate || '',
     packDate,
     process: extractComponentInfo(bean, 'process'),
+    batch: extractComponentInfo(bean, 'batch'),
     variety: extractComponentInfo(bean, 'variety'),
     flavor: bean.flavor || [],
     notes: bean.notes || '',

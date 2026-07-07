@@ -33,6 +33,7 @@ import {
   defaultCalendarSyncSettings,
   normalizeCalendarSyncSettings,
 } from '@/lib/calendarSync/settings';
+import { normalizeBeanFieldConfig } from '@/lib/coffee-beans/beanFields';
 
 /**
  * 默认设置值
@@ -342,6 +343,7 @@ const mergeSettingsWithDefaults = (
       settings?.estimatedCupDoseSettings
     ),
     calendarSync: normalizeCalendarSyncSettings(settings?.calendarSync),
+    beanFieldConfig: normalizeBeanFieldConfig(settings?.beanFieldConfig),
   };
 };
 

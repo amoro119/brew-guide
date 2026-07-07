@@ -31,8 +31,12 @@ const suggestionFieldMap: Array<{
 
 const createEmptyBlendComponent = (): BlendComponent => ({
   origin: '',
+  country: '',
+  region: '',
   estate: '',
+  altitude: '',
   process: '',
+  batch: '',
   variety: '',
 });
 
@@ -49,8 +53,12 @@ const normalizeBlendFieldValue = (value: unknown) =>
 
 const isEmptyBlendComponent = (component: BlendComponent) =>
   !normalizeBlendFieldValue(component.origin) &&
+  !normalizeBlendFieldValue(component.country) &&
+  !normalizeBlendFieldValue(component.region) &&
   !normalizeBlendFieldValue(component.estate) &&
+  !normalizeBlendFieldValue(component.altitude) &&
   !normalizeBlendFieldValue(component.process) &&
+  !normalizeBlendFieldValue(component.batch) &&
   !normalizeBlendFieldValue(component.variety) &&
   component.percentage === undefined;
 

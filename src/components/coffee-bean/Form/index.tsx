@@ -228,8 +228,12 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
         return [
           {
             origin: '',
+            country: '',
+            region: '',
             estate: '',
+            altitude: '',
             process: '',
+            batch: '',
             variety: '',
           },
         ];
@@ -552,7 +556,12 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
           ...prev,
           {
             origin: '',
+            country: '',
+            region: '',
+            estate: '',
+            altitude: '',
             process: '',
+            batch: '',
             variety: '',
           },
         ];
@@ -620,6 +629,8 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       // 保存自定义的预设值
       blendComponents.forEach(component => {
         addPresetValues('origins', DEFAULT_ORIGINS, component.origin);
+        addPresetValues('origins', DEFAULT_ORIGINS, component.country);
+        addPresetValues('origins', DEFAULT_ORIGINS, component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
         addPresetValues('varieties', DEFAULT_VARIETIES, component.variety);

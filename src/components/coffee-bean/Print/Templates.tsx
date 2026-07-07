@@ -131,6 +131,12 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
       show: isPrintFieldVisible('process', config, content),
     },
     {
+      key: 'batch',
+      label: PRINT_FIELD_LABELS.batch,
+      value: content.batch,
+      show: isPrintFieldVisible('batch', config, content),
+    },
+    {
       key: 'variety',
       label: PRINT_FIELD_LABELS.variety,
       value: content.variety,

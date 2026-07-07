@@ -17,6 +17,7 @@ import {
   getBeanVarieties,
 } from '@/lib/utils/beanVarietyUtils';
 import { getSortedCoffeeBeanGroups } from '@/lib/utils/coffeeBeanGroupUtils';
+import { getComponentSearchText } from '@/lib/coffee-beans/beanFields';
 
 type SearchField = {
   text: string;
@@ -124,7 +125,7 @@ const uniqueNormalizedValues = (
 
 const buildSearchFields = (bean: ExtendedCoffeeBean): SearchField[] => {
   const originTexts = uniqueNormalizedValues(
-    bean.blendComponents?.map(component => component.origin)
+    bean.blendComponents?.map(component => getComponentSearchText(component))
   );
   const estateTexts = uniqueNormalizedValues(
     bean.blendComponents?.map(component => component.estate)
@@ -136,12 +137,7 @@ const buildSearchFields = (bean: ExtendedCoffeeBean): SearchField[] => {
     bean.blendComponents?.map(component => component.variety)
   );
   const blendComponentTexts = uniqueNormalizedValues(
-    bean.blendComponents?.map(
-      component =>
-        `${component.percentage ?? ''} ${component.origin ?? ''} ${
-          component.estate ?? ''
-        } ${component.process ?? ''} ${component.variety ?? ''}`
-    )
+    bean.blendComponents?.map(component => getComponentSearchText(component))
   );
 
   const fields: SearchField[] = [

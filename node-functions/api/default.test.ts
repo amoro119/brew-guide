@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import onRequest from './[[default]].js';
 
-function createImageRequest(file: File, pathname = '/api/recognize-bean') {
+function createImageRequest(
+  file: File,
+  pathname = '/api/recognize-bean',
+  beanFieldConfig?: unknown
+) {
   const formData = new FormData();
   formData.append('image', file);
+  if (beanFieldConfig) {
+    formData.append('beanFieldConfig', JSON.stringify(beanFieldConfig));
+  }
 
   return new Request(`https://example.com${pathname}`, {
     method: 'POST',
@@ -44,9 +51,9 @@ function mockModelResponse(content = '{"name":"测试咖啡豆"}') {
   };
 }
 
-async function callRecognizeBean(file: File) {
+async function callRecognizeBean(file: File, beanFieldConfig?: unknown) {
   return onRequest({
-    request: createImageRequest(file),
+    request: createImageRequest(file, '/api/recognize-bean', beanFieldConfig),
     env: { QINIU_API_KEY: 'test-key' },
   });
 }
@@ -188,12 +195,67 @@ describe('recognition image upload validation', () => {
       blendComponents: [
         {
           origin: '埃塞俄比亚',
-          estate: '博纳',
           process: '水洗',
           variety: '74158',
         },
       ],
-      notes: '海拔 2350m',
+      notes: '海拔 2350m/庄园：博纳',
+    });
+  });
+
+  it('keeps only configured bean fields in default recognition', async () => {
+    const { getPayload } = mockModelResponse(
+      '{"name":"测试咖啡豆","blendComponents":[{"origin":"埃塞俄比亚","estate":"博纳","process":"水洗","altitude":"2100m","batch":"A12"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(getPayload().messages[0].content).toContain(
+      '只允许输出这些成分字段：origin/process/variety'
+    );
+    expect(body.data).toEqual({
+      name: '测试咖啡豆',
+      beanType: 'filter',
+      blendComponents: [{ origin: '埃塞俄比亚', process: '水洗' }],
+      notes: '庄园：博纳/海拔：2100m/批次：A12',
+    });
+  });
+
+  it('keeps explicitly enabled structured bean fields', async () => {
+    mockModelResponse(
+      '{"name":"测试咖啡豆","blendComponents":[{"country":"埃塞俄比亚","region":"西达摩","estate":"博纳","process":"水洗","batch":"A12"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file, {
+      version: 1,
+      fields: [
+        { id: 'country', enabled: true, order: 0 },
+        { id: 'region', enabled: true, order: 1 },
+        { id: 'estate', enabled: true, order: 2 },
+        { id: 'process', enabled: true, order: 3 },
+      ],
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: '测试咖啡豆',
+      beanType: 'filter',
+      blendComponents: [
+        {
+          country: '埃塞俄比亚',
+          region: '西达摩',
+          estate: '博纳',
+          process: '水洗',
+        },
+      ],
+      notes: '批次：A12',
     });
   });
 
