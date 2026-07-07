@@ -447,6 +447,7 @@ interface ModernBrewingRecordContentProps {
   note: BrewingNote;
   noteImages: string[];
   imageSlotCount: number;
+  grindSize?: string;
   noteImageError: boolean;
   onNoteImageClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onNoteImageError: () => void;
@@ -457,6 +458,7 @@ const ModernBrewingRecordContent = React.memo(
     note,
     noteImages,
     imageSlotCount,
+    grindSize,
     noteImageError,
     onNoteImageClick,
     onNoteImageError,
@@ -483,6 +485,12 @@ const ModernBrewingRecordContent = React.memo(
 
           <div className="mt-2 text-xs leading-tight font-medium text-neutral-500/60 dark:text-neutral-500/60">
             {formatDate(note.timestamp)}
+            {grindSize && (
+              <>
+                {' · '}
+                {grindSize}
+              </>
+            )}
             {note.rating > 0 && (
               <>
                 {' · '}
@@ -579,6 +587,7 @@ export const BrewingRecordItem: React.FC<{
         textureText,
       ].filter(isVisibleText);
     }, [isEspresso, normalizedParams, note.totalTime]);
+    const footerGrindSize = isEspresso ? normalizedParams?.grindSize : '';
 
     const handleNoteImageError = React.useCallback(() => {
       setNoteImageErrors(prev => ({
@@ -671,6 +680,7 @@ export const BrewingRecordItem: React.FC<{
         note={note}
         noteImages={noteImages}
         imageSlotCount={imageSlotCount}
+        grindSize={footerGrindSize}
         noteImageError={noteImageError}
         onNoteImageClick={handleModernNoteImageClick}
         onNoteImageError={handleNoteImageError}

@@ -15,6 +15,7 @@ import { useBrewingNoteStore } from '@/lib/stores/brewingNoteStore';
 import { openImageViewer } from '@/lib/ui/imageViewer';
 import {
   getBeanUnitPrice,
+  normalizeBrewingNoteParams,
   resolveNoteBean,
   resolveNoteBeanDisplayName,
   resolveNoteEquipmentName,
@@ -242,6 +243,17 @@ const NoteItem: React.FC<NoteItemProps> = ({
   const hasNotes = Boolean(note.notes);
   const imageSlotCount = noteImages.length || storedImageCount;
   const equipmentName = resolveNoteEquipmentName(note, equipmentNames);
+  const normalizedParams = normalizeBrewingNoteParams(note.params);
+  const isEspresso = React.useMemo(
+    () =>
+      Boolean(
+        note.equipment &&
+          (note.equipment.toLowerCase().includes('espresso') ||
+            note.equipment.includes('意式'))
+      ),
+    [note.equipment]
+  );
+  const footerGrindSize = isEspresso ? normalizedParams?.grindSize : '';
 
   // 获取完整的咖啡豆信息（包括图片），优先使用实时关联的咖啡豆
   const beanInfo =
@@ -522,6 +534,12 @@ const NoteItem: React.FC<NoteItemProps> = ({
             {/* 时间和评分 */}
             <div className="mt-2 text-xs leading-tight font-medium text-neutral-500/60 dark:text-neutral-500/60">
               {formatDate(note.timestamp)}
+              {footerGrindSize && (
+                <>
+                  {' · '}
+                  {footerGrindSize}
+                </>
+              )}
               {note.rating > 0 && (
                 <>
                   {' · '}
