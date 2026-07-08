@@ -78,10 +78,10 @@ pnpm tauri:build
 
 ## 贡献
 
-欢迎提交 Issue 和 PR，也欢迎分享使用反馈和改进建议。
+目前暂不接受 Pull Request。欢迎通过 Issue 提交问题、使用反馈和改进建议。
 
 ## 许可证
 
-本项目采用 [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) 开源协议。
+本项目采用 [GPL-3.0-only](https://spdx.org/licenses/GPL-3.0-only.html) 开源协议。
 
 Copyright © 2026 chu3 (chuthree)
