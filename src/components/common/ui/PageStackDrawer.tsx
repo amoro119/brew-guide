@@ -110,8 +110,6 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
   onDone,
   children,
 }) => {
-  const headerRef = React.useRef<HTMLDivElement>(null);
-  const pageContentRef = React.useRef<HTMLDivElement | null>(null);
   const isOpenRef = React.useRef(isOpen);
   const currentSnapshot: PageStackDrawerSnapshot = {
     title,
@@ -125,10 +123,6 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
   };
   const [closingSnapshot, setClosingSnapshot] =
     React.useState<PageStackDrawerSnapshot>(currentSnapshot);
-  const [bodyHeight, setBodyHeight] = React.useState<number | 'auto'>('auto');
-  const [maxBodyHeight, setMaxBodyHeight] = React.useState<number | undefined>(
-    undefined
-  );
   const pageControls = useAnimationControls();
   const visibleSnapshot = isOpen ? currentSnapshot : closingSnapshot;
 
@@ -165,43 +159,6 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
     [canGoBack, onBack, onCancel]
   );
 
-  const updateMaxBodyHeight = React.useCallback(() => {
-    if (typeof window === 'undefined') return;
-
-    const headerHeight = headerRef.current?.offsetHeight || 0;
-    const nextMaxBodyHeight = Math.max(
-      160,
-      window.innerHeight * 0.88 - headerHeight
-    );
-    setMaxBodyHeight(current =>
-      current === nextMaxBodyHeight ? current : nextMaxBodyHeight
-    );
-  }, []);
-
-  React.useLayoutEffect(() => {
-    updateMaxBodyHeight();
-  });
-
-  React.useEffect(() => {
-    window.addEventListener('resize', updateMaxBodyHeight);
-    return () => window.removeEventListener('resize', updateMaxBodyHeight);
-  }, [updateMaxBodyHeight]);
-
-  const updateBodyHeight = React.useCallback(() => {
-    const content = pageContentRef.current;
-    if (!content) {
-      setBodyHeight('auto');
-      return;
-    }
-
-    const measuredHeight = content.scrollHeight;
-    setBodyHeight(
-      maxBodyHeight
-        ? Math.min(measuredHeight, maxBodyHeight)
-        : measuredHeight || 'auto'
-    );
-  }, [maxBodyHeight]);
-
   React.useLayoutEffect(() => {
     if (!isOpen) return;
 
@@ -217,24 +174,8 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
     visibleSnapshot.canGoBack,
   ]);
 
-  React.useLayoutEffect(() => {
-    if (!isOpen) return;
-
-    const content = pageContentRef.current;
-    if (!content) return;
-
-    updateBodyHeight();
-
-    const observer = new ResizeObserver(updateBodyHeight);
-    observer.observe(content);
-
-    return () => observer.disconnect();
-  }, [isOpen, updateBodyHeight, visibleSnapshot.activeKey]);
-
   const handleAnimationEnd = React.useCallback((open: boolean) => {
     if (!open && !isOpenRef.current) {
-      setBodyHeight('auto');
-      setMaxBodyHeight(undefined);
       setClosingSnapshot({
         title: '',
         activeKey: '',
@@ -261,10 +202,7 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
           aria-describedby={undefined}
         >
           <div className="flex min-h-0 flex-col">
-            <div
-              ref={headerRef}
-              className="grid shrink-0 grid-cols-[minmax(76px,1fr)_auto_minmax(76px,1fr)] items-center px-6 py-5"
-            >
+            <div className="grid shrink-0 grid-cols-[minmax(76px,1fr)_auto_minmax(76px,1fr)] items-center px-6 py-5">
               <button
                 type="button"
                 onClick={canGoBack ? onBack : onCancel}
@@ -307,26 +245,18 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
               )}
             </div>
 
-            <motion.div
-              initial={false}
-              animate={{ height: bodyHeight }}
-              transition={DRAWER_TRANSITION}
-              className="relative min-h-0 overflow-hidden"
-              style={{ maxHeight: maxBodyHeight }}
-            >
+            <div className="relative min-h-0 overflow-hidden">
               <motion.div
                 initial={false}
                 animate={pageControls}
                 transition={DRAWER_TRANSITION}
-                className="h-full min-h-0 overflow-y-auto"
+                className="max-h-[calc(88vh-76px)] min-h-0 overflow-y-auto"
                 style={{
-                  maxHeight: maxBodyHeight,
                   scrollPaddingBottom:
                     'calc(env(safe-area-inset-bottom) + 20px)',
                 }}
               >
                 <div
-                  ref={pageContentRef}
                   style={{
                     paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
                   }}
@@ -334,7 +264,7 @@ const PageStackDrawer: React.FC<PageStackDrawerProps> = ({
                   {visibleSnapshot.children}
                 </div>
               </motion.div>
-            </motion.div>
+            </div>
           </div>
         </Drawer.Content>
       </Drawer.Portal>

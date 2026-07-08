@@ -240,7 +240,7 @@ const CustomMethodFormModal: React.FC<CustomMethodFormModalProps> = ({
         {isCustomMethodDrawerOpen && currentCustomEquipment && (
           <div
             data-modal="custom-method-form"
-            className="flex h-[min(72vh,680px)] min-h-[520px] flex-col px-6 pb-2"
+            className="flex min-h-[calc(88vh-76px)] flex-col px-6 pb-[calc(env(safe-area-inset-bottom)+32px)]"
           >
             <CustomMethodForm
               ref={formRef}
