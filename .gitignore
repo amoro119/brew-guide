@@ -46,9 +46,12 @@ yarn-error.log*
 next-env.d.ts
 
 # Capacitor
+scripts/ios-device-update.sh
+
 # iOS specific
 ios/App/App/public/
 ios/App/Pods/
+ios/.derived-data/
 ios/App/App/build/
 ios/App/DerivedData/
 ios/App/App.xcworkspace/xcuserdata/
