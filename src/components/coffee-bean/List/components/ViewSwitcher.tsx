@@ -78,6 +78,28 @@ const FILTER_ANIMATION = {
   },
 };
 
+const isInsideFilterInteraction = (
+  event: PointerEvent,
+  elements: Array<HTMLElement | null>
+) => {
+  const target = event.target;
+  const path =
+    typeof event.composedPath === 'function' ? event.composedPath() : [];
+
+  if (
+    target instanceof Element &&
+    target.closest('[data-filter-toggle-button="true"]')
+  ) {
+    return true;
+  }
+
+  return elements.some(element => {
+    if (!element) return false;
+    if (path.includes(element)) return true;
+    return target instanceof Node && element.contains(target);
+  });
+};
+
 // 下划线动画配置 - 使用 spring 动画实现丝滑效果
 const UNDERLINE_TRANSITION = {
   type: 'spring' as const,
@@ -1030,13 +1052,12 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     if (!isFilterExpanded) return;
 
     const handlePointerDownOutside = (event: PointerEvent) => {
-      const target = event.target as Node;
-      const isInsideFilterInteraction = [
-        filterToggleButtonRef.current,
-        filterDropdownRef.current,
-      ].some(element => element?.contains(target));
-
-      if (isInsideFilterInteraction) {
+      if (
+        isInsideFilterInteraction(event, [
+          filterToggleButtonRef.current,
+          filterDropdownRef.current,
+        ])
+      ) {
         return;
       }
 
@@ -1189,6 +1210,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       <button
                         type="button"
                         ref={filterToggleButtonRef}
+                        data-filter-toggle-button="true"
                         onClick={handleFilterToggle}
                         className="mr-1 flex items-center pb-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-600"
                       >
@@ -1412,6 +1434,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     <button
                       type="button"
                       ref={filterToggleButtonRef}
+                      data-filter-toggle-button="true"
                       onClick={handleFilterToggle}
                       className="mr-1 flex items-center pb-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-600"
                     >
