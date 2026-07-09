@@ -80,7 +80,7 @@ import {
   getNotesTableColumnConfig,
   type NotesTableColumnKey,
 } from './tableColumns';
-import { useBrewingNoteImageCounts } from '@/lib/hooks/useBrewingNoteImages';
+import { useBrewingNoteImageCountsState } from '@/lib/hooks/useBrewingNoteImages';
 import { revertCapacityAdjustmentRecord } from '@/lib/coffee-beans/capacityAdjustment';
 
 const NOTES_TABLE_COLUMNS_STORAGE_KEY = 'notes-table-visible-columns';
@@ -356,10 +356,8 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
       notes.map(note => `${note.id}:${note.updatedAt ?? ''}`).join('\u0001'),
     [notes]
   );
-  const noteImageCounts = useBrewingNoteImageCounts(
-    noteIds,
-    noteImageVersionKey
-  );
+  const { imageCounts: noteImageCounts, isLoaded: areNoteImageCountsLoaded } =
+    useBrewingNoteImageCountsState(noteIds, noteImageVersionKey);
   const noteHasImage = useCallback(
     (note: BrewingNote) =>
       Boolean(
@@ -1149,12 +1147,23 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   // 但只在数据已经加载完成后才执行此检查，避免初始化时误判
   useEffect(() => {
     // 只有当确实没有图片笔记时才关闭
-    if (notes.length > 0 && imageFlowStats && imageFlowStats.count === 0) {
+    if (
+      notes.length > 0 &&
+      areNoteImageCountsLoaded &&
+      imageFlowStats &&
+      imageFlowStats.count === 0
+    ) {
       // 关闭所有图片流模式
       setImageFlowMode(false, false, false);
       updateViewMode('list');
     }
-  }, [imageFlowStats, setImageFlowMode, updateViewMode, notes.length]);
+  }, [
+    areNoteImageCountsLoaded,
+    imageFlowStats,
+    setImageFlowMode,
+    updateViewMode,
+    notes.length,
+  ]);
 
   const navigationSwipeHandlers = useNavigationSwipe(navigationSwipeControl);
 

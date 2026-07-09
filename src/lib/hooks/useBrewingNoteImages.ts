@@ -9,6 +9,7 @@ import {
 import { useImageLoadGate } from './useImageLoadGate';
 
 const EMPTY_IMAGES: string[] = [];
+const EMPTY_IMAGE_COUNTS = new Map<string, number>();
 
 interface BrewingNoteImagesState {
   noteId: string | undefined;
@@ -46,10 +47,24 @@ export function useBrewingNoteImageCounts(
   noteIds: string[],
   versionKey = ''
 ): Map<string, number> {
-  const [imageCounts, setImageCounts] = useState<Map<string, number>>(
-    new Map()
-  );
+  return useBrewingNoteImageCountsState(noteIds, versionKey).imageCounts;
+}
+
+export function useBrewingNoteImageCountsState(
+  noteIds: string[],
+  versionKey = ''
+): { imageCounts: Map<string, number>; isLoaded: boolean } {
+  const [state, setState] = useState<{
+    imageCounts: Map<string, number>;
+    isLoaded: boolean;
+    requestKey: string;
+  }>({
+    imageCounts: new Map(),
+    isLoaded: false,
+    requestKey: '',
+  });
   const idsKey = noteIds.join('\u0001');
+  const requestKey = `${idsKey}\u0001${versionKey}`;
   const imageNoteIds = useMemo(
     () => (idsKey ? idsKey.split('\u0001') : []),
     [idsKey]
@@ -57,21 +72,42 @@ export function useBrewingNoteImageCounts(
 
   useEffect(() => {
     let cancelled = false;
+    const uniqueNoteIds = Array.from(new Set(imageNoteIds.filter(Boolean)));
 
-    getBrewingNoteImageCounts(imageNoteIds)
+    if (uniqueNoteIds.length === 0) {
+      Promise.resolve().then(() => {
+        if (!cancelled) {
+          setState({ imageCounts: new Map(), isLoaded: true, requestKey });
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    getBrewingNoteImageCounts(uniqueNoteIds)
       .then(counts => {
-        if (!cancelled) setImageCounts(counts);
+        if (!cancelled) {
+          setState({ imageCounts: counts, isLoaded: true, requestKey });
+        }
       })
       .catch(() => {
-        if (!cancelled) setImageCounts(new Map());
+        if (!cancelled) {
+          setState({ imageCounts: new Map(), isLoaded: true, requestKey });
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [imageNoteIds, versionKey]);
+  }, [imageNoteIds, requestKey]);
 
-  return imageCounts;
+  return {
+    imageCounts:
+      state.requestKey === requestKey ? state.imageCounts : EMPTY_IMAGE_COUNTS,
+    isLoaded: state.requestKey === requestKey && state.isLoaded,
+  };
 }
 
 export function useBrewingNoteImages(
