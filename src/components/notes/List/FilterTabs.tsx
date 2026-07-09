@@ -699,7 +699,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
               <div className="relative flex-1 overflow-hidden">
                 {/* 左侧渐变阴影 - 覆盖在滚动内容上 */}
                 {showLeftShadow && (
-                  <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                  <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                 )}
 
                 <div
