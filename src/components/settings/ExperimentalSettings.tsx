@@ -211,7 +211,11 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
 
       {showCoffeeBeanExperiments && (
         <SettingSection title="咖啡豆">
-          <SettingRow label="沉浸式表单" isLast>
+          <SettingRow
+            label="沉浸式表单"
+            description="添加和编辑咖啡豆时，使用更简洁高效的表单。"
+            isLast
+          >
             <SettingToggle
               checked={settings.immersiveAdd || false}
               onChange={checked => handleChange('immersiveAdd', checked)}
