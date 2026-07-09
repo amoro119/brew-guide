@@ -3982,7 +3982,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           <AnimatePresence initial={false}>
             {shouldRenderNavigation && (
               <motion.div
-                key="navigation-bar-shell"
+                key={`navigation-bar-shell-${isDesktopLayout ? 'side' : 'top'}`}
                 className="md:h-full md:shrink-0 md:overflow-hidden"
                 initial={
                   isDesktopLayout

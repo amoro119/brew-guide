@@ -1213,7 +1213,7 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
           : 'border-neutral-200/50 dark:border-neutral-800/50'
       }`}
       style={{
-        width: width ? `${width}px` : undefined,
+        width: isDesktopLayout && width ? `${width}px` : '100%',
       }}
       transition={{ duration: 0.3 }}
       onDoubleClick={handleRescueDoubleClick}
