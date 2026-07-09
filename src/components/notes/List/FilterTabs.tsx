@@ -678,9 +678,6 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                 >
                   <span onDoubleClick={() => onSmartToggleImageFlow?.()}>
                     全部
-                    {viewMode === 'table' && <span> · 表格</span>}
-                    {isImageFlowMode && <span> · 图片流</span>}
-                    {isDateImageFlowMode && <span> · 带日期图片流</span>}
                   </span>
                 </TabButton>
 
