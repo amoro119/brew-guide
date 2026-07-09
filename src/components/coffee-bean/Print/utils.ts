@@ -2,12 +2,8 @@ import { CoffeeBean } from '@/types/app';
 import { EditableContent, PrintConfig, PrintIconSource } from './types';
 import { normalizeDate, parseDateToTimestamp } from '@/lib/utils/dateUtils';
 import { isPrintFieldVisible } from './fields';
-import { getBeanEstates, RoasterSettings } from '@/lib/utils/beanVarietyUtils';
+import { RoasterSettings } from '@/lib/utils/beanVarietyUtils';
 import { TempFileManager } from '@/lib/utils/tempFileManager';
-import {
-  getComponentOriginDisplay,
-  hasStructuredOriginFields,
-} from '@/lib/coffee-beans/beanFields';
 
 // 格式化日期
 export const formatDate = (dateStr: string): string => {
@@ -115,8 +111,17 @@ export const getBottomInfoLine = (
   if (isPrintFieldVisible('origin', config, c)) {
     parts.push(c.origin.trim());
   }
+  if (isPrintFieldVisible('country', config, c)) {
+    parts.push(c.country.trim());
+  }
+  if (isPrintFieldVisible('region', config, c)) {
+    parts.push(c.region.trim());
+  }
   if (isPrintFieldVisible('estate', config, c)) {
     parts.push(c.estate.trim());
+  }
+  if (isPrintFieldVisible('altitude', config, c)) {
+    parts.push(c.altitude.trim());
   }
   if (isPrintFieldVisible('roastLevel', config, c)) {
     parts.push(c.roastLevel.trim());
@@ -139,34 +144,21 @@ export const getPreviewDimensions = (config: PrintConfig) => {
 // 从 bean 提取组件信息
 const extractComponentInfo = (
   bean: CoffeeBean,
-  field: 'origin' | 'process' | 'batch' | 'variety'
+  field:
+    | 'origin'
+    | 'country'
+    | 'region'
+    | 'estate'
+    | 'altitude'
+    | 'process'
+    | 'batch'
+    | 'variety'
 ): string => {
   if (!bean.blendComponents?.length) return '';
   const values = new Set(
     bean.blendComponents
       .map(c => c[field])
       .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
-  );
-  return Array.from(values).join(', ');
-};
-
-const extractOriginInfo = (bean: CoffeeBean): string => {
-  if (!bean.blendComponents?.length) return '';
-  const values = new Set(
-    bean.blendComponents
-      .map(component => getComponentOriginDisplay(component))
-      .filter(value => value.trim() !== '')
-  );
-  return Array.from(values).join(', ');
-};
-
-const extractEstateInfo = (bean: CoffeeBean): string => {
-  if (!bean.blendComponents?.length) return '';
-  const values = new Set(
-    bean.blendComponents
-      .filter(component => !hasStructuredOriginFields(component))
-      .flatMap(component => getBeanEstates({ ...bean, blendComponents: [component] }))
-      .filter(value => value.trim() !== '')
   );
   return Array.from(values).join(', ');
 };
@@ -185,7 +177,10 @@ export const createInitialContent = (
       name: '',
       roaster: '',
       origin: '',
+      country: '',
+      region: '',
       estate: '',
+      altitude: '',
       roastLevel: '',
       roastDate: '',
       packDate,
@@ -202,8 +197,11 @@ export const createInitialContent = (
   return {
     name: bean.name || '',
     roaster: bean.roaster || '',
-    origin: extractOriginInfo(bean),
-    estate: extractEstateInfo(bean),
+    origin: extractComponentInfo(bean, 'origin'),
+    country: extractComponentInfo(bean, 'country'),
+    region: extractComponentInfo(bean, 'region'),
+    estate: extractComponentInfo(bean, 'estate'),
+    altitude: extractComponentInfo(bean, 'altitude'),
     roastLevel: bean.roastLevel || '',
     roastDate: bean.roastDate || '',
     packDate,

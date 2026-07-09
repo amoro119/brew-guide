@@ -13,6 +13,7 @@ import {
   PRINT_EDITOR_FIELD_LABELS,
   PRINT_TEXT_FIELD_PLACEHOLDERS,
   PrintTextFieldKey,
+  isSimplePrintTextFieldKey,
 } from './fields';
 import { getLocalDateString, parseLocalDateString } from './utils';
 
@@ -256,7 +257,7 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
     [onUpdateField]
   );
 
-  const renderFieldEditor = () => {
+  const renderFieldEditor = (): React.ReactNode => {
     switch (activeField) {
       case 'name':
         return (
@@ -327,74 +328,11 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
             )}
           </div>
         );
-      case 'origin':
-        return (
-          <InlineTextArea
-            field="origin"
-            value={content.origin}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.origin}
-            onUpdateField={updateTextField}
-          />
-        );
-      case 'estate':
-        return (
-          <InlineTextArea
-            field="estate"
-            value={content.estate}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.estate}
-            onUpdateField={updateTextField}
-          />
-        );
-      case 'process':
-        return (
-          <InlineTextArea
-            field="process"
-            value={content.process}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.process}
-            onUpdateField={updateTextField}
-          />
-        );
-      case 'batch':
-        return (
-          <InlineTextArea
-            field="batch"
-            value={content.batch}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.batch}
-            onUpdateField={updateTextField}
-          />
-        );
-      case 'variety':
-        return (
-          <InlineTextArea
-            field="variety"
-            value={content.variety}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.variety}
-            onUpdateField={updateTextField}
-          />
-        );
-      case 'roastLevel':
-        return (
-          <InlineTextArea
-            field="roastLevel"
-            value={content.roastLevel}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.roastLevel}
-            onUpdateField={updateTextField}
-          />
-        );
       case 'flavor':
         return (
           <FlavorFieldEditor
             flavors={content.flavor}
             onUpdateFlavor={handleUpdateFlavor}
-          />
-        );
-      case 'weight':
-        return (
-          <InlineTextArea
-            field="weight"
-            value={content.weight}
-            placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS.weight}
-            onUpdateField={updateTextField}
           />
         );
       case 'notes':
@@ -428,6 +366,17 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
           />
         );
       default:
+        if (isSimplePrintTextFieldKey(activeField)) {
+          return (
+            <InlineTextArea
+              key={activeField}
+              field={activeField}
+              value={content[activeField]}
+              placeholder={PRINT_TEXT_FIELD_PLACEHOLDERS[activeField]}
+              onUpdateField={updateTextField}
+            />
+          );
+        }
         return null;
     }
   };
@@ -450,7 +399,7 @@ export const FieldEditorPanel: React.FC<FieldEditorPanelProps> = ({
         </button>
       </div>
 
-      {renderFieldEditor()}
+      <div key={activeField}>{renderFieldEditor()}</div>
     </div>
   );
 };

@@ -12,9 +12,13 @@ import {
 } from './types';
 import { processThermalPrintIcon } from './iconProcessing';
 import { DEFAULT_ICON_PLACEMENT, normalizePrintIconPlacement } from './config';
-import { PRINT_EDITOR_FIELD_LABELS, getPrintFieldOrder } from './fields';
+import {
+  PRINT_EDITOR_FIELD_LABELS,
+  getAvailablePrintFieldOrder,
+} from './fields';
 import { getResolvedPrintIcon } from './utils';
 import { FieldEditorPanel } from './FieldEditorPanel';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
 
 const SOFT_BUTTON_CLASS =
   'rounded bg-neutral-200/50 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700';
@@ -56,7 +60,25 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({
   );
   const [isIconProcessing, setIsIconProcessing] = useState(false);
   const iconInputRef = useRef<HTMLInputElement | null>(null);
-  const availableFields = getPrintFieldOrder(config.template);
+  const beanFieldConfig = useSettingsStore(
+    state => state.settings.beanFieldConfig
+  );
+  const showEstateField = useSettingsStore(
+    state => state.settings.showEstateField
+  );
+  const beanFieldSettings = useMemo(
+    () => ({ beanFieldConfig, showEstateField }),
+    [beanFieldConfig, showEstateField]
+  );
+  const availableFields = useMemo(
+    () =>
+      getAvailablePrintFieldOrder(
+        config.template,
+        content,
+        beanFieldSettings
+      ),
+    [beanFieldSettings, config.template, content]
+  );
   const resolvedIcon = useMemo(
     () => getResolvedPrintIcon(content, roasterIcon),
     [content, roasterIcon]

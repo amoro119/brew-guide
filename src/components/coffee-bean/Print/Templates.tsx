@@ -2,7 +2,11 @@
 
 import React from 'react';
 import { TemplateProps } from './types';
-import { PRINT_FIELD_LABELS, isPrintFieldVisible } from './fields';
+import {
+  PRINT_COMPONENT_FIELD_KEYS,
+  PRINT_FIELD_LABELS,
+  isPrintFieldVisible,
+} from './fields';
 import { getFlavorLine, getBottomInfoLine, getDisplayBeanName } from './utils';
 
 // ============================================
@@ -96,6 +100,12 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
       ? content.weight
       : `${content.weight}g`
     : '';
+  const componentRows = PRINT_COMPONENT_FIELD_KEYS.map(field => ({
+    key: field,
+    label: PRINT_FIELD_LABELS[field],
+    value: content[field],
+    show: isPrintFieldVisible(field, config, content),
+  }));
   const rows = [
     {
       key: 'roastDate',
@@ -112,36 +122,7 @@ export const DetailedTemplate: React.FC<TemplateProps> = ({
         config.fields.packDate &&
         Boolean(content.packDate.trim()),
     },
-    {
-      key: 'origin',
-      label: PRINT_FIELD_LABELS.origin,
-      value: content.origin,
-      show: isPrintFieldVisible('origin', config, content),
-    },
-    {
-      key: 'estate',
-      label: PRINT_FIELD_LABELS.estate,
-      value: content.estate,
-      show: isPrintFieldVisible('estate', config, content),
-    },
-    {
-      key: 'process',
-      label: PRINT_FIELD_LABELS.process,
-      value: content.process,
-      show: isPrintFieldVisible('process', config, content),
-    },
-    {
-      key: 'batch',
-      label: PRINT_FIELD_LABELS.batch,
-      value: content.batch,
-      show: isPrintFieldVisible('batch', config, content),
-    },
-    {
-      key: 'variety',
-      label: PRINT_FIELD_LABELS.variety,
-      value: content.variety,
-      show: isPrintFieldVisible('variety', config, content),
-    },
+    ...componentRows,
     {
       key: 'roastLevel',
       label: PRINT_FIELD_LABELS.roastLevel,

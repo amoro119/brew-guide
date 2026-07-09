@@ -9,7 +9,10 @@ export interface EditableContent {
   name: string;
   roaster: string;
   origin: string;
+  country: string;
+  region: string;
   estate: string;
+  altitude: string;
   roastLevel: string;
   roastDate: string;
   packDate: string;
@@ -39,7 +42,10 @@ export interface PrintConfig {
     nameSeparator: boolean;
     contentBottomAligned: boolean;
     origin: boolean;
+    country: boolean;
+    region: boolean;
     estate: boolean;
+    altitude: boolean;
     roastLevel: boolean;
     roastDate: boolean;
     packDate: boolean;
