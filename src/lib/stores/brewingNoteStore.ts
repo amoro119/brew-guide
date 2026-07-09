@@ -15,6 +15,10 @@ import {
 } from '@/lib/notes/cleanup';
 import { recordCrashCheckpoint } from '@/lib/app/crashDiagnostics';
 import {
+  clearExpectedCoreDataDeletion,
+  markExpectedCoreDataDeletionIfEmpty,
+} from '@/lib/app/dataIntegrity';
+import {
   mergeNoteWithStoredImages,
   persistBrewingNoteImagesFromNote,
 } from '@/lib/notes/imageRepository';
@@ -85,6 +89,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
 
       const noteForStore = await persistBrewingNoteImagesFromNote(newNote);
       await db.brewingNotes.put(noteForStore);
+      await clearExpectedCoreDataDeletion();
       set(state => ({ notes: [noteForStore, ...state.notes] }));
 
       if (typeof window !== 'undefined') {
@@ -158,6 +163,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
             await db.brewingNoteImageThumbnails.delete(id);
           }
         );
+        await markExpectedCoreDataDeletionIfEmpty();
         set(state => ({ notes: state.notes.filter(n => n.id !== id) }));
 
         if (typeof window !== 'undefined') {
@@ -185,6 +191,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
       const cleanNote = normalizeBrewingNote(note).note;
       const noteForStore = await persistBrewingNoteImagesFromNote(cleanNote);
       await db.brewingNotes.put(noteForStore);
+      await clearExpectedCoreDataDeletion();
       set(state => {
         const exists = state.notes.some(n => n.id === noteForStore.id);
         return exists
@@ -209,6 +216,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
           await db.brewingNoteImageThumbnails.delete(id);
         }
       );
+      await markExpectedCoreDataDeletionIfEmpty();
       set(state => ({ notes: state.notes.filter(n => n.id !== id) }));
     },
 

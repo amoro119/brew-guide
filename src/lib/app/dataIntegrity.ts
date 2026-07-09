@@ -11,7 +11,10 @@ const EXPECTED_CORE_DATA_MUTATION_KEY =
   'brew-guide:data-integrity:expected-core-mutation';
 const EXPECTED_MUTATION_WINDOW_MS = 10 * 60 * 1000;
 
-export type CoreDataMutationReason = 'data-import' | 'reset-all-data';
+export type CoreDataMutationReason =
+  | 'data-import'
+  | 'reset-all-data'
+  | 'record-delete';
 
 export interface CoreDataSnapshot {
   capturedAt: string;
@@ -104,6 +107,7 @@ const isExpectedMutationActive = (
   nowMs: number
 ): boolean => {
   if (!expectedMutation) return false;
+  if (expectedMutation.reason === 'record-delete') return true;
 
   return Date.parse(expectedMutation.expiresAt) > nowMs;
 };
@@ -196,14 +200,40 @@ export async function markExpectedCoreDataMutation(
   } satisfies ExpectedCoreDataMutation);
 }
 
+export async function markExpectedCoreDataDeletionIfEmpty(): Promise<void> {
+  try {
+    const [coffeeBeans, brewingNotes] = await Promise.all([
+      db.coffeeBeans.count(),
+      db.brewingNotes.count(),
+    ]);
+
+    if (coffeeBeans === 0 && brewingNotes === 0) {
+      await markExpectedCoreDataMutation('record-delete');
+    }
+  } catch (error) {
+    console.warn('[DataIntegrity] 记录预期删除失败:', error);
+  }
+}
+
+export async function clearExpectedCoreDataDeletion(): Promise<void> {
+  try {
+    const expectedMutation = await readStorageValue<ExpectedCoreDataMutation>(
+      EXPECTED_CORE_DATA_MUTATION_KEY
+    );
+    if (expectedMutation?.reason === 'record-delete') {
+      await removeStorageValue(EXPECTED_CORE_DATA_MUTATION_KEY);
+    }
+  } catch (error) {
+    console.warn('[DataIntegrity] 清理预期删除标记失败:', error);
+  }
+}
+
 export async function inspectCoreDataIntegrity(
   source = 'startup'
 ): Promise<CoreDataIntegrityCheck> {
   const [previous, expectedMutation, current] = await Promise.all([
     readStorageValue<CoreDataSnapshot>(CORE_DATA_SNAPSHOT_KEY),
-    readStorageValue<ExpectedCoreDataMutation>(
-      EXPECTED_CORE_DATA_MUTATION_KEY
-    ),
+    readStorageValue<ExpectedCoreDataMutation>(EXPECTED_CORE_DATA_MUTATION_KEY),
     collectCoreDataSnapshot(),
   ]);
   const nowMs = Date.now();
@@ -242,6 +272,7 @@ export async function inspectCoreDataIntegrity(
   await writeStorageValue(CORE_DATA_SNAPSHOT_KEY, current);
 
   if (
+    expectedMutation?.reason === 'record-delete' ||
     !isExpectedMutationActive(expectedMutation, nowMs) ||
     getCoreRecordCount(current) > 0
   ) {

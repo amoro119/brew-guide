@@ -39,6 +39,10 @@ import {
 import type { RealtimeSyncTable } from './types';
 import type { BrewingNote, Method } from '@/lib/core/config';
 import type { CoffeeBean } from '@/types/app';
+import {
+  clearExpectedCoreDataDeletion,
+  markExpectedCoreDataDeletionIfEmpty,
+} from '@/lib/app/dataIntegrity';
 import { showToast } from '@/components/common/feedback/LightToast';
 import {
   mergeBeansWithStoredImages,
@@ -1126,6 +1130,12 @@ export class InitialSyncManager {
             ) => Promise<unknown>;
             await bulkPut(validRecords);
           }
+          if (
+            table === SYNC_TABLES.COFFEE_BEANS ||
+            table === SYNC_TABLES.BREWING_NOTES
+          ) {
+            await clearExpectedCoreDataDeletion();
+          }
         }
 
         this.updateProgressTask(table, {
@@ -1149,6 +1159,12 @@ export class InitialSyncManager {
         } else if (table === SYNC_TABLES.BREWING_NOTES) {
           await db.brewingNoteImages.bulkDelete(toDeleteLocal);
           await db.brewingNoteImageThumbnails.bulkDelete(toDeleteLocal);
+        }
+        if (
+          table === SYNC_TABLES.COFFEE_BEANS ||
+          table === SYNC_TABLES.BREWING_NOTES
+        ) {
+          await markExpectedCoreDataDeletionIfEmpty();
         }
       }
 

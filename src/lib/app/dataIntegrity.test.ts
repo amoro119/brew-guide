@@ -1,9 +1,38 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearExpectedCoreDataDeletion,
+  markExpectedCoreDataDeletionIfEmpty,
   shouldReportUnexpectedCoreDataLoss,
   type CoreDataSnapshot,
   type ExpectedCoreDataMutation,
 } from './dataIntegrity';
+
+const mocks = vi.hoisted(() => ({
+  coffeeBeansCount: vi.fn(),
+  brewingNotesCount: vi.fn(),
+  preferencesGet: vi.fn(),
+  preferencesRemove: vi.fn(),
+  preferencesSet: vi.fn(),
+}));
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: () => true },
+}));
+
+vi.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    get: mocks.preferencesGet,
+    set: mocks.preferencesSet,
+    remove: mocks.preferencesRemove,
+  },
+}));
+
+vi.mock('@/lib/core/db', () => ({
+  db: {
+    coffeeBeans: { count: mocks.coffeeBeansCount },
+    brewingNotes: { count: mocks.brewingNotesCount },
+  },
+}));
 
 const snapshot = (
   overrides: Partial<CoreDataSnapshot> = {}
@@ -72,6 +101,21 @@ describe('shouldReportUnexpectedCoreDataLoss', () => {
     ).toBe(true);
   });
 
+  it('consumes an intentional final-record deletion even after ten minutes', () => {
+    expect(
+      shouldReportUnexpectedCoreDataLoss({
+        previous: snapshot({ coffeeBeans: 1 }),
+        current: snapshot(),
+        expectedMutation: {
+          reason: 'record-delete',
+          recordedAt: '2026-07-09T00:00:00.000Z',
+          expiresAt: '2026-07-09T00:10:00.000Z',
+        },
+        nowMs: Date.parse('2026-07-10T00:00:00.000Z'),
+      })
+    ).toBe(false);
+  });
+
   it('does not report a full reset where settings are also gone', () => {
     expect(
       shouldReportUnexpectedCoreDataLoss({
@@ -80,5 +124,47 @@ describe('shouldReportUnexpectedCoreDataLoss', () => {
         expectedMutation: null,
       })
     ).toBe(false);
+  });
+});
+
+describe('markExpectedCoreDataDeletionIfEmpty', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.coffeeBeansCount.mockResolvedValue(0);
+    mocks.brewingNotesCount.mockResolvedValue(0);
+    mocks.preferencesGet.mockResolvedValue({ value: null });
+    mocks.preferencesRemove.mockResolvedValue(undefined);
+    mocks.preferencesSet.mockResolvedValue(undefined);
+  });
+
+  it('marks an intentional deletion only after the last core record is gone', async () => {
+    await markExpectedCoreDataDeletionIfEmpty();
+
+    expect(mocks.preferencesSet).toHaveBeenCalledOnce();
+    expect(
+      JSON.parse(mocks.preferencesSet.mock.calls[0][0].value)
+    ).toMatchObject({ reason: 'record-delete' });
+  });
+
+  it('does not mask data loss while another core record remains', async () => {
+    mocks.coffeeBeansCount.mockResolvedValue(1);
+
+    await markExpectedCoreDataDeletionIfEmpty();
+
+    expect(mocks.preferencesSet).not.toHaveBeenCalled();
+  });
+
+  it('clears the deletion marker after new core data is created', async () => {
+    mocks.preferencesGet.mockResolvedValue({
+      value: JSON.stringify({
+        reason: 'record-delete',
+        recordedAt: '2026-07-09T00:00:00.000Z',
+        expiresAt: '2026-07-09T00:10:00.000Z',
+      }),
+    });
+
+    await clearExpectedCoreDataDeletion();
+
+    expect(mocks.preferencesRemove).toHaveBeenCalledOnce();
   });
 });

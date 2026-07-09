@@ -12,6 +12,10 @@ import {
 } from '@/lib/utils/coffeeBeanUtils';
 import { recordCrashCheckpoint } from '@/lib/app/crashDiagnostics';
 import {
+  clearExpectedCoreDataDeletion,
+  markExpectedCoreDataDeletionIfEmpty,
+} from '@/lib/app/dataIntegrity';
+import {
   mergeBeanWithStoredImages,
   persistCoffeeBeanImagesFromBean,
 } from '@/lib/coffee-beans/imageRepository';
@@ -116,6 +120,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
       try {
         const beanForStore = await persistCoffeeBeanImagesFromBean(newBean);
         await db.coffeeBeans.put(beanForStore);
+        await clearExpectedCoreDataDeletion();
         set(state => ({ beans: [...state.beans, beanForStore] }));
 
         if (typeof window !== 'undefined') {
@@ -182,6 +187,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
             await db.coffeeBeanImageThumbnails.delete(id);
           }
         );
+        await markExpectedCoreDataDeletionIfEmpty();
         set(state => ({
           beans: state.beans.filter(b => b.id !== id),
         }));
@@ -213,6 +219,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
           await persistCoffeeBeanImagesFromBean(normalizedBean);
 
         await db.coffeeBeans.put(beanForStore);
+        await clearExpectedCoreDataDeletion();
         set(state => {
           const exists = state.beans.some(b => b.id === beanForStore.id);
           if (exists) {
@@ -243,6 +250,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
             await db.coffeeBeanImageThumbnails.delete(id);
           }
         );
+        await markExpectedCoreDataDeletionIfEmpty();
         set(state => ({ beans: state.beans.filter(b => b.id !== id) }));
       } catch (error) {
         console.error('[CoffeeBeanStore] removeBean failed:', error);
