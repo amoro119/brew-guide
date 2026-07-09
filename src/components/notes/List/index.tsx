@@ -1044,17 +1044,19 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   }, [isSearching, searchQuery, searchFilteredNotes, totalConsumption]);
 
   // 计算图片流模式下的统计信息
+  const imageFlowCandidateNotes = useMemo(
+    () =>
+      isSearching && searchQuery.trim() ? searchFilteredNotes : filteredNotes,
+    [filteredNotes, isSearching, searchFilteredNotes, searchQuery]
+  );
+
   const imageFlowStats = useMemo(() => {
     if (!isImageFlowMode && !isDateImageFlowMode) {
       return null;
     }
 
-    // 获取当前显示的笔记（搜索模式下使用搜索结果，否则使用筛选结果）
-    const currentNotes =
-      isSearching && searchQuery.trim() ? searchFilteredNotes : filteredNotes;
-
     // 过滤出有图片的笔记
-    const notesWithImages = currentNotes.filter(noteHasImage);
+    const notesWithImages = imageFlowCandidateNotes.filter(noteHasImage);
 
     // 计算有图片笔记的消耗量
     const imageNotesConsumption =
@@ -1068,18 +1070,14 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
   }, [
     isImageFlowMode,
     isDateImageFlowMode,
-    isSearching,
-    searchQuery,
-    searchFilteredNotes,
-    filteredNotes,
+    imageFlowCandidateNotes,
     noteHasImage,
   ]);
 
   // 计算是否有图片笔记（用于禁用/启用图片流按钮）
   const hasImageNotes = useMemo(() => {
-    // 基于所有原始笔记数据检查是否有图片
-    return notes.some(noteHasImage);
-  }, [noteHasImage, notes]); // 依赖notes以便在笔记数据变化时重新计算
+    return imageFlowCandidateNotes.some(noteHasImage);
+  }, [imageFlowCandidateNotes, noteHasImage]);
 
   // 计算图片流模式下的可用设备列表
   const imageFlowAvailableOptions = useMemo(() => {
