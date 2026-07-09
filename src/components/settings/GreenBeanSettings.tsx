@@ -12,7 +12,10 @@ import {
   SettingToggle,
   useScrollToHighlightedSetting,
 } from './atomic';
-import { makeSettingRowSearchId } from './settingsSearch';
+import {
+  makeSettingRowSearchId,
+  shouldRevealGreenBeanSearchSettings,
+} from './settingsSearch';
 
 interface GreenBeanSettingsProps {
   settings: SettingsOptions;
@@ -133,6 +136,21 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
   );
   const isPresetSectionHighlighted =
     highlightedSettingId === makeSettingRowSearchId('预设快捷烘焙量');
+  const [hasRevealedSearchDetails, setHasRevealedSearchDetails] =
+    React.useState(false);
+  const shouldRevealSearchDetails = shouldRevealGreenBeanSearchSettings(
+    highlightedSettingId
+  );
+
+  React.useEffect(() => {
+    if (shouldRevealSearchDetails) {
+      setHasRevealedSearchDetails(true);
+    }
+  }, [shouldRevealSearchDetails]);
+
+  const showGreenBeanDetails =
+    Boolean(settings.enableGreenBeanInventory) ||
+    hasRevealedSearchDetails;
 
   return (
     <SettingPage title="生豆库" isVisible={isVisible} onClose={handleClose}>
@@ -151,7 +169,7 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
         </SettingRow>
       </SettingSection>
 
-      {settings.enableGreenBeanInventory && (
+      {showGreenBeanDetails && (
         <>
           <SettingSection title="快捷烘焙">
             <SettingRow

@@ -17,6 +17,7 @@ import {
 import type { CoffeeBean } from '@/types/app';
 import { extractUniqueRoasters } from '@/lib/utils/beanVarietyUtils';
 import { normalizeCoffeeBeanGroups } from '@/lib/utils/coffeeBeanGroupUtils';
+import { BEAN_FIELD_DEFINITIONS } from '@/lib/coffee-beans/beanFields';
 
 export type SettingsSearchPageId =
   | 'settings'
@@ -94,6 +95,58 @@ export const makeSettingRowSearchId = (label: string) =>
 
 export const makeDynamicSettingSearchId = (prefix: string, value: string) =>
   `${prefix}-${makeSettingsSearchId(value)}`;
+
+const makeSettingSearchIdSet = (labels: string[]) =>
+  new Set(labels.map(makeSettingRowSearchId));
+
+const BEAN_NOTE_DETAIL_SEARCH_IDS = makeSettingSearchIdSet([
+  '风味',
+  '备注内容',
+  '备注行数限制',
+]);
+const BEAN_FIELD_SEARCH_IDS = makeSettingSearchIdSet(
+  BEAN_FIELD_DEFINITIONS.map(definition =>
+    definition.id === 'origin' ? '产地' : definition.label
+  )
+);
+const GREEN_BEAN_DETAIL_SEARCH_IDS = makeSettingSearchIdSet([
+  '启用"全部烘焙"选项',
+  '启用自定义烘焙量输入',
+  '预设快捷烘焙量',
+  '熟豆转生豆',
+]);
+
+export interface BeanSettingsSearchRevealState {
+  priceDetails: boolean;
+  noteDetails: boolean;
+  ratingDetails: boolean;
+  roasterDetails: boolean;
+  beanFields: boolean;
+}
+
+export const getBeanSettingsSearchRevealState = (
+  highlightedSettingId: string | null
+): BeanSettingsSearchRevealState => ({
+  priceDetails: highlightedSettingId === makeSettingRowSearchId('总价'),
+  noteDetails: Boolean(
+    highlightedSettingId &&
+    BEAN_NOTE_DETAIL_SEARCH_IDS.has(highlightedSettingId)
+  ),
+  ratingDetails: highlightedSettingId === makeSettingRowSearchId('十分位制'),
+  roasterDetails:
+    highlightedSettingId === makeSettingRowSearchId('烘焙商分隔符'),
+  beanFields: Boolean(
+    highlightedSettingId && BEAN_FIELD_SEARCH_IDS.has(highlightedSettingId)
+  ),
+});
+
+export const shouldRevealGreenBeanSearchSettings = (
+  highlightedSettingId: string | null
+): boolean =>
+  Boolean(
+    highlightedSettingId &&
+    GREEN_BEAN_DETAIL_SEARCH_IDS.has(highlightedSettingId)
+  );
 
 export const normalizeSettingsSearchText = (value: string) =>
   value.toLowerCase().normalize('NFKC').replace(/\s+/g, ' ').trim();

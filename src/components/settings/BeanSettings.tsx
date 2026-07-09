@@ -11,10 +11,23 @@ import SettingRow from './atomic/SettingRow';
 import SettingSelector from './atomic/SettingSelector';
 import SettingSlider from './atomic/SettingSlider';
 import SettingToggle from './atomic/SettingToggle';
+import { useScrollToHighlightedSetting } from './atomic/SettingSearchHighlightContext';
 
 import BeanEstimatedCupSection from './BeanEstimatedCupSection';
 import BeanPreview from './BeanPreview';
 import BeanFieldSettingsDrawer from './BeanFieldSettingsDrawer';
+import {
+  getBeanSettingsSearchRevealState,
+  type BeanSettingsSearchRevealState,
+} from './settingsSearch';
+
+const EMPTY_SEARCH_REVEAL_STATE: BeanSettingsSearchRevealState = {
+  priceDetails: false,
+  noteDetails: false,
+  ratingDetails: false,
+  roasterDetails: false,
+  beanFields: false,
+};
 
 interface BeanSettingsProps {
   settings: SettingsOptions;
@@ -51,9 +64,49 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
   );
 
   const [isVisible, setIsVisible] = React.useState(false);
-  const [showBeanFieldsDrawer, setShowBeanFieldsDrawer] =
-    React.useState(false);
+  const [showBeanFieldsDrawer, setShowBeanFieldsDrawer] = React.useState(false);
+  const [persistentSearchRevealState, setPersistentSearchRevealState] =
+    React.useState(EMPTY_SEARCH_REVEAL_STATE);
+  const highlightedSettingId =
+    useScrollToHighlightedSetting(showBeanFieldsDrawer);
+  const searchRevealState = React.useMemo(
+    () => getBeanSettingsSearchRevealState(highlightedSettingId),
+    [highlightedSettingId]
+  );
+  const showPriceDetails =
+    settings.showPrice !== false || persistentSearchRevealState.priceDetails;
+  const showNoteDetails =
+    settings.showBeanNotes !== false || persistentSearchRevealState.noteDetails;
+  const showRatingDetails =
+    Boolean(settings.showBeanRating) ||
+    persistentSearchRevealState.ratingDetails;
+  const showRoasterDetails =
+    settings.roasterFieldEnabled !== false ||
+    persistentSearchRevealState.roasterDetails;
   const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    if (!Object.values(searchRevealState).some(Boolean)) return;
+
+    setPersistentSearchRevealState(current => ({
+      priceDetails: current.priceDetails || searchRevealState.priceDetails,
+      noteDetails: current.noteDetails || searchRevealState.noteDetails,
+      ratingDetails: current.ratingDetails || searchRevealState.ratingDetails,
+      roasterDetails: current.roasterDetails || searchRevealState.roasterDetails,
+      beanFields: current.beanFields || searchRevealState.beanFields,
+    }));
+  }, [searchRevealState]);
+
+  const openBeanFieldsDrawer = React.useCallback(() => {
+    setShowBeanFieldsDrawer(true);
+  }, []);
+  const closeBeanFieldsDrawer = React.useCallback(() => {
+    setShowBeanFieldsDrawer(false);
+    setPersistentSearchRevealState(current => {
+      if (!current.beanFields) return current;
+      return { ...current, beanFields: false };
+    });
+  }, []);
 
   React.useEffect(() => {
     onCloseRef.current = onClose;
@@ -122,7 +175,7 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
           />
         </SettingRow>
 
-        {settings.showPrice !== false && (
+        {showPriceDetails && (
           <SettingRow label="总价" isSubSetting>
             <SettingToggle
               checked={settings.showTotalPrice || false}
@@ -138,14 +191,14 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
           />
         </SettingRow>
 
-        <SettingRow label="备注" isLast={settings.showBeanNotes === false}>
+        <SettingRow label="备注" isLast={!showNoteDetails}>
           <SettingToggle
             checked={settings.showBeanNotes !== false}
             onChange={checked => handleChange('showBeanNotes', checked)}
           />
         </SettingRow>
 
-        {settings.showBeanNotes !== false && (
+        {showNoteDetails && (
           <>
             <SettingRow label="风味" isSubSetting>
               <SettingToggle
@@ -194,13 +247,13 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
             onChange={checked => handleChange('enableBeanPrint', checked)}
           />
         </SettingRow>
-        <SettingRow label="评分" isLast={!(settings.showBeanRating || false)}>
+        <SettingRow label="评分" isLast={!showRatingDetails}>
           <SettingToggle
             checked={settings.showBeanRating || false}
             onChange={checked => handleChange('showBeanRating', checked)}
           />
         </SettingRow>
-        {(settings.showBeanRating || false) && (
+        {showRatingDetails && (
           <SettingRow label="十分位制" isSubSetting isLast>
             <SettingToggle
               checked={settings.beanRatingTenthStep || false}
@@ -219,10 +272,7 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
             }
           />
         </SettingRow>
-        <SettingRow
-          label="烘焙商"
-          isLast={settings.roasterFieldEnabled === false}
-        >
+        <SettingRow label="烘焙商" isLast={!showRoasterDetails}>
           <SettingToggle
             checked={settings.roasterFieldEnabled !== false}
             onChange={async checked => {
@@ -230,7 +280,7 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
             }}
           />
         </SettingRow>
-        {settings.roasterFieldEnabled !== false && (
+        {showRoasterDetails && (
           <SettingRow label="烘焙商分隔符" isSubSetting isLast>
             <SettingSelector
               value={settings.roasterSeparator || ' '}
@@ -251,15 +301,17 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
         <SettingRow
           label="咖啡豆字段"
           isLast
-          onClick={() => setShowBeanFieldsDrawer(true)}
+          onClick={openBeanFieldsDrawer}
         >
           <ChevronRight className="h-4 w-4 text-neutral-400" />
         </SettingRow>
       </SettingSection>
 
       <BeanFieldSettingsDrawer
-        isOpen={showBeanFieldsDrawer}
-        onClose={() => setShowBeanFieldsDrawer(false)}
+        isOpen={
+          showBeanFieldsDrawer || persistentSearchRevealState.beanFields
+        }
+        onClose={closeBeanFieldsDrawer}
       />
     </SettingPage>
   );

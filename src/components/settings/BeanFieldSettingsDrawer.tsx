@@ -14,6 +14,8 @@ import {
 } from '@/lib/coffee-beans/beanFields';
 import type { SettingsOptions } from './Settings';
 import SettingToggle from './atomic/SettingToggle';
+import { useScrollToHighlightedSetting } from './atomic/SettingSearchHighlightContext';
+import { makeSettingRowSearchId } from './settingsSearch';
 
 interface BeanFieldSettingsDrawerProps {
   isOpen: boolean;
@@ -23,6 +25,8 @@ interface BeanFieldSettingsDrawerProps {
 interface BeanFieldSettingsRowProps {
   fieldId: BeanFieldId;
   label: string;
+  settingId: string;
+  isHighlighted: boolean;
   isEnabled: boolean;
   isLast: boolean;
   onToggle: (fieldId: BeanFieldId, checked: boolean) => void;
@@ -31,6 +35,8 @@ interface BeanFieldSettingsRowProps {
 const BeanFieldSettingsRow: React.FC<BeanFieldSettingsRowProps> = ({
   fieldId,
   label,
+  settingId,
+  isHighlighted,
   isEnabled,
   isLast,
   onToggle,
@@ -43,7 +49,12 @@ const BeanFieldSettingsRow: React.FC<BeanFieldSettingsRowProps> = ({
   );
 
   return (
-    <div className="flex items-stretch px-3.5">
+    <div
+      data-settings-search-id={settingId}
+      className={`flex items-stretch px-3.5 transition-colors ${
+        isHighlighted ? 'bg-neutral-200/70 dark:bg-neutral-700/45' : ''
+      }`}
+    >
       <div
         className={`flex min-w-0 flex-1 items-center justify-between py-3.5 ${
           !isLast ? 'border-b border-black/5 dark:border-white/5' : ''
@@ -64,6 +75,7 @@ const BeanFieldSettingsDrawer: React.FC<BeanFieldSettingsDrawerProps> = ({
   isOpen,
   onClose,
 }) => {
+  const highlightedSettingId = useScrollToHighlightedSetting(isOpen);
   const settings = useSettingsStore(state => state.settings) as SettingsOptions;
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const beanFieldConfig = React.useMemo(
@@ -126,12 +138,15 @@ const BeanFieldSettingsDrawer: React.FC<BeanFieldSettingsDrawerProps> = ({
                     const isEnabled = enabledBeanFieldIdSet.has(definition.id);
                     const label =
                       definition.id === 'origin' ? '产地' : definition.label;
+                    const settingId = makeSettingRowSearchId(label);
 
                     return (
                       <BeanFieldSettingsRow
                         key={definition.id}
                         fieldId={definition.id}
                         label={label}
+                        settingId={settingId}
+                        isHighlighted={highlightedSettingId === settingId}
                         isEnabled={isEnabled}
                         isLast={index === fields.length - 1}
                         onToggle={toggleBeanField}
