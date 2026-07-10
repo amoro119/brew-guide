@@ -1,9 +1,12 @@
 const DEFAULT_API_BASE_URL = 'https://coffee.chu3.top';
+const BUNDLED_APP_HOSTNAMES = new Set(['app', 'tauri.localhost']);
 
 function getDefaultApiBaseUrl() {
   if (typeof window !== 'undefined') {
-    const { origin, protocol } = window.location;
-    if (protocol === 'http:' || protocol === 'https:') {
+    const { hostname, origin, protocol } = window.location;
+    const isWebOrigin = protocol === 'http:' || protocol === 'https:';
+
+    if (isWebOrigin && !BUNDLED_APP_HOSTNAMES.has(hostname)) {
       return origin;
     }
   }
@@ -11,7 +14,7 @@ function getDefaultApiBaseUrl() {
 }
 
 export const API_CONFIG = {
-  // Web 默认走当前域名的 EdgeOne Functions，原生/非 HTTP 环境回退到线上服务。
+  // 部署网页走同域 Functions；打包应用没有本地 Functions，统一回退线上服务。
   baseURL: (process.env.NEXT_PUBLIC_API_URL || getDefaultApiBaseUrl()).replace(
     /\/+$/,
     ''
