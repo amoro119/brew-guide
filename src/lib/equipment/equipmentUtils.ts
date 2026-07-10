@@ -54,13 +54,6 @@ export const equipmentUtils = {
       return allEquipments;
     }
 
-    const hasFullOrder = allEquipments.every(eq =>
-      orderedEquipmentIds.includes(eq.id)
-    );
-    if (!hasFullOrder) {
-      return allEquipments;
-    }
-
     // 按照排序重新排列
     const sortedEquipments: typeof allEquipments = [];
 
