@@ -50,6 +50,14 @@ const FILTER_ANIMATION = {
 // 时间分组模式循环顺序
 const DATE_GROUPING_ORDER: DateGroupingMode[] = ['month', 'day', 'year'];
 
+export const getNextDateGroupingMode = (
+  currentMode: DateGroupingMode
+): DateGroupingMode => {
+  const currentIndex = DATE_GROUPING_ORDER.indexOf(currentMode);
+  const nextIndex = (currentIndex + 1) % DATE_GROUPING_ORDER.length;
+  return DATE_GROUPING_ORDER[nextIndex];
+};
+
 // 日期格式化函数
 const formatDateLabel = (
   dateStr: string,
@@ -155,7 +163,6 @@ interface FilterButtonProps {
   onClick: () => void;
   children: React.ReactNode;
   className?: string;
-  disabled?: boolean;
 }
 
 const FilterButton: React.FC<FilterButtonProps> = ({
@@ -163,58 +170,19 @@ const FilterButton: React.FC<FilterButtonProps> = ({
   onClick,
   children,
   className = '',
-  disabled = false,
 }) => (
   <button
     type="button"
     onClick={onClick}
-    disabled={disabled}
     className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
-      disabled
-        ? 'cursor-not-allowed bg-neutral-200/30 text-neutral-400 opacity-30 dark:bg-neutral-800/50 dark:text-neutral-400'
-        : isActive
-          ? 'bg-neutral-300/30 text-neutral-800 dark:bg-neutral-600/50 dark:text-neutral-200'
-          : 'bg-neutral-200/30 text-neutral-400 dark:bg-neutral-800/50 dark:text-neutral-400'
+      isActive
+        ? 'bg-neutral-300/30 text-neutral-800 dark:bg-neutral-600/50 dark:text-neutral-200'
+        : 'bg-neutral-200/30 text-neutral-400 dark:bg-neutral-800/50 dark:text-neutral-400'
     } ${className}`}
   >
     {children}
   </button>
 );
-
-// 获取可用的时间分组模式（如果只有一年数据，则排除按年统计）
-const getAvailableGroupingModes = (
-  availableDates: string[],
-  currentMode: DateGroupingMode
-): DateGroupingMode[] => {
-  // 从 availableDates 提取所有唯一年份
-  const years = new Set<string>();
-  for (const date of availableDates) {
-    // 支持 year: "2024", month: "2024-01", day: "2024-01-01" 格式
-    const yearPart = date.substring(0, 4);
-    if (/^\d{4}$/.test(yearPart)) {
-      years.add(yearPart);
-    }
-  }
-
-  // 如果只有一年数据，则不提供按年统计模式
-  if (years.size <= 1) {
-    return DATE_GROUPING_ORDER.filter(mode => mode !== 'year');
-  }
-
-  return DATE_GROUPING_ORDER;
-};
-
-// 检查是否只有一年数据（用于禁用按年按钮）
-const hasOnlyOneYear = (availableDates: string[]): boolean => {
-  const years = new Set<string>();
-  for (const date of availableDates) {
-    const yearPart = date.substring(0, 4);
-    if (/^\d{4}$/.test(yearPart)) {
-      years.add(yearPart);
-    }
-  }
-  return years.size <= 1;
-};
 
 interface StatsFilterBarProps {
   dateGroupingMode: DateGroupingMode;
@@ -322,15 +290,11 @@ const StatsFilterBar: React.FC<StatsFilterBarProps> = ({
             )}
             <button
               type="button"
-              onClick={() => {
-                const availableModes = getAvailableGroupingModes(
-                  availableDates,
-                  dateGroupingMode
-                );
-                const currentIndex = availableModes.indexOf(dateGroupingMode);
-                const nextIndex = (currentIndex + 1) % availableModes.length;
-                onDateGroupingModeChange(availableModes[nextIndex]);
-              }}
+              onClick={() =>
+                onDateGroupingModeChange(
+                  getNextDateGroupingMode(dateGroupingMode)
+                )
+              }
               className="text-xs leading-none font-medium tracking-wide text-neutral-800 underline decoration-neutral-300 underline-offset-2 dark:text-neutral-100 dark:decoration-neutral-600"
             >
               {DATE_GROUPING_LABELS[dateGroupingMode]}
@@ -479,7 +443,6 @@ const StatsFilterBar: React.FC<StatsFilterBarProps> = ({
                       <FilterButton
                         isActive={dateGroupingMode === 'year'}
                         onClick={() => onDateGroupingModeChange('year')}
-                        disabled={hasOnlyOneYear(availableDates)}
                       >
                         {DATE_GROUPING_SHORT_LABELS.year}
                       </FilterButton>

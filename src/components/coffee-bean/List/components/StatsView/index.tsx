@@ -1713,18 +1713,6 @@ const RoastedBeanStatsView: React.FC<RoastedBeanStatsViewProps> = ({
     saveSelectedDatePreference(previousSelection);
   };
 
-  // 当只有一年数据时，自动从按年统计切换到按月统计（仅独立模式）
-  useEffect(() => {
-    if (
-      !isContentMode &&
-      dateGroupingMode === 'year' &&
-      availableDates.length <= 1
-    ) {
-      // 只有一年或没有数据，自动切换到按月统计
-      handleDateGroupingModeChange('month');
-    }
-  }, [dateGroupingMode, availableDates.length, isContentMode]);
-
   // 监听 selectedDate 变化并保存（仅独立模式）
   useEffect(() => {
     if (!isContentMode) {
@@ -2061,18 +2049,6 @@ const CombinedStatsView: React.FC<CombinedStatsViewProps> = ({
     },
     [dateGroupingMode]
   );
-
-  // 当只有一年数据时，自动从按年统计切换到按月统计
-  useEffect(() => {
-    const nextDateGroupingMode =
-      dateGroupingMode === 'year' && availableDates.length <= 1
-        ? 'month'
-        : dateGroupingMode;
-
-    if (nextDateGroupingMode !== dateGroupingMode) {
-      handleDateGroupingModeChange(nextDateGroupingMode);
-    }
-  }, [dateGroupingMode, availableDates.length, handleDateGroupingModeChange]);
 
   // 验证 selectedDate 是否在可用日期列表中，如果不在则重置
   useEffect(() => {
