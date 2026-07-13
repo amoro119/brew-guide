@@ -74,6 +74,7 @@ export interface BeanInventorySnapshotOptions {
 export interface BeanInventorySnapshot {
   filteredRecords: BeanListRecord[];
   emptyRecords: BeanListRecord[];
+  searchableEmptyRecords: BeanListRecord[];
   tableFilteredRecords: BeanListRecord[];
   tableEmptyRecords: BeanListRecord[];
   filteredBeans: ExtendedCoffeeBean[];
@@ -453,6 +454,7 @@ export const createBeanInventorySnapshot = (
   const currentStateRecords: BeanListRecord[] = [];
   const filteredRecords: BeanListRecord[] = [];
   const emptyRecords: BeanListRecord[] = [];
+  const searchableEmptyRecords: BeanListRecord[] = [];
 
   const availableVarietyCounts = new Map<string, number>();
   const availableVarietyNonEmptyCounts = new Map<string, number>();
@@ -540,12 +542,15 @@ export const createBeanInventorySnapshot = (
       }
     }
 
-    if (!(includeByEmpty && matchesBeanType && matchesMode)) {
+    if (!(matchesBeanType && matchesMode)) {
       continue;
     }
 
     if (record.isEmpty) {
-      emptyRecords.push(record);
+      searchableEmptyRecords.push(record);
+      if (options.showEmptyBeans) {
+        emptyRecords.push(record);
+      }
     } else {
       filteredRecords.push(record);
     }
@@ -585,6 +590,7 @@ export const createBeanInventorySnapshot = (
   return {
     filteredRecords: sortedFilteredRecords,
     emptyRecords: options.showEmptyBeans ? sortedEmptyRecords : [],
+    searchableEmptyRecords,
     tableFilteredRecords: filteredRecords,
     tableEmptyRecords: options.showEmptyBeans ? emptyRecords : [],
     filteredBeans,

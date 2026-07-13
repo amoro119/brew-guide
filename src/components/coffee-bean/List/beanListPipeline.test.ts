@@ -200,6 +200,33 @@ describe('beanListPipeline', () => {
     ).toEqual(['matching-filter']);
   });
 
+  it('keeps empty beans searchable in the current category while hidden', () => {
+    const emptyBean = buildBean({
+      id: 'empty-search-result',
+      name: 'Archived Typica',
+      remaining: '0',
+      blendComponents: [{ variety: 'Typica' }],
+    });
+    const otherCategoryBean = buildBean({
+      id: 'other-empty-search-result',
+      name: 'Archived Bourbon',
+      remaining: '0',
+      blendComponents: [{ variety: 'Bourbon' }],
+    });
+    const snapshot = createSnapshot([emptyBean, otherCategoryBean], {
+      filterMode: 'variety',
+      selectedVariety: 'Typica',
+      showEmptyBeans: false,
+    });
+
+    expect(snapshot.emptyRecords).toEqual([]);
+    expect(
+      searchBeanRecords(snapshot.searchableEmptyRecords, 'Archived').map(
+        record => record.bean.id
+      )
+    ).toEqual(['empty-search-result']);
+  });
+
   it('searches structured bean component fields and legacy origin', () => {
     const structuredBean = buildBean({
       id: 'structured',

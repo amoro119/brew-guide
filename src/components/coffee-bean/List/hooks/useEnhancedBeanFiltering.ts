@@ -36,6 +36,7 @@ interface UseEnhancedBeanFilteringReturn {
   records: BeanListRecord[];
   filteredRecords: BeanListRecord[];
   emptyRecords: BeanListRecord[];
+  searchableEmptyRecords: BeanListRecord[];
   tableFilteredRecords: BeanListRecord[];
   tableEmptyRecords: BeanListRecord[];
   filteredBeans: ExtendedCoffeeBean[];
@@ -111,6 +112,7 @@ export const useEnhancedBeanFiltering = ({
     records,
     filteredRecords: snapshot.filteredRecords,
     emptyRecords: snapshot.emptyRecords,
+    searchableEmptyRecords: snapshot.searchableEmptyRecords,
     tableFilteredRecords: snapshot.tableFilteredRecords,
     tableEmptyRecords: snapshot.tableEmptyRecords,
     filteredBeans: snapshot.filteredBeans,

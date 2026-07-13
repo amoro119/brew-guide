@@ -354,6 +354,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     records,
     filteredRecords,
     emptyRecords,
+    searchableEmptyRecords,
     tableFilteredRecords,
     tableEmptyRecords,
     filteredBeans,
@@ -1311,6 +1312,8 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   }, []);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const hasSearchQuery = isSearching && deferredSearchQuery.trim().length > 0;
+  const showEmptyBeansInResults = showEmptyBeans || hasSearchQuery;
 
   const handleSearchModeChange = useCallback((value: boolean) => {
     setIsSearching(value);
@@ -1356,16 +1359,17 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   }, [deferredSearchQuery, inventoryFilteredRecords, isSearching]);
 
   const currentScopeSearchFilteredEmptyRecords = React.useMemo(() => {
-    if (!showEmptyBeans) {
-      return [];
-    }
-
-    if (!isSearching) {
+    if (!hasSearchQuery) {
       return inventoryEmptyRecords;
     }
 
-    return searchBeanRecords(inventoryEmptyRecords, deferredSearchQuery);
-  }, [deferredSearchQuery, inventoryEmptyRecords, isSearching, showEmptyBeans]);
+    return searchBeanRecords(searchableEmptyRecords, deferredSearchQuery);
+  }, [
+    deferredSearchQuery,
+    hasSearchQuery,
+    inventoryEmptyRecords,
+    searchableEmptyRecords,
+  ]);
 
   const activeCategorySearchScopeLabel = React.useMemo(() => {
     switch (filterMode) {
@@ -1430,13 +1434,13 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     if (displayMode === 'table') {
       return {
         filteredRecords: snapshot.tableFilteredRecords,
-        emptyRecords: snapshot.tableEmptyRecords,
+        emptyRecords: snapshot.searchableEmptyRecords,
       };
     }
 
     return {
       filteredRecords: snapshot.filteredRecords,
-      emptyRecords: snapshot.emptyRecords,
+      emptyRecords: snapshot.searchableEmptyRecords,
     };
   }, [
     activeSearchScopeLabel,
@@ -1510,16 +1514,8 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   ]);
 
   const searchAllFilteredEmptyRecords = React.useMemo(() => {
-    if (!isSearchAllScope) {
-      return searchAllInventoryRecords.emptyRecords;
-    }
-
-    if (!showEmptyBeans) {
+    if (!isSearchAllScope || !hasSearchQuery) {
       return [];
-    }
-
-    if (!isSearching) {
-      return searchAllInventoryRecords.emptyRecords;
     }
 
     return searchBeanRecords(
@@ -1528,10 +1524,9 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
     );
   }, [
     deferredSearchQuery,
-    isSearching,
+    hasSearchQuery,
     isSearchAllScope,
     searchAllInventoryRecords,
-    showEmptyBeans,
   ]);
 
   const searchFilteredRecords = isSearchAllScope
@@ -1608,7 +1603,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
       const emptyBeansToExport = isSearching
         ? searchFilteredEmptyBeans
         : inventoryEmptyBeans;
-      const beansToExport = showEmptyBeans
+      const beansToExport = showEmptyBeansInResults
         ? [...normalBeans, ...emptyBeansToExport]
         : normalBeans;
 
@@ -1638,7 +1633,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         if (beansToExport.length === 0) return '';
 
         let text = '';
-        if (showEmptyBeans) {
+        if (showEmptyBeansInResults) {
           text = `${beansToExport.length} 款${beanTypeName}，总共 ${originalTotalWeightText}，剩余 ${totalWeightText}`;
         } else {
           text = `${beansToExport.length} 款${beanTypeName}，剩余 ${totalWeightText}`;
@@ -1703,7 +1698,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         settings, // 传递用户的真实设置
         summaryText,
         {
-          emptyBeans: showEmptyBeans ? emptyBeansToExport : undefined, // 传递已用完的豆子列表用于分割线
+          emptyBeans: showEmptyBeansInResults ? emptyBeansToExport : undefined, // 传递已用完的豆子列表用于分割线
         }
       );
 
@@ -1908,7 +1903,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         onSortChange={handleSortChange}
         beansCount={
           isSearching
-            ? searchFilteredBeans.length
+            ? searchFilteredBeans.length + searchFilteredEmptyBeans.length
             : inventoryFilteredBeans.length
         }
         totalBeans={beans.length}
@@ -2022,7 +2017,7 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
                 isSearching ? searchFilteredEmptyBeans : inventoryEmptyBeans
               }
               selectedVariety={selectedVariety}
-              showEmptyBeans={showEmptyBeans}
+              showEmptyBeans={showEmptyBeansInResults}
               selectedBeanType={selectedBeanType}
               selectedBeanState={selectedBeanState}
               hasEmptyBeansInCurrentState={hasEmptyBeansInCurrentState}
