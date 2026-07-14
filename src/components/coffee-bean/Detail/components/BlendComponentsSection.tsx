@@ -2,13 +2,122 @@
 
 import React from 'react';
 import { BlendComponent, CoffeeBean } from '@/types/app';
-import { hasStructuredOriginFields } from '@/lib/coffee-beans/beanFields';
+import {
+  BEAN_FIELD_DEFINITIONS,
+  getComponentFieldValue,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
+
+type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
 
 interface BlendComponentsSectionProps {
   bean: CoffeeBean | null;
   isAddMode: boolean;
   handleUpdateField: (updates: Partial<CoffeeBean>) => Promise<void>;
 }
+
+interface BlendComponentDisplayEntry {
+  componentIndex: number;
+  value: string;
+}
+
+export type BlendComponentDisplayRow =
+  | {
+      field: TextBlendField;
+      label: string;
+      editable: true;
+      entries: BlendComponentDisplayEntry[];
+    }
+  | {
+      field: 'percentage';
+      label: string;
+      editable: false;
+      entries: BlendComponentDisplayEntry[];
+    };
+
+export const buildBlendComponentDisplayRows = (
+  components: BlendComponent[]
+): BlendComponentDisplayRow[] => {
+  const fieldRows = BEAN_FIELD_DEFINITIONS.flatMap(definition => {
+    const entries = components.flatMap((component, componentIndex) => {
+      if (definition.id === 'origin' && hasStructuredOriginFields(component)) {
+        return [];
+      }
+
+      const value = getComponentFieldValue(component, definition.id);
+      return value ? [{ componentIndex, value }] : [];
+    });
+
+    return entries.length > 0
+      ? [
+          {
+            field: definition.id,
+            label: definition.label,
+            editable: true as const,
+            entries,
+          },
+        ]
+      : [];
+  });
+
+  const percentageEntries = components.flatMap((component, componentIndex) =>
+    component.percentage !== undefined && component.percentage !== null
+      ? [{ componentIndex, value: `${component.percentage}%` }]
+      : []
+  );
+
+  return percentageEntries.length > 0
+    ? [
+        ...fieldRows,
+        {
+          field: 'percentage',
+          label: '比例',
+          editable: false,
+          entries: percentageEntries,
+        },
+      ]
+    : fieldRows;
+};
+
+interface EditableBlendValueProps {
+  field: TextBlendField;
+  entry: BlendComponentDisplayEntry;
+  components: BlendComponent[];
+  handleUpdateField: (updates: Partial<CoffeeBean>) => Promise<void>;
+}
+
+const EditableBlendValue: React.FC<EditableBlendValueProps> = ({
+  field,
+  entry,
+  components,
+  handleUpdateField,
+}) => {
+  const handleBlur = React.useCallback(
+    (event: React.FocusEvent<HTMLSpanElement>) => {
+      const nextValue = event.currentTarget.textContent?.trim() || '';
+      if (nextValue === entry.value) return;
+
+      const updatedComponents = [...components];
+      updatedComponents[entry.componentIndex] = {
+        ...updatedComponents[entry.componentIndex],
+        [field]: nextValue,
+      };
+      void handleUpdateField({ blendComponents: updatedComponents });
+    },
+    [components, entry.componentIndex, entry.value, field, handleUpdateField]
+  );
+
+  return (
+    <span
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={handleBlur}
+      className="cursor-text outline-none"
+    >
+      {entry.value}
+    </span>
+  );
+};
 
 const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
   bean,
@@ -19,132 +128,54 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
     return null;
   }
 
-  const visibleComponents = bean.blendComponents
-    .map((component, index) => {
-      const hasStructuredOrigin = hasStructuredOriginFields(component);
+  const displayRows = buildBlendComponentDisplayRows(bean.blendComponents);
+  const visibleComponentIndexes = new Set(
+    displayRows.flatMap(row => row.entries.map(entry => entry.componentIndex))
+  );
 
-      return {
-        index,
-        origin: hasStructuredOrigin ? '' : component.origin?.trim() || '',
-        country: component.country?.trim() || '',
-        region: component.region?.trim() || '',
-        estate: component.estate?.trim() || '',
-        processingStation: component.processingStation?.trim() || '',
-        altitude: component.altitude?.trim() || '',
-        batch: component.batch?.trim() || '',
-        variety: component.variety?.trim() || '',
-        process: component.process?.trim() || '',
-        percentage: component.percentage,
-      };
-    })
-    .filter(
-      component =>
-        component.origin ||
-        component.country ||
-        component.region ||
-        component.estate ||
-        component.processingStation ||
-        component.altitude ||
-        component.batch ||
-        component.variety ||
-        component.process ||
-        component.percentage !== undefined
-    );
-
-  if (visibleComponents.length <= 1) {
+  if (visibleComponentIndexes.size <= 1) {
     return null;
   }
 
-  // 处理拼配成分字段编辑
-  const handleBlendFieldEdit = (
-    index: number,
-    field: Exclude<keyof BlendComponent, 'percentage'>,
-    value: string
-  ) => {
-    const updatedComponents = [...bean.blendComponents!];
-    updatedComponents[index] = {
-      ...updatedComponents[index],
-      [field]: value.trim(),
-    };
-    handleUpdateField({ blendComponents: updatedComponents });
-  };
+  const renderRowEntries = (row: BlendComponentDisplayRow) =>
+    row.entries.flatMap((entry, entryIndex) => {
+      const value = row.editable ? (
+        <EditableBlendValue
+          key={`${row.field}-${entry.componentIndex}`}
+          field={row.field}
+          entry={entry}
+          components={bean.blendComponents!}
+          handleUpdateField={handleUpdateField}
+        />
+      ) : (
+        <span key={`${row.field}-${entry.componentIndex}`}>{entry.value}</span>
+      );
 
-  const renderFieldValue = (
-    comp: (typeof visibleComponents)[number],
-    field: Exclude<keyof BlendComponent, 'percentage'>,
-    value: string
-  ) => {
-    if (!value) return null;
-
-    return (
-      <span
-        key={field}
-        contentEditable
-        suppressContentEditableWarning
-        onBlur={e => {
-          const newValue = e.currentTarget.textContent?.trim() || '';
-          if (newValue !== value) {
-            handleBlendFieldEdit(comp.index, field, newValue);
-          }
-        }}
-        className="cursor-text outline-none"
-      >
-        {value}
-      </span>
-    );
-  };
-
-  const renderComponentValues = (comp: (typeof visibleComponents)[number]) => {
-    const values = [
-      renderFieldValue(comp, 'origin', comp.origin),
-      renderFieldValue(comp, 'country', comp.country),
-      renderFieldValue(comp, 'region', comp.region),
-      renderFieldValue(comp, 'estate', comp.estate),
-      renderFieldValue(comp, 'processingStation', comp.processingStation),
-      renderFieldValue(comp, 'altitude', comp.altitude),
-      renderFieldValue(comp, 'process', comp.process),
-      renderFieldValue(comp, 'batch', comp.batch),
-      renderFieldValue(comp, 'variety', comp.variety),
-      comp.percentage !== undefined && comp.percentage !== null ? (
-        <span
-          key="percentage"
-          className="text-neutral-600 dark:text-neutral-400"
-        >
-          {comp.percentage}%
-        </span>
-      ) : null,
-    ].filter((value): value is React.ReactElement => Boolean(value));
-
-    return values.flatMap((value, index) =>
-      index === 0
+      return entryIndex === 0
         ? [value]
         : [
             <span
-              key={`separator-${index}`}
+              key={`${row.field}-separator-${entry.componentIndex}`}
               className="text-neutral-400 select-none dark:text-neutral-600"
             >
               ·
             </span>,
             value,
-          ]
-    );
-  };
+          ];
+    });
 
   return (
-    <div className="flex items-start">
-      <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-        拼配成分
-      </div>
-      <div className="space-y-2">
-        {visibleComponents.map(comp => (
-          <div
-            key={comp.index}
-            className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs font-medium text-neutral-800 dark:text-neutral-100"
-          >
-            {renderComponentValues(comp)}
+    <div className="space-y-3">
+      {displayRows.map(row => (
+        <div key={row.field} className="flex items-start">
+          <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            {row.label}
           </div>
-        ))}
-      </div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs font-medium text-neutral-800 dark:text-neutral-100">
+            {renderRowEntries(row)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
