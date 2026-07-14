@@ -143,7 +143,7 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
   const storeInitialized = useCoffeeBeanStore(state => state.initialized);
   const loadBeans = useCoffeeBeanStore(state => state.loadBeans);
 
-  const beanItemsRef = useRef<Map<string, HTMLDivElement> | null>(null);
+  const beanItemsRef = useRef<Map<string, HTMLButtonElement> | null>(null);
   beanItemsRef.current ??= new Map();
   const beanItems = beanItemsRef.current;
 
@@ -363,7 +363,7 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
 
   // 设置ref的回调函数
   const setItemRef = useCallback(
-    (id: string) => (node: HTMLDivElement | null) => {
+    (id: string) => (node: HTMLButtonElement | null) => {
       if (node) {
         beanItems.set(id, node);
         if (id === highlightedBeanId) {
@@ -382,8 +382,9 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
   return (
     <div className="pb-20">
       {/* 添加"不选择咖啡豆"选项 */}
-      <div
-        className="group relative mb-5 cursor-pointer text-neutral-500 transition-all duration-300 dark:text-neutral-400"
+      <button
+        type="button"
+        className="group relative mb-5 w-full cursor-pointer rounded text-left text-neutral-500 transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-50 dark:text-neutral-400 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900"
         onClick={() => onSelect(null, null)}
       >
         <div className="cursor-pointer">
@@ -409,7 +410,7 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
             </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* 显示无搜索结果的提示 */}
       {filteredBeans.length === 0 && searchQuery.trim() !== '' && (
@@ -449,9 +450,10 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
           const displayTitle = formatBeanDisplayName(bean, roasterSettings);
 
           return (
-            <div
+            <button
+              type="button"
               ref={setItemRef(bean.id)}
-              className="group cursor-pointer pb-3.5 transition-colors"
+              className="group w-full cursor-pointer rounded pb-3.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-50 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900"
               onClick={() => onSelect(bean.id, bean)}
             >
               <div className="flex gap-3">
@@ -529,7 +531,7 @@ const CoffeeBeanList: React.FC<CoffeeBeanListProps> = ({
                   </div>
                 </div>
               </div>
-            </div>
+            </button>
           );
         }}
       />

@@ -1702,6 +1702,32 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showViewDropdown]);
 
+  useEffect(() => {
+    if (!showViewDropdown) return;
+
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>('#bean-view-options button')
+        ?.focus();
+    });
+
+    const handleViewDropdownKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+
+      event.preventDefault();
+      setShowViewDropdown(false);
+      requestAnimationFrame(() => {
+        (
+          window as unknown as { beanButtonRef?: HTMLElement }
+        ).beanButtonRef?.focus();
+      });
+    };
+
+    document.addEventListener('keydown', handleViewDropdownKeyDown);
+    return () =>
+      document.removeEventListener('keydown', handleViewDropdownKeyDown);
+  }, [showViewDropdown]);
+
   const handleParamChangeWrapper = async (
     type: keyof EditableParams,
     value: string
@@ -4740,6 +4766,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                 data-view-selector
               >
                 <motion.button
+                  type="button"
                   initial={{ opacity: 1 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 1 }}
@@ -4794,13 +4821,14 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                 }}
                 data-view-selector
               >
-                <div className="flex flex-col">
+                <div id="bean-view-options" className="flex flex-col">
                   {dropdownBeanViews.map((key, index) => {
                     const label = settings.simplifiedViewLabels
                       ? SIMPLIFIED_VIEW_LABELS[key]
                       : VIEW_LABELS[key];
                     return (
                       <motion.button
+                        type="button"
                         key={key}
                         initial={{
                           opacity: 0,

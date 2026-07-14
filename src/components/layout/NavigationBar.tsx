@@ -143,7 +143,7 @@ const TabButton: React.FC<TabButtonProps> = ({
   dataTab,
 }) => {
   const baseClasses =
-    'text-xs font-medium tracking-widest whitespace-nowrap pb-3 md:pb-0';
+    'rounded-sm pb-3 text-xs font-medium tracking-widest whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-50 md:pb-0 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900';
   const stateClasses = isActive
     ? 'text-neutral-800 dark:text-neutral-100'
     : isDisabled
@@ -151,13 +151,16 @@ const TabButton: React.FC<TabButtonProps> = ({
       : 'cursor-pointer text-neutral-500 dark:text-neutral-400';
 
   return (
-    <div
+    <button
+      type="button"
       onClick={!isDisabled && onClick ? onClick : undefined}
+      disabled={isDisabled}
+      aria-current={isActive ? 'page' : undefined}
       className={`${baseClasses} ${stateClasses} ${className}`}
       data-tab={dataTab}
     >
       <span className="relative inline-block">{tab}</span>
-    </div>
+    </button>
   );
 };
 
@@ -1469,19 +1472,36 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                     {showCoffeeBeanMainTab && (
                       <div className="relative shrink-0">
                         {/* 咖啡豆按钮 - 带下拉菜单 */}
-                        <div
+                        <button
+                          type="button"
                           ref={el => {
                             // 将按钮引用传递给父组件
                             if (el && typeof window !== 'undefined') {
                               (
                                 window as Window & {
-                                  beanButtonRef?: HTMLDivElement;
+                                  beanButtonRef?: HTMLElement;
                                 }
                               ).beanButtonRef = el;
                             }
                           }}
                           onClick={handleBeanTabClick}
-                          className="flex cursor-pointer items-center pb-3 text-xs font-medium tracking-widest whitespace-nowrap transition-opacity duration-100 md:pb-0"
+                          aria-current={
+                            activeMainTab === '咖啡豆' && !isCurrentViewPinned
+                              ? 'page'
+                              : undefined
+                          }
+                          aria-label="切换咖啡豆视图"
+                          aria-expanded={
+                            availableViewsCount > 2
+                              ? showViewDropdown
+                              : undefined
+                          }
+                          aria-controls={
+                            availableViewsCount > 2
+                              ? 'bean-view-options'
+                              : undefined
+                          }
+                          className="flex cursor-pointer items-center rounded-sm pb-3 text-xs font-medium tracking-widest whitespace-nowrap transition-opacity duration-100 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-50 md:pb-0 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900"
                           style={{
                             opacity:
                               showViewDropdown &&
@@ -1577,7 +1597,7 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                 )}
                             </AnimatePresence>
                           </motion.div>
-                        </div>
+                        </button>
                       </div>
                     )}
 
