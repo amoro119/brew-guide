@@ -513,7 +513,9 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
             [field]: safeValue,
           }));
 
-          autoSetFlavorPeriod(safeValue);
+          if (safeValue) {
+            autoSetFlavorPeriod(safeValue);
+          }
         } else if (field === 'name') {
           // 更新名称
           setBean(prev => ({

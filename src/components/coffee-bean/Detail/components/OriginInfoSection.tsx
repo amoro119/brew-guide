@@ -22,6 +22,7 @@ import {
   useInteractions,
   useRole,
 } from '@floating-ui/react';
+import { X } from 'lucide-react';
 
 interface OriginInfoSectionProps {
   bean: CoffeeBean | null;
@@ -69,28 +70,45 @@ const InlineRoastLevelSelect: React.FC<InlineRoastLevelSelectProps> = ({
     [onChange]
   );
 
+  const handleClear = useCallback(() => {
+    onChange('');
+    setOpen(false);
+  }, [onChange]);
+
   return (
     <>
-      <button
-        ref={refs.setReference}
-        type="button"
-        className="block min-h-[1.25em] max-w-full cursor-pointer bg-transparent p-0 text-left text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
-        {...getReferenceProps({
-          onClick: () => setOpen(current => !current),
-          onKeyDown: event => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              setOpen(current => !current);
-            }
-          },
-        })}
-      >
-        {value || (
-          <span className="text-neutral-400 dark:text-neutral-500">
-            {placeholder}
-          </span>
-        )}
-      </button>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <button
+          ref={refs.setReference}
+          type="button"
+          className="block min-h-[1.25em] max-w-full cursor-pointer bg-transparent p-0 text-left text-xs font-medium text-neutral-800 outline-none dark:text-neutral-100"
+          {...getReferenceProps({
+            onClick: () => setOpen(current => !current),
+            onKeyDown: event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setOpen(current => !current);
+              }
+            },
+          })}
+        >
+          {value || (
+            <span className="text-neutral-400 dark:text-neutral-500">
+              {placeholder}
+            </span>
+          )}
+        </button>
+        {value ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label="清除烘焙度"
+            className="text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
 
       {open && suggestions.length > 0 && (
         <FloatingPortal>

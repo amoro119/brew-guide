@@ -780,6 +780,11 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
 
   // 烘焙度选择
   const handleRoastLevelSelect = async (level: string) => {
+    if (!level) {
+      await handleUpdateField({ roastLevel: '' });
+      return;
+    }
+
     let startDay = 0;
     let endDay = 0;
 
