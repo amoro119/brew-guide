@@ -29,46 +29,73 @@ export function useBackButtonExit() {
       return;
     }
 
-    let listenerHandle: Awaited<
+    type ListenerHandle = Awaited<
       ReturnType<typeof CapacitorApp.addListener>
-    > | null = null;
+    >;
 
-    const setupListener = async () => {
-      listenerHandle = await CapacitorApp.addListener(
-        'backButton',
-        ({ canGoBack }) => {
-          // 如果应用有历史记录可以返回，则执行默认返回操作
-          if (canGoBack) {
-            if (modalHistory.getStackLength() > 0) {
-              modalHistory.back();
-            } else {
-              window.history.back();
-            }
-            return;
-          }
+    let listenerHandle: ListenerHandle | null = null;
+    let disposed = false;
 
-          // 应用在根页面，需要双击退出
-          const currentTime = Date.now();
-          const timeSinceLastPress = currentTime - lastBackPressTime.current;
-
-          if (timeSinceLastPress < EXIT_INTERVAL) {
-            // 双击退出
-            CapacitorApp.exitApp();
-          } else {
-            // 第一次按返回键，显示轻量级提示
-            lastBackPressTime.current = currentTime;
-            showExitToast();
-          }
-        }
-      );
+    const removeListener = async (handle: ListenerHandle) => {
+      try {
+        await handle.remove();
+      } catch (error) {
+        console.error('移除 Android 返回键监听器失败:', error);
+      }
     };
 
-    setupListener();
+    const setupListener = async () => {
+      try {
+        const handle = await CapacitorApp.addListener(
+          'backButton',
+          ({ canGoBack }) => {
+            // 如果应用有历史记录可以返回，则执行默认返回操作
+            if (canGoBack) {
+              if (modalHistory.getStackLength() > 0) {
+                modalHistory.back();
+              } else {
+                window.history.back();
+              }
+              return;
+            }
+
+            // 应用在根页面，需要双击退出
+            const currentTime = Date.now();
+            const timeSinceLastPress = currentTime - lastBackPressTime.current;
+
+            if (timeSinceLastPress < EXIT_INTERVAL) {
+              // 双击退出
+              CapacitorApp.exitApp();
+            } else {
+              // 第一次按返回键，显示轻量级提示
+              lastBackPressTime.current = currentTime;
+              showExitToast();
+            }
+          }
+        );
+
+        if (disposed) {
+          await removeListener(handle);
+          return;
+        }
+
+        listenerHandle = handle;
+      } catch (error) {
+        console.error('注册 Android 返回键监听器失败:', error);
+      }
+    };
+
+    void setupListener();
 
     // 清理监听器
     return () => {
-      if (listenerHandle) {
-        listenerHandle.remove();
+      disposed = true;
+
+      const handle = listenerHandle;
+      listenerHandle = null;
+
+      if (handle) {
+        void removeListener(handle);
       }
     };
   }, []);
