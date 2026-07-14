@@ -98,6 +98,10 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
   const [isProgressBarReady, setIsProgressBarReady] = useState(false);
   const lastStageRef = useRef<number>(-1);
   const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownCompletionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const brewingCompletionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const restartCountdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // 添加一个引用来记录上一次的倒计时状态，避免重复触发事件
   const prevCountdownTimeRef = useRef<number | null>(null);
 
@@ -296,25 +300,32 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
 
   const clearTimerAndStates = useCallback(() => {
     // 清除主计时器
-    if (mainTimerRef.current) {
+    if (mainTimerRef.current !== null) {
       clearInterval(mainTimerRef.current);
       mainTimerRef.current = null;
     }
     // 同时清除倒计时计时器
-    if (countdownTimerRef.current) {
+    if (countdownTimerRef.current !== null) {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
+    }
+    if (countdownCompletionTimeoutRef.current !== null) {
+      clearTimeout(countdownCompletionTimeoutRef.current);
+      countdownCompletionTimeoutRef.current = null;
+    }
+    if (brewingCompletionTimeoutRef.current !== null) {
+      clearTimeout(brewingCompletionTimeoutRef.current);
+      brewingCompletionTimeoutRef.current = null;
+    }
+    if (restartCountdownTimeoutRef.current !== null) {
+      clearTimeout(restartCountdownTimeoutRef.current);
+      restartCountdownTimeoutRef.current = null;
     }
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (mainTimerRef.current) {
-        clearInterval(mainTimerRef.current);
-        mainTimerRef.current = null;
-      }
-    };
-  }, []);
+    return clearTimerAndStates;
+  }, [clearTimerAndStates]);
 
   // 完成冲煮，显示笔记表单
   const handleComplete = useCallback(() => {
@@ -386,10 +397,7 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
   const startMainTimer = useCallback(() => {
     if (currentBrewingMethod) {
       // 防止重复启动导致时间加速
-      if (mainTimerRef.current) {
-        clearInterval(mainTimerRef.current);
-        mainTimerRef.current = null;
-      }
+      if (mainTimerRef.current !== null) return;
 
       // 首先确认有扩展阶段数据
       if (expandedStagesRef.current.length === 0) {
@@ -412,7 +420,10 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
           setCurrentTime(updater);
         },
         onComplete: () => {
-          setTimeout(() => {
+          if (brewingCompletionTimeoutRef.current !== null) return;
+
+          brewingCompletionTimeoutRef.current = setTimeout(() => {
+            brewingCompletionTimeoutRef.current = null;
             handleComplete();
           }, 0);
         },
@@ -453,92 +464,79 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
   // 添加startCountdown函数
   const startCountdown = useCallback(
     (seconds: number) => {
+      // 先清理上一轮倒计时及可能尚未执行的延迟任务
+      clearTimerAndStates();
+
       // 播放开始音效
       playSoundEffect('start');
       // 触发触感反馈
       triggerHaptic('medium');
 
-      // 首先清除可能存在的倒计时计时器
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
-
       // 设置倒计时时间
       setCountdownTime(seconds);
+      let remainingTime = seconds;
 
       // 创建倒计时计时器
       const countdownId = setInterval(() => {
-        setCountdownTime(prev => {
-          if (prev === null) return null;
+        // 从3倒数到1的每一秒都触发声音和震动
+        if (remainingTime > 1 && remainingTime <= 3) {
+          playSoundEffect('start');
+          triggerHaptic('medium');
+        }
 
-          // 从3倒数到1的每一秒都触发声音和震动
-          if (prev > 1 && prev <= 3) {
-            playSoundEffect('start');
-            triggerHaptic('medium');
+        remainingTime -= 1;
+        setCountdownTime(remainingTime);
+
+        if (remainingTime > 0) return;
+
+        // 倒计时结束时清除 interval，并在下一个事件循环启动主计时器
+        clearInterval(countdownId);
+        if (countdownTimerRef.current === countdownId) {
+          countdownTimerRef.current = null;
+        }
+
+        countdownCompletionTimeoutRef.current = setTimeout(() => {
+          countdownCompletionTimeoutRef.current = null;
+
+          // 设置倒计时为null以触发UI更新
+          setCountdownTime(null);
+          playSoundEffect('ding');
+          triggerHaptic('vibrateMultiple');
+
+          // 确保清理所有旧的计时器，然后再开始新的
+          clearTimerAndStates();
+
+          // 重新处理和检查阶段扩展数据
+          if (currentBrewingMethod?.params?.stages) {
+            // 强制重新处理扩展阶段
+            const newExpandedStages = createExpandedStages(
+              currentBrewingMethod.params.stages
+            );
+            expandedStagesRef.current = newExpandedStages;
+            markExpandedStagesUpdated();
+
+            // 通知扩展阶段变化
+            if (onExpandedStagesChange) {
+              onExpandedStagesChange(newExpandedStages);
+            }
           }
 
-          if (prev <= 1) {
-            // 倒计时结束时清除
-            clearInterval(countdownId);
-            countdownTimerRef.current = null;
+          // 确保方法和阶段都存在
+          if (currentBrewingMethod && expandedStagesRef.current.length > 0) {
+            startMainTimer();
 
-            // 倒计时结束
-            setTimeout(() => {
-              // 设置倒计时为null以触发UI更新
-              setCountdownTime(null);
-              playSoundEffect('ding');
-              triggerHaptic('vibrateMultiple');
-
-              // 确保清理所有旧的计时器，然后再开始新的
-              clearTimerAndStates();
-
-              // 重新处理和检查阶段扩展数据
-              if (currentBrewingMethod?.params?.stages) {
-                // 强制重新处理扩展阶段
-                const newExpandedStages = createExpandedStages(
-                  currentBrewingMethod.params.stages
-                );
-                expandedStagesRef.current = newExpandedStages;
-                markExpandedStagesUpdated();
-
-                // 通知扩展阶段变化
-                if (onExpandedStagesChange) {
-                  onExpandedStagesChange(newExpandedStages);
-                }
-              }
-
-              // 确保方法和阶段都存在
-              if (
-                currentBrewingMethod &&
-                expandedStagesRef.current.length > 0
-              ) {
-                startMainTimer();
-
-                // 派发事件以确保其他组件收到通知
-                window.dispatchEvent(
-                  new CustomEvent('brewing:mainTimerStarted', {
-                    detail: { started: true },
-                  })
-                );
-              }
-            }, 0);
-
-            return 0;
+            // 派发事件以确保其他组件收到通知
+            window.dispatchEvent(
+              new CustomEvent('brewing:mainTimerStarted', {
+                detail: { started: true },
+              })
+            );
           }
-          return prev - 1;
-        });
+        }, 0);
       }, 1000);
 
       // 将ID保存在ref中以便后续可能的清除
       countdownTimerRef.current = countdownId;
-
-      return () => {
-        if (countdownTimerRef.current) {
-          clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
-      };
     },
     [
       playSoundEffect,
@@ -550,9 +548,6 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
       markExpandedStagesUpdated,
     ]
   );
-
-  // 添加倒计时ref
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 修改倒计时相关的 useEffect，使用新的倒计时控制器
   useEffect(() => {
@@ -642,22 +637,30 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
 
   useEffect(() => {
     if (
+      isRunning &&
       currentTime > 0 &&
       expandedStagesRef.current.length > 0 &&
       currentTime >=
         expandedStagesRef.current[expandedStagesRef.current.length - 1]
           ?.endTime &&
-      !isCompleted
+      !isCompleted &&
+      brewingCompletionTimeoutRef.current === null
     ) {
       // 使用setTimeout将handleComplete的调用推迟到下一个事件循环
-
       const completeTimer = setTimeout(() => {
+        brewingCompletionTimeoutRef.current = null;
         handleComplete();
       }, 0);
+      brewingCompletionTimeoutRef.current = completeTimer;
 
-      return () => clearTimeout(completeTimer);
+      return () => {
+        clearTimeout(completeTimer);
+        if (brewingCompletionTimeoutRef.current === completeTimer) {
+          brewingCompletionTimeoutRef.current = null;
+        }
+      };
     }
-  }, [currentTime, handleComplete, isCompleted]);
+  }, [currentTime, handleComplete, isCompleted, isRunning]);
 
   const resetTimer = useCallback(() => {
     triggerHaptic('warning');
@@ -715,7 +718,8 @@ const BrewingTimer: React.FC<BrewingTimerProps> = ({
         window.dispatchEvent(new CustomEvent('brewing:reset'));
 
         // 延迟启动计时器，确保状态已完全重置
-        setTimeout(() => {
+        restartCountdownTimeoutRef.current = setTimeout(() => {
+          restartCountdownTimeoutRef.current = null;
           setIsRunning(true);
           // 启动倒计时
           startCountdown(3);
