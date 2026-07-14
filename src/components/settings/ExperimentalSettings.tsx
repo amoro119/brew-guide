@@ -210,20 +210,6 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
       </SettingSection>
 
       {showCoffeeBeanExperiments && (
-        <SettingSection
-          title="咖啡豆"
-          footer="添加和编辑咖啡豆时，使用更简洁高效的表单。"
-        >
-          <SettingRow label="沉浸式表单" isLast>
-            <SettingToggle
-              checked={settings.immersiveAdd || false}
-              onChange={checked => handleChange('immersiveAdd', checked)}
-            />
-          </SettingRow>
-        </SettingSection>
-      )}
-
-      {showCoffeeBeanExperiments && (
         <BeanSummaryCapacityLimitSection
           settings={settings}
           handleChange={handleChange}

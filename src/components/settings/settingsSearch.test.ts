@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSettingsSearchItems,
   getBeanSettingsSearchRevealState,
   makeSettingRowSearchId,
   shouldRevealGreenBeanSearchSettings,
 } from './settingsSearch';
+import { defaultSettings } from '@/lib/stores/settingsStore';
 
 describe('settings search reveal state', () => {
   it('reveals conditional bean settings for the selected result', () => {
@@ -28,6 +30,28 @@ describe('settings search reveal state', () => {
     expect(
       getBeanSettingsSearchRevealState(makeSettingRowSearchId('咖啡豆字段'))
     ).toMatchObject({ beanFields: false });
+  });
+
+  it('routes immersive form search results to coffee bean settings', () => {
+    const immersiveFormSettingId = makeSettingRowSearchId('沉浸式表单');
+    const items = buildSettingsSearchItems({
+      settings: defaultSettings,
+      visibleModules: { brewing: true, coffeeBean: true, notes: true },
+      hasVisibleNotificationSettings: true,
+      beans: [],
+      customEquipments: [],
+      customMethodsByEquipment: {},
+      grinders: [],
+    });
+
+    expect(
+      items.filter(item => item.settingId === immersiveFormSettingId)
+    ).toEqual([
+      expect.objectContaining({
+        pageId: 'bean-settings',
+        label: '沉浸式表单',
+      }),
+    ]);
   });
 
   it('reveals disabled green-bean sections only for their nested results', () => {

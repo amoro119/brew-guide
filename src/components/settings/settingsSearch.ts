@@ -405,6 +405,7 @@ export const buildSettingsSearchItems = ({
         '标签打印',
         '评分',
         '十分位制',
+        '沉浸式表单',
         '自动填充图片',
         '烘焙商',
         '烘焙商分隔符',
@@ -653,7 +654,6 @@ export const buildSettingsSearchItems = ({
   if (isModuleVisible(visibleModules, 'coffeeBean')) {
     items.push(
       ...createRowItems('experimental-settings', '实验性功能', [
-        '沉浸式表单',
         '设置全局搜索',
         '最大显示容量',
         '自定义识别咖啡豆 API',

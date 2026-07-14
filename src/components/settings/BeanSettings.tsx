@@ -259,6 +259,12 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
       </SettingSection>
 
       <SettingSection title="添加">
+        <SettingRow label="沉浸式表单">
+          <SettingToggle
+            checked={settings.immersiveAdd || false}
+            onChange={checked => handleChange('immersiveAdd', checked)}
+          />
+        </SettingRow>
         <SettingRow label="自动填充图片" isLast>
           <SettingToggle
             checked={settings.autoFillRecognitionImage || false}
