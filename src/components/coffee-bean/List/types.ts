@@ -17,6 +17,7 @@ export type BeanFilterMode =
   | 'country'
   | 'region'
   | 'estate'
+  | 'processingStation'
   | 'altitude'
   | 'processingMethod'
   | 'batch'
@@ -31,6 +32,7 @@ const BEAN_FILTER_LABELS: Record<BeanFilterMode, string> = {
   country: '按产国',
   region: '按产区',
   estate: '按庄园',
+  processingStation: '按处理站',
   altitude: '按海拔',
   processingMethod: '按处理法',
   batch: '按批次',
@@ -46,6 +48,7 @@ export const BEAN_FIELD_FILTER_MODE_BY_FIELD_ID: Partial<
   country: 'country',
   region: 'region',
   estate: 'estate',
+  processingStation: 'processingStation',
   altitude: 'altitude',
   process: 'processingMethod',
   batch: 'batch',
@@ -59,6 +62,7 @@ export const BEAN_FIELD_ID_BY_FILTER_MODE: Partial<
   country: 'country',
   region: 'region',
   estate: 'estate',
+  processingStation: 'processingStation',
   altitude: 'altitude',
   processingMethod: 'process',
   batch: 'batch',

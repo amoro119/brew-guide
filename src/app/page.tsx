@@ -154,6 +154,7 @@ interface BlendComponent {
   country?: string;
   region?: string;
   estate?: string;
+  processingStation?: string;
   altitude?: string;
   process?: string;
   batch?: string;
@@ -2545,6 +2546,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
             const legacyCountry = beanDataRecord.country as string;
             const legacyRegion = beanDataRecord.region as string;
             const legacyEstate = beanDataRecord.estate as string;
+            const legacyProcessingStation =
+              beanDataRecord.processingStation as string;
             const legacyAltitude = beanDataRecord.altitude as string;
             const legacyProcess = beanDataRecord.process as string;
             const legacyBatch = beanDataRecord.batch as string;
@@ -2560,6 +2563,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                   country: legacyCountry || '',
                   region: legacyRegion || '',
                   estate: legacyEstate || '',
+                  processingStation: legacyProcessingStation || '',
                   altitude: legacyAltitude || '',
                   process: legacyProcess || '',
                   batch: legacyBatch || '',

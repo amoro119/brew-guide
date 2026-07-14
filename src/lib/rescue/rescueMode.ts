@@ -28,6 +28,7 @@ const CUSTOM_PRESETS_KEYS = [
   'countries',
   'regions',
   'estates',
+  'processingStations',
   'altitudes',
   'processes',
   'batches',

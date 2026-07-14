@@ -182,6 +182,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
         addPresetValues('countries', [], component.country);
         addPresetValues('regions', [], component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
+        addPresetValues('processingStations', [], component.processingStation);
         addPresetValues('altitudes', [], component.altitude);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
         addPresetValues('batches', [], component.batch);

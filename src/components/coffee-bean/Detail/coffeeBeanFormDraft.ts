@@ -22,7 +22,15 @@ const normalizeBlendComponents = (
   components: Partial<BlendComponent>[] | undefined
 ): BlendComponent[] => {
   if (!Array.isArray(components) || components.length === 0) {
-    return [{ origin: '', estate: '', process: '', variety: '' }];
+    return [
+      {
+        origin: '',
+        estate: '',
+        processingStation: '',
+        process: '',
+        variety: '',
+      },
+    ];
   }
 
   return components.map(component => ({
@@ -33,6 +41,7 @@ const normalizeBlendComponents = (
     country: normalizeText(component.country),
     region: normalizeText(component.region),
     estate: normalizeText(component.estate),
+    processingStation: normalizeText(component.processingStation),
     altitude: normalizeText(component.altitude),
     process: normalizeText(component.process),
     batch: normalizeText(component.batch),

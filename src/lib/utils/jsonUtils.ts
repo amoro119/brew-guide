@@ -636,6 +636,7 @@ function generateBeanTemplateJson() {
       "country": "",
       "region": "",
       "estate": "",
+      "processingStation": "",
       "altitude": "",
       "process": "",
       "batch": "",
@@ -715,6 +716,7 @@ export function beanToReadableText(
           component.country ||
           component.region ||
           component.estate ||
+          component.processingStation ||
           component.altitude ||
           component.process ||
           component.batch ||
@@ -728,6 +730,7 @@ export function beanToReadableText(
           const componentText = [
             getComponentOriginDisplay(component),
             usesStructuredOrigin ? '' : component.estate || '',
+            usesStructuredOrigin ? '' : component.processingStation || '',
             usesStructuredOrigin ? '' : component.altitude || '',
             component.process || '',
             component.batch || '',
@@ -752,6 +755,7 @@ export function beanToReadableText(
           component.country ||
           component.region ||
           component.estate ||
+          component.processingStation ||
           component.altitude ||
           component.process ||
           component.batch ||
@@ -762,10 +766,16 @@ export function beanToReadableText(
           if (component.country) text += `产国: ${component.country}\n`;
           if (component.region) text += `产区: ${component.region}\n`;
           if (component.estate) text += `庄园: ${component.estate}\n`;
+          if (component.processingStation) {
+            text += `处理站: ${component.processingStation}\n`;
+          }
           if (component.altitude) text += `海拔: ${component.altitude}\n`;
         } else if (component.origin) {
           text += `产地: ${component.origin}\n`;
           if (component.estate) text += `庄园: ${component.estate}\n`;
+          if (component.processingStation) {
+            text += `处理站: ${component.processingStation}\n`;
+          }
           if (component.altitude) text += `海拔: ${component.altitude}\n`;
         }
         if (component.process) text += `处理法: ${component.process}\n`;
@@ -1070,6 +1080,7 @@ function parseCoffeeBeanText(text: string): Partial<CoffeeBean> | null {
   const countryMatch = text.match(/产国:\s*(.*?)(?:\n|$)/);
   const regionMatch = text.match(/产区:\s*(.*?)(?:\n|$)/);
   const estateMatch = text.match(/庄园:\s*(.*?)(?:\n|$)/);
+  const processingStationMatch = text.match(/处理站:\s*(.*?)(?:\n|$)/);
   const altitudeMatch = text.match(/海拔:\s*(.*?)(?:\n|$)/);
   const processMatch = text.match(/处理法:\s*(.*?)(?:\n|$)/);
   const batchMatch = text.match(/批次:\s*(.*?)(?:\n|$)/);
@@ -1081,6 +1092,7 @@ function parseCoffeeBeanText(text: string): Partial<CoffeeBean> | null {
     countryMatch?.[1] ||
     regionMatch?.[1] ||
     estateMatch?.[1] ||
+    processingStationMatch?.[1] ||
     altitudeMatch?.[1] ||
     processMatch?.[1] ||
     batchMatch?.[1] ||
@@ -1093,6 +1105,7 @@ function parseCoffeeBeanText(text: string): Partial<CoffeeBean> | null {
         country: countryMatch?.[1]?.trim() || '',
         region: regionMatch?.[1]?.trim() || '',
         estate: estateMatch?.[1]?.trim() || '',
+        processingStation: processingStationMatch?.[1]?.trim() || '',
         altitude: altitudeMatch?.[1]?.trim() || '',
         process: processMatch?.[1]?.trim() || '',
         batch: batchMatch?.[1]?.trim() || '',

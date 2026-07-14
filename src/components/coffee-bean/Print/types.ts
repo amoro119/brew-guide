@@ -12,6 +12,7 @@ export interface EditableContent {
   country: string;
   region: string;
   estate: string;
+  processingStation: string;
   altitude: string;
   roastLevel: string;
   roastDate: string;
@@ -45,6 +46,7 @@ export interface PrintConfig {
     country: boolean;
     region: boolean;
     estate: boolean;
+    processingStation: boolean;
     altitude: boolean;
     roastLevel: boolean;
     roastDate: boolean;

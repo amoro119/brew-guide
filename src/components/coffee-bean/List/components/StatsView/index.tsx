@@ -36,6 +36,7 @@ import {
   getBeanCountries,
   getBeanOriginSummaries,
   getBeanProcesses,
+  getBeanProcessingStations,
   getBeanRegions,
   getBeanFlavors,
   getBeanEstates,
@@ -110,6 +111,7 @@ type RoastedStatsSectionKey =
   | 'country'
   | 'region'
   | 'estate'
+  | 'processingStation'
   | 'altitude'
   | 'variety'
   | 'process'
@@ -129,6 +131,7 @@ const ROASTED_STATS_SECTION_DEFAULTS: StatsSectionOption[] = [
   { key: 'country', label: '产国', visible: true },
   { key: 'region', label: '产区', visible: true },
   { key: 'estate', label: '庄园', visible: true },
+  { key: 'processingStation', label: '处理站', visible: true },
   { key: 'altitude', label: '海拔', visible: true },
   { key: 'variety', label: '品种', visible: true },
   { key: 'process', label: '处理法', visible: true },
@@ -150,10 +153,7 @@ const hydrateStatsSectionOptions = (
     return [{ ...defaultItem, visible: item.visible }];
   });
 
-  return [
-    ...hydrated,
-    ...defaults.filter(item => !hydratedKeys.has(item.key)),
-  ];
+  return [...hydrated, ...defaults.filter(item => !hydratedKeys.has(item.key))];
 };
 
 const toStatsSectionPreferences = (
@@ -1118,6 +1118,11 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
     [filteredBeans]
   );
 
+  const processingStationStats = useMemo(
+    () => countBeanAttributeValues(filteredBeans, getBeanProcessingStations),
+    [filteredBeans]
+  );
+
   const altitudeStats = useMemo(
     () => countBeanAttributeValues(filteredBeans, getBeanAltitudes),
     [filteredBeans]
@@ -1344,6 +1349,16 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
         ) : null,
       ],
       [
+        'processingStation',
+        processingStationStats.length > 0 ? (
+          <AttributeCard
+            key="processingStation"
+            title="处理站"
+            data={processingStationStats}
+          />
+        ) : null,
+      ],
+      [
         'altitude',
         altitudeStats.length > 0 ? (
           <AttributeCard key="altitude" title="海拔" data={altitudeStats} />
@@ -1395,6 +1410,7 @@ const BeanAttributeStats: React.FC<BeanAttributeStatsProps> = ({
     originNames,
     originStats,
     processStats,
+    processingStationStats,
     regionStats,
     roasterStats,
     varietyStats,

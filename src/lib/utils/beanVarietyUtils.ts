@@ -36,6 +36,7 @@ export interface ExtendedCoffeeBean extends CoffeeBean {
     country?: string;
     region?: string;
     estate?: string;
+    processingStation?: string;
     altitude?: string;
     process?: string;
     batch?: string;
@@ -296,6 +297,9 @@ export const getBeanCountries = (bean: CoffeeBean): string[] =>
 export const getBeanRegions = (bean: CoffeeBean): string[] =>
   getBeanComponentFieldValues(bean, 'region');
 
+export const getBeanProcessingStations = (bean: CoffeeBean): string[] =>
+  getBeanComponentFieldValues(bean, 'processingStation');
+
 export const getBeanAltitudes = (bean: CoffeeBean): string[] =>
   getBeanComponentFieldValues(bean, 'altitude');
 
@@ -329,6 +333,25 @@ export const extractUniqueRegions = (beans: CoffeeBean[]): string[] => {
   });
 
   return Array.from(regionCount.entries())
+    .sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0], 'zh-CN');
+    })
+    .map(entry => entry[0]);
+};
+
+export const extractUniqueProcessingStations = (
+  beans: CoffeeBean[]
+): string[] => {
+  const stationCount = new Map<string, number>();
+
+  beans.forEach(bean => {
+    getBeanProcessingStations(bean).forEach(station => {
+      stationCount.set(station, (stationCount.get(station) || 0) + 1);
+    });
+  });
+
+  return Array.from(stationCount.entries())
     .sort((a, b) => {
       if (a[1] !== b[1]) return b[1] - a[1];
       return a[0].localeCompare(b[0], 'zh-CN');

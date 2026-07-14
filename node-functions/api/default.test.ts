@@ -199,7 +199,7 @@ describe('recognition image upload validation', () => {
           variety: '74158',
         },
       ],
-      notes: '海拔 2350m/庄园：博纳',
+      notes: '海拔 2350m/处理站：博纳',
     });
   });
 
@@ -227,7 +227,7 @@ describe('recognition image upload validation', () => {
 
   it('keeps explicitly enabled structured bean fields', async () => {
     mockModelResponse(
-      '{"name":"测试咖啡豆","blendComponents":[{"country":"埃塞俄比亚","region":"西达摩","estate":"博纳","process":"水洗","batch":"A12"}]}'
+      '{"name":"测试咖啡豆","blendComponents":[{"country":"埃塞俄比亚","region":"西达摩","estate":"某庄园","processingStation":"博纳","process":"水洗","batch":"A12"}]}'
     );
     const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
     const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
@@ -238,7 +238,8 @@ describe('recognition image upload validation', () => {
         { id: 'country', enabled: true, order: 0 },
         { id: 'region', enabled: true, order: 1 },
         { id: 'estate', enabled: true, order: 2 },
-        { id: 'process', enabled: true, order: 3 },
+        { id: 'processingStation', enabled: true, order: 3 },
+        { id: 'process', enabled: true, order: 4 },
       ],
     });
     const body = await response.json();
@@ -251,7 +252,8 @@ describe('recognition image upload validation', () => {
         {
           country: '埃塞俄比亚',
           region: '西达摩',
-          estate: '博纳',
+          estate: '某庄园',
+          processingStation: '博纳',
           process: '水洗',
         },
       ],

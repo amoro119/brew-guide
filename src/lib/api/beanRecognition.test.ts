@@ -44,6 +44,7 @@ describe('normalizeRecognizedBeanPayload', () => {
           {
             origin: '埃塞俄比亚',
             estate: '博纳',
+            processingStation: '沃卡',
             process: '水洗',
             altitude: '2100m',
             batch: 'A12',
@@ -64,7 +65,7 @@ describe('normalizeRecognizedBeanPayload', () => {
     expect(payload).toEqual({
       name: '博纳 水洗',
       blendComponents: [{ origin: '埃塞俄比亚', process: '水洗' }],
-      notes: '庄园：博纳 / 海拔：2100m / 批次：A12',
+      notes: '庄园：博纳 / 处理站：沃卡 / 海拔：2100m / 批次：A12',
     });
   });
 
@@ -75,14 +76,18 @@ describe('normalizeRecognizedBeanPayload', () => {
         fields: [
           { id: 'country', enabled: true, order: 0 },
           { id: 'region', enabled: true, order: 1 },
-          { id: 'process', enabled: true, order: 2 },
+          { id: 'processingStation', enabled: true, order: 2 },
+          { id: 'process', enabled: true, order: 3 },
         ],
       },
     });
 
     expect(prompt).toContain('base prompt');
-    expect(prompt).toContain('只允许输出这些成分字段：country/region/process');
+    expect(prompt).toContain(
+      '只允许输出这些成分字段：country/region/processingStation/process'
+    );
     expect(prompt).toContain('origin 是未结构化的“产地概括”');
+    expect(prompt).toContain('processingStation 仅表示处理站/水洗站');
     expect(prompt).toContain('严禁输出未允许的 blendComponents 键');
   });
 });

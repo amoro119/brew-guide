@@ -6,6 +6,7 @@ export type BeanFieldId =
   | 'country'
   | 'region'
   | 'estate'
+  | 'processingStation'
   | 'altitude'
   | 'process'
   | 'batch'
@@ -43,6 +44,12 @@ export const BEAN_FIELD_DEFINITIONS: BeanFieldDefinition[] = [
   { id: 'country', label: '产国', noteLabel: '产国', group: 'origin' },
   { id: 'region', label: '产区', noteLabel: '产区', group: 'origin' },
   { id: 'estate', label: '庄园', noteLabel: '庄园', group: 'origin' },
+  {
+    id: 'processingStation',
+    label: '处理站',
+    noteLabel: '处理站',
+    group: 'origin',
+  },
   { id: 'altitude', label: '海拔', noteLabel: '海拔', group: 'origin' },
   { id: 'process', label: '处理法', noteLabel: '处理法', group: 'processing' },
   { id: 'batch', label: '批次', noteLabel: '批次', group: 'processing' },
@@ -68,6 +75,7 @@ const TEXT_FIELD_IDS: BeanFieldId[] = [
   'country',
   'region',
   'estate',
+  'processingStation',
   'altitude',
   'process',
   'batch',
@@ -81,6 +89,7 @@ const STRUCTURED_ORIGIN_FIELD_IDS: BeanFieldId[] = [
   'country',
   'region',
   'estate',
+  'processingStation',
   'altitude',
 ];
 
@@ -100,9 +109,7 @@ const normalizeNoteParts = (
   notes: unknown
 ): { text: string; parts: string[] } => {
   if (Array.isArray(notes)) {
-    const parts = notes
-      .map(item => stringifyFieldValue(item))
-      .filter(Boolean);
+    const parts = notes.map(item => stringifyFieldValue(item)).filter(Boolean);
     return { text: parts.join(' / '), parts };
   }
 
@@ -196,9 +203,7 @@ export function getEnabledBeanFieldIds(config: BeanFieldConfig): BeanFieldId[] {
     .filter(id => FIELD_DEFINITION_BY_ID.has(id));
 }
 
-export function getBeanFieldDefinition(
-  id: BeanFieldId
-): BeanFieldDefinition {
+export function getBeanFieldDefinition(id: BeanFieldId): BeanFieldDefinition {
   return FIELD_DEFINITION_BY_ID.get(id)!;
 }
 
@@ -241,7 +246,9 @@ export function getComponentSearchText(
 
   return [
     component.percentage,
-    ...TEXT_FIELD_IDS.map(fieldId => getComponentFieldValue(component, fieldId)),
+    ...TEXT_FIELD_IDS.map(fieldId =>
+      getComponentFieldValue(component, fieldId)
+    ),
   ]
     .map(value => stringifyFieldValue(value))
     .filter(Boolean)
@@ -272,7 +279,9 @@ const appendNotePart = (parts: string[], nextPart: string) => {
 const shouldKeepPercentage = (component: BlendComponent): boolean =>
   component.percentage !== undefined && component.percentage !== null;
 
-export function normalizeCoffeeBeanForFieldConfig<T extends Partial<CoffeeBean>>(
+export function normalizeCoffeeBeanForFieldConfig<
+  T extends Partial<CoffeeBean>,
+>(
   bean: T,
   settings?: Pick<AppSettings, 'beanFieldConfig' | 'showEstateField'> | null
 ): T {
@@ -317,7 +326,9 @@ export function normalizeCoffeeBeanForFieldConfig<T extends Partial<CoffeeBean>>
     .filter(
       component =>
         shouldKeepPercentage(component) ||
-        TEXT_FIELD_IDS.some(fieldId => getComponentFieldValue(component, fieldId))
+        TEXT_FIELD_IDS.some(fieldId =>
+          getComponentFieldValue(component, fieldId)
+        )
     );
 
   return {

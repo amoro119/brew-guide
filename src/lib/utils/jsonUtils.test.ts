@@ -10,6 +10,7 @@ describe('coffee bean readable text import', () => {
 产国: 埃塞俄比亚
 产区: 西达摩
 庄园: 博纳
+处理站: 沃卡
 海拔: 2100m
 处理法: 水洗
 批次: A12
@@ -22,6 +23,7 @@ describe('coffee bean readable text import', () => {
         country: '埃塞俄比亚',
         region: '西达摩',
         estate: '博纳',
+        processingStation: '沃卡',
         altitude: '2100m',
         process: '水洗',
         batch: 'A12',

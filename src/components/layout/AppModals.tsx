@@ -62,6 +62,7 @@ interface ExtendedCoffeeBean extends CoffeeBean {
     country?: string;
     region?: string;
     estate?: string;
+    processingStation?: string;
     altitude?: string;
     process?: string;
     batch?: string;

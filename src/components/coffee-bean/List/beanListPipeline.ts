@@ -289,6 +289,7 @@ const getSelectedFieldValue = (
     case 'country':
     case 'region':
     case 'estate':
+    case 'processingStation':
     case 'altitude':
       return options.selectedOrigin;
     default:

@@ -414,6 +414,7 @@ export const buildSettingsSearchItems = ({
         '产国',
         '产区',
         '庄园',
+        '处理站',
         '海拔',
         '处理法',
         '批次',
@@ -661,9 +662,7 @@ export const buildSettingsSearchItems = ({
     );
   } else {
     items.push(
-      ...createRowItems('experimental-settings', '实验性功能', [
-        '设置全局搜索',
-      ])
+      ...createRowItems('experimental-settings', '实验性功能', ['设置全局搜索'])
     );
   }
 

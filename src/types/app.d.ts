@@ -18,6 +18,7 @@ export interface BlendComponent {
   country?: string; // 产国
   region?: string; // 产区
   estate?: string; // 庄园
+  processingStation?: string; // 处理站
   altitude?: string; // 海拔
   process?: string; // 处理法
   batch?: string; // 批次

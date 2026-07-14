@@ -17,6 +17,7 @@ describe('bean print content', () => {
           country: '埃塞俄比亚',
           region: '西达摩',
           estate: '博纳',
+          processingStation: '沃卡',
           process: '水洗',
         },
       ],
@@ -28,6 +29,7 @@ describe('bean print content', () => {
     expect(content.country).toBe('埃塞俄比亚');
     expect(content.region).toBe('西达摩');
     expect(content.estate).toBe('博纳');
+    expect(content.processingStation).toBe('沃卡');
   });
 
   it('shows configured component fields and keeps fields with existing bean data', () => {
@@ -38,6 +40,7 @@ describe('bean print content', () => {
       country: '埃塞俄比亚',
       region: '西达摩',
       estate: '',
+      processingStation: '',
       altitude: '',
       roastLevel: '',
       roastDate: '',

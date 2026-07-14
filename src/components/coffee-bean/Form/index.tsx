@@ -232,6 +232,7 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
             country: '',
             region: '',
             estate: '',
+            processingStation: '',
             altitude: '',
             process: '',
             batch: '',
@@ -560,6 +561,7 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
             country: '',
             region: '',
             estate: '',
+            processingStation: '',
             altitude: '',
             process: '',
             batch: '',
@@ -633,6 +635,7 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
         addPresetValues('countries', [], component.country);
         addPresetValues('regions', [], component.region);
         addPresetValues('estates', DEFAULT_ESTATES, component.estate);
+        addPresetValues('processingStations', [], component.processingStation);
         addPresetValues('altitudes', [], component.altitude);
         addPresetValues('processes', DEFAULT_PROCESSES, component.process);
         addPresetValues('batches', [], component.batch);

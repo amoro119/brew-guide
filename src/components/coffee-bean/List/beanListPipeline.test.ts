@@ -236,6 +236,7 @@ describe('beanListPipeline', () => {
           country: '埃塞俄比亚',
           region: '西达摩',
           estate: '博纳',
+          processingStation: '沃卡',
           altitude: '2100m',
           process: '水洗',
           batch: 'A12',
@@ -251,6 +252,11 @@ describe('beanListPipeline', () => {
 
     expect(
       searchBeanRecords(snapshot.filteredRecords, '博纳').map(
+        record => record.bean.id
+      )
+    ).toEqual(['structured']);
+    expect(
+      searchBeanRecords(snapshot.filteredRecords, '沃卡').map(
         record => record.bean.id
       )
     ).toEqual(['structured']);
@@ -288,6 +294,7 @@ describe('beanListPipeline', () => {
           country: '埃塞俄比亚',
           region: '耶加雪菲',
           estate: '班驰玛吉',
+          processingStation: '沃卡',
           altitude: '1200',
         },
       ],
@@ -302,6 +309,17 @@ describe('beanListPipeline', () => {
     expect(snapshot.availableBeanFieldValues.country).toEqual(['埃塞俄比亚']);
     expect(snapshot.availableBeanFieldValues.region).toEqual(['耶加雪菲']);
     expect(snapshot.availableBeanFieldValues.estate).toEqual(['班驰玛吉']);
+    expect(snapshot.availableBeanFieldValues.processingStation).toEqual([
+      '沃卡',
+    ]);
     expect(snapshot.availableBeanFieldValues.altitude).toEqual(['1200']);
+
+    const stationSnapshot = createSnapshot([structuredBean], {
+      filterMode: 'processingStation',
+      selectedOrigin: '沃卡',
+    });
+    expect(stationSnapshot.filteredBeans.map(bean => bean.id)).toEqual([
+      'structured',
+    ]);
   });
 });

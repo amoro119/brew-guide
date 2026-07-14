@@ -51,6 +51,12 @@ const fieldConfigs: Array<{
     suggestionKey: 'estates',
   },
   {
+    field: 'processingStation',
+    label: '处理站',
+    placeholder: '处理站',
+    suggestionKey: 'processingStations',
+  },
+  {
     field: 'altitude',
     label: '海拔',
     placeholder: '海拔',

@@ -5,6 +5,7 @@ import {
   extractUniqueBatches,
   extractUniqueCountries,
   extractUniqueEstates,
+  extractUniqueProcessingStations,
   extractUniqueOriginSummaries,
   extractUniqueProcesses,
   extractUniqueRegions,
@@ -34,6 +35,7 @@ const suggestionFieldMap: Array<{
   { field: 'country', suggestionKey: 'countries' },
   { field: 'region', suggestionKey: 'regions' },
   { field: 'estate', suggestionKey: 'estates' },
+  { field: 'processingStation', suggestionKey: 'processingStations' },
   { field: 'altitude', suggestionKey: 'altitudes' },
   { field: 'process', suggestionKey: 'processes' },
   { field: 'batch', suggestionKey: 'batches' },
@@ -45,6 +47,7 @@ const createEmptyBlendComponent = (): BlendComponent => ({
   country: '',
   region: '',
   estate: '',
+  processingStation: '',
   altitude: '',
   process: '',
   batch: '',
@@ -67,6 +70,7 @@ const isEmptyBlendComponent = (component: BlendComponent) =>
   !normalizeBlendFieldValue(component.country) &&
   !normalizeBlendFieldValue(component.region) &&
   !normalizeBlendFieldValue(component.estate) &&
+  !normalizeBlendFieldValue(component.processingStation) &&
   !normalizeBlendFieldValue(component.altitude) &&
   !normalizeBlendFieldValue(component.process) &&
   !normalizeBlendFieldValue(component.batch) &&
@@ -303,6 +307,15 @@ export function useBlendComponentSuggestions() {
     [beans, revision]
   );
 
+  const processingStations = useMemo(
+    () =>
+      mergePresetSuggestions(
+        extractUniqueProcessingStations(beans),
+        'processingStations'
+      ),
+    [beans, revision]
+  );
+
   const altitudes = useMemo(
     () => mergePresetSuggestions(extractUniqueAltitudes(beans), 'altitudes'),
     [beans, revision]
@@ -328,6 +341,7 @@ export function useBlendComponentSuggestions() {
     countries,
     regions,
     estates,
+    processingStations,
     altitudes,
     processes,
     batches,

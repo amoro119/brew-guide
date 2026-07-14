@@ -122,6 +122,9 @@ export const getBottomInfoLine = (
   if (isPrintFieldVisible('estate', config, c)) {
     parts.push(c.estate.trim());
   }
+  if (isPrintFieldVisible('processingStation', config, c)) {
+    parts.push(c.processingStation.trim());
+  }
   if (isPrintFieldVisible('altitude', config, c)) {
     parts.push(c.altitude.trim());
   }
@@ -151,6 +154,7 @@ const extractComponentInfo = (
     | 'country'
     | 'region'
     | 'estate'
+    | 'processingStation'
     | 'altitude'
     | 'process'
     | 'batch'
@@ -182,6 +186,7 @@ export const createInitialContent = (
       country: '',
       region: '',
       estate: '',
+      processingStation: '',
       altitude: '',
       roastLevel: '',
       roastDate: '',
@@ -203,6 +208,7 @@ export const createInitialContent = (
     country: extractComponentInfo(bean, 'country'),
     region: extractComponentInfo(bean, 'region'),
     estate: extractComponentInfo(bean, 'estate'),
+    processingStation: extractComponentInfo(bean, 'processingStation'),
     altitude: extractComponentInfo(bean, 'altitude'),
     roastLevel: bean.roastLevel || '',
     roastDate: bean.roastDate || '',

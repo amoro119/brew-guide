@@ -29,6 +29,7 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
         country: component.country?.trim() || '',
         region: component.region?.trim() || '',
         estate: component.estate?.trim() || '',
+        processingStation: component.processingStation?.trim() || '',
         altitude: component.altitude?.trim() || '',
         batch: component.batch?.trim() || '',
         variety: component.variety?.trim() || '',
@@ -42,6 +43,7 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
         component.country ||
         component.region ||
         component.estate ||
+        component.processingStation ||
         component.altitude ||
         component.batch ||
         component.variety ||
@@ -98,6 +100,7 @@ const BlendComponentsSection: React.FC<BlendComponentsSectionProps> = ({
       renderFieldValue(comp, 'country', comp.country),
       renderFieldValue(comp, 'region', comp.region),
       renderFieldValue(comp, 'estate', comp.estate),
+      renderFieldValue(comp, 'processingStation', comp.processingStation),
       renderFieldValue(comp, 'altitude', comp.altitude),
       renderFieldValue(comp, 'process', comp.process),
       renderFieldValue(comp, 'batch', comp.batch),

@@ -57,6 +57,7 @@ export const DEFAULT_CONFIG: PrintConfig = {
     country: false,
     region: false,
     estate: false,
+    processingStation: false,
     altitude: false,
     roastLevel: true,
     roastDate: true,

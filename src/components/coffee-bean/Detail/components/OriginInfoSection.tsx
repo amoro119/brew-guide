@@ -130,6 +130,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const countryRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const estateRef = useRef<HTMLDivElement>(null);
+  const processingStationRef = useRef<HTMLDivElement>(null);
   const altitudeRef = useRef<HTMLDivElement>(null);
   const processRef = useRef<HTMLDivElement>(null);
   const batchRef = useRef<HTMLDivElement>(null);
@@ -139,7 +140,15 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const components =
     currentBean?.blendComponents && currentBean.blendComponents.length > 0
       ? currentBean.blendComponents
-      : [{ origin: '', estate: '', process: '', variety: '' }];
+      : [
+          {
+            origin: '',
+            estate: '',
+            processingStation: '',
+            process: '',
+            variety: '',
+          },
+        ];
   const isMultipleBlend =
     currentBean?.blendComponents && currentBean.blendComponents.length > 1;
   const firstComponent = currentBean?.blendComponents?.[0];
@@ -151,6 +160,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const country = firstComponent?.country || '';
   const region = firstComponent?.region || '';
   const estate = firstComponent?.estate || '';
+  const processingStation = firstComponent?.processingStation || '';
   const altitude = firstComponent?.altitude || '';
   const process = firstComponent?.process || '';
   const batch = firstComponent?.batch || '';
@@ -174,6 +184,10 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
       if (estateRef.current && firstComponent.estate) {
         estateRef.current.textContent = firstComponent.estate;
       }
+      if (processingStationRef.current && firstComponent.processingStation) {
+        processingStationRef.current.textContent =
+          firstComponent.processingStation;
+      }
       if (altitudeRef.current && firstComponent.altitude) {
         altitudeRef.current.textContent = firstComponent.altitude;
       }
@@ -193,7 +207,10 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   // 处理成分编辑
   const handleBlendComponentUpdate = (
     index: number,
-    field: Exclude<keyof NonNullable<CoffeeBean['blendComponents']>[number], 'percentage'>,
+    field: Exclude<
+      keyof NonNullable<CoffeeBean['blendComponents']>[number],
+      'percentage'
+    >,
     value: string
   ) => {
     const updatedComponents = updateBlendComponentsDelimitedField(
@@ -232,6 +249,10 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
 
   const handleEstateInput = () => {
     handleComponentTextInput('estate', estateRef);
+  };
+
+  const handleProcessingStationInput = () => {
+    handleComponentTextInput('processingStation', processingStationRef);
   };
 
   const handleAltitudeInput = () => {
@@ -313,6 +334,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
     !country &&
     !region &&
     !estate &&
+    !processingStation &&
     !altitude &&
     !process &&
     !batch &&
@@ -379,6 +401,12 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
         value: estate,
         fieldRef: estateRef,
         onBlur: handleEstateInput,
+      })}
+      {renderEditableInfoRow({
+        label: '处理站',
+        value: processingStation,
+        fieldRef: processingStationRef,
+        onBlur: handleProcessingStationInput,
       })}
       {renderEditableInfoRow({
         label: '海拔',

@@ -35,14 +35,14 @@ name 必填；roaster；capacity；remaining；price；roastDate；roastLevel；
 - roastLevel 只用：极浅烘焙/浅度烘焙/中浅烘焙/中度烘焙/中深烘焙/深度烘焙。
 - beanType 只用 filter/espresso/omni；拼配、深烘或大包装通常为 espresso；标注全能为 omni；否则默认 filter。
 - flavor 为字符串数组。
-- blendComponents 必须是“对象数组”，严禁输出字符串数组；每个对象字段只能是 origin/estate/process/variety。批次和海拔不要放入 blendComponents，但咖啡品种编号如 74158 可以放入 variety。严禁写 blenderComponents、components、blend_components。
+- blendComponents 必须是“对象数组”，严禁输出字符串数组；每个对象只能使用最终字段约束允许的键。estate 只写咖啡庄园/农场，processingStation 只写处理站/水洗站（Station/Washing Station），两者不得混用。咖啡品种编号如 74158 可以放入 variety。严禁写 blenderComponents、components、blend_components。
 - 只有明确拼配或多个产地/处理法时才输出多个 blendComponents；单品包装中品种单独成行时，合入同一个 component，不要为了品种另起 component。同一个品种不要重复成多个对象，也不要在 variety 中重复书写，例如 Oma 157 不要写成 "Oma 157 Oma 157"。Oma 157 这类字母+数字是品种；1931/批次1931 是批次，写入 notes。
 - 产地与处理法按图片表格或文本顺序一一配对；产地/处理法不要放入 notes。
 - notes 只放规范补充信息，例如批次、海拔、生豆商、系列；多条内容用 / 分隔；不要写物流、促销、包装技术、锁鲜技术、人物背书等广告信息。
 - 不编造，不输出上述字段以外的键。
 
 blendComponents 形状示例：
-{"blendComponents":[{"origin":"埃塞俄比亚","estate":"博纳","process":"水洗","variety":"74158"}]}
+{"blendComponents":[{"origin":"埃塞俄比亚","estate":"某庄园","processingStation":"博纳","process":"水洗","variety":"74158"}]}
 不要这样输出：
 {"blendComponents":["埃塞俄比亚","博纳","水洗","74158"]}`;
 
@@ -80,6 +80,7 @@ export function buildBeanRecognitionPrompt(
     'country',
     'region',
     'estate',
+    'processingStation',
     'altitude',
   ];
   const enabledStructuredOriginLabels = structuredOriginFields
@@ -93,7 +94,8 @@ export function buildBeanRecognitionPrompt(
 - blendComponents 每个对象只允许输出这些成分字段：${allowedFields}；字段含义：${allowedFieldLabels || '无'}。
 - 不在允许列表里的成分信息不要写入 blendComponents；如果图片中明确可见，写入 notes，例如 ${disabledFieldLabels ? `${disabledFieldLabels} 写入 notes` : '未启用字段写入 notes'}。
 - origin 是未结构化的“产地概括”，只有允许 origin 时才输出；不要把 origin 当成产国。
-- ${enabledStructuredOriginLabels ? `已启用精细产地字段：${enabledStructuredOriginLabels}；能明确区分时分别写入对应字段。` : '未启用精细产地字段；产国、产区、庄园、海拔不要写入 blendComponents。'}
+- ${enabledStructuredOriginLabels ? `已启用精细产地字段：${enabledStructuredOriginLabels}；能明确区分时分别写入对应字段。` : '未启用精细产地字段；产国、产区、庄园、处理站、海拔不要写入 blendComponents。'}
+- estate 仅表示庄园/农场，processingStation 仅表示处理站/水洗站；名称含“站”、“Station”或“Washing Station”时优先判定为处理站，不要写入 estate。
 - batch 是批次，altitude 是海拔；只有对应字段启用时才写入 blendComponents，否则写入 notes。
 - 严禁输出未允许的 blendComponents 键。`;
 }
@@ -138,6 +140,7 @@ const BLEND_COMPONENT_FIELDS = [
   'country',
   'region',
   'estate',
+  'processingStation',
   'altitude',
   'process',
   'batch',

@@ -139,6 +139,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
                       country: '',
                       region: '',
                       estate: '',
+                      processingStation: '',
                       altitude: '',
                       process: '',
                       batch: '',
@@ -171,6 +172,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
               country: '',
               region: '',
               estate: '',
+              processingStation: '',
               altitude: '',
               process: '',
               batch: '',
@@ -328,6 +330,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
         firstBlendComponent?.country ||
         firstBlendComponent?.region ||
         firstBlendComponent?.estate ||
+        firstBlendComponent?.processingStation ||
         firstBlendComponent?.altitude ||
         firstBlendComponent?.process ||
         firstBlendComponent?.batch ||
@@ -342,6 +345,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
         component.country?.trim() ||
         component.region?.trim() ||
         component.estate?.trim() ||
+        component.processingStation?.trim() ||
         component.altitude?.trim() ||
         component.variety?.trim() ||
         component.batch?.trim() ||

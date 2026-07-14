@@ -95,6 +95,7 @@ const CUSTOM_PRESETS_KEYS = [
   'countries', // 产国
   'regions', // 产区
   'estates', // 庄园
+  'processingStations', // 处理站
   'altitudes', // 海拔
   'processes', // 处理法
   'batches', // 批次

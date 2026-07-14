@@ -156,6 +156,7 @@ export const getInventoryAllClickAction = ({
       fieldId === 'country' ||
       fieldId === 'region' ||
       fieldId === 'estate' ||
+      fieldId === 'processingStation' ||
       fieldId === 'altitude') &&
     selectedOrigin != null
   ) {

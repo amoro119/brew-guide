@@ -16,6 +16,7 @@ const createEmptyBlendComponent = (): BlendComponent => ({
   country: '',
   region: '',
   estate: '',
+  processingStation: '',
   altitude: '',
   process: '',
   batch: '',
