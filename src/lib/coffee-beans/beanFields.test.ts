@@ -56,6 +56,8 @@ describe('bean field configuration', () => {
         blendComponents: [
           {
             origin: '埃塞俄比亚',
+            country: '刚果',
+            region: '刚果',
             estate: '博纳',
             processingStation: '沃卡',
             process: '水洗',
@@ -76,7 +78,7 @@ describe('bean field configuration', () => {
       },
     ]);
     expect(normalized.notes).toBe(
-      '庄园：博纳 / 处理站：沃卡 / 海拔：2100m / 批次：1931'
+      '产国：刚果 / 产区：刚果 / 庄园：博纳 / 处理站：沃卡 / 海拔：2100m / 批次：1931'
     );
   });
 
@@ -133,6 +135,43 @@ describe('bean field configuration', () => {
       },
     ]);
     expect(normalized.notes).toBeUndefined();
+  });
+
+  it('promotes explicitly labeled notes into enabled component fields', () => {
+    const normalized = normalizeCoffeeBeanForFieldConfig(
+      buildBean({
+        blendComponents: [{ country: '哥伦比亚', process: '蜜处理' }],
+        notes:
+          '产国：哥伦比亚 / 产区：NARIÑO / 海拔：2200–2300 M.A.S.L / 处理法：蜜处理',
+      }),
+      settingsWithEnabledFields(['country', 'region', 'altitude', 'process'])
+    );
+
+    expect(normalized.blendComponents).toEqual([
+      {
+        country: '哥伦比亚',
+        region: 'NARIÑO',
+        altitude: '2200-2300m',
+        process: '蜜处理',
+      },
+    ]);
+    expect(normalized.notes).toBeUndefined();
+  });
+
+  it('uses component prefixes without guessing unprefixed multi-component notes', () => {
+    const normalized = normalizeCoffeeBeanForFieldConfig(
+      buildBean({
+        blendComponents: [{ process: '水洗' }, { process: '日晒' }],
+        notes: '成分1 产区：西达摩 / 产区：古吉',
+      }),
+      settingsWithEnabledFields(['region', 'process'])
+    );
+
+    expect(normalized.blendComponents).toEqual([
+      { region: '西达摩', process: '水洗' },
+      { process: '日晒' },
+    ]);
+    expect(normalized.notes).toBe('产区：古吉');
   });
 
   it('uses structured origin fields before legacy origin for display', () => {

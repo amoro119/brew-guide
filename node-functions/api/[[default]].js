@@ -53,7 +53,7 @@ name 必填；roaster；capacity；remaining；price；roastDate；roastLevel；
 字段规则：
 - 未明确可见或无法可靠推断的字段直接省略，不要输出空字符串/null。
 - 图片里同一信息同时存在中文和英文时，优先输出中文；只有没有中文时才保留英文。
-- name 只写咖啡豆商品名/批次名；主标题同时出现英文名和中文名时都保留，例如 "Alo Chilaka 奇拉卡"；不要把产区、处理法、风味词放入 name。
+- name 优先按包装的视觉层级保留醒目的商品名、批次名或主标题；主标题同时出现英文名和中文名时都保留，例如 "OBRAJE 哥伦比亚奥博拉赫庄园"。name 允许与产国、产区、庄园、处理法、品种等结构化字段合理重叠，不要因为某段文字也能写入字段就从主标题机械删除。不要把正文中的产地、处理法或风味词额外拼接进 name；只有包装没有明确主标题时，才用最醒目的可见专名生成保守的备用名称。
 - roaster 输出品牌短名；中文品牌明显时优先短中文名，例如 "柯林"、"辛鹿"。
 - 生豆商、进口商、供应商不是 roaster；应写入 notes，例如 "生豆商：裂豆师"。
 - capacity/remaining/price/startDay/endDay 只输出数字，不带单位；capacity 从净含量、规格、克数提取，startDay/endDay 从赏味期、养豆天数提取。
@@ -141,6 +141,7 @@ function buildBeanRecognitionPrompt(fieldConfig) {
 - origin 是未结构化的“产地概括”，只有允许 origin 时才输出；不要把 origin 当成产国。
 - estate 仅表示庄园/农场，processingStation 仅表示处理站/水洗站；名称含“站”、“Station”或“Washing Station”时优先判定为处理站，不要写入 estate。
 - batch 是批次，altitude 是海拔；只有对应字段启用时才写入 blendComponents，否则写入 notes。
+- 已启用字段优先写入 blendComponents，不要同时重复写入 notes；name 是包装展示标题，与结构化字段合理重叠不算重复。
 - 严禁输出未允许的 blendComponents 键。`;
 }
 
@@ -523,7 +524,10 @@ function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
       return note
         .replace(/等级\s*[:：]?\s*G1/gi, 'G1')
         .replace(/生豆商\s*[:：]?\s*/g, '生豆商：')
-        .replace(/(?:海拔\s*)?(\d{3,4})\s*M\.?A\.?S\.?L\.?/gi, '海拔 $1m')
+        .replace(
+          /(?:海拔\s*[:：]?\s*)?(\d{3,4})(?:\s*[-–—]\s*(\d{3,4}))?\s*M\.?A\.?S\.?L\.?/gi,
+          (_match, lower, upper) => `海拔 ${lower}${upper ? `-${upper}` : ''}m`
+        )
         .replace(/海拔\s*海拔\s*/g, '海拔 ')
         .replace(/\s*[；/、]\s*/g, '/')
         .trim();
@@ -729,9 +733,12 @@ function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
 
     const moveRegionalNotesToOrigin = target => {
       if (
+        !enabledComponentKeys.has('origin') ||
+        enabledComponentKeys.has('region') ||
         typeof target.notes !== 'string' ||
         !Array.isArray(target.blendComponents) ||
         !target.blendComponents[0] ||
+        /[:：/]/.test(target.notes) ||
         !/西达摩|班莎|古吉|罕贝拉/.test(target.notes)
       ) {
         return;
@@ -745,8 +752,10 @@ function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
       delete target.notes;
     };
 
-    const moveRegionFromNameToOrigin = target => {
+    const copyRegionFromNameToOrigin = target => {
       if (
+        !enabledComponentKeys.has('origin') ||
+        enabledComponentKeys.has('region') ||
         typeof target.name !== 'string' ||
         !Array.isArray(target.blendComponents) ||
         !target.blendComponents[0]
@@ -756,10 +765,6 @@ function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
       const regionMatch = target.name.match(/(西达摩\s*班莎|古吉\s*罕贝拉)/);
       if (!regionMatch) return;
       const region = regionMatch[1].replace(/\s+/g, ' ');
-      target.name = target.name
-        .replace(regionMatch[1], '')
-        .replace(/\s+/g, ' ')
-        .trim();
       const component = target.blendComponents[0];
       if (!String(component.origin || '').includes(region)) {
         component.origin = [component.origin, region]
@@ -868,7 +873,7 @@ function parseBeanResponse(aiText, fieldConfig = DEFAULT_BEAN_FIELD_CONFIG) {
       if (!bean.notes) delete bean.notes;
     }
     moveRegionalNotesToOrigin(bean);
-    moveRegionFromNameToOrigin(bean);
+    copyRegionFromNameToOrigin(bean);
     applyBeanFieldConfig(bean);
     dropAdvertisingNote(bean);
     moveGreenBeanMerchantOutOfRoaster(bean);

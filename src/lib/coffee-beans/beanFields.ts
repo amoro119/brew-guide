@@ -105,24 +105,53 @@ const stringifyFieldValue = (value: unknown): string => {
   return '';
 };
 
-const normalizeNoteParts = (
-  notes: unknown
-): { text: string; parts: string[] } => {
-  if (Array.isArray(notes)) {
-    const parts = notes.map(item => stringifyFieldValue(item)).filter(Boolean);
-    return { text: parts.join(' / '), parts };
-  }
+const normalizeNoteParts = (notes: unknown): string[] => {
+  const values = Array.isArray(notes) ? notes : [notes];
+  return values
+    .flatMap(value => stringifyFieldValue(value).split(/\s*(?:\/|；)\s*/))
+    .filter(Boolean);
+};
 
-  const text = stringifyFieldValue(notes);
-  return {
-    text,
-    parts: text
-      ? text
-          .split(/\s*\/\s*/)
-          .map(part => part.trim())
-          .filter(Boolean)
-      : [],
-  };
+const formatFieldValue = (fieldId: BeanFieldId, value: unknown): string => {
+  const formatted = stringifyFieldValue(value);
+  if (fieldId !== 'altitude') return formatted;
+  return formatted
+    .replace(/^海拔\s*[:：]?\s*/, '')
+    .replace(/[‐‑‒–—―−]/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/m\.?\s*a\.?\s*s\.?\s*l\.?/gi, 'm')
+    .replace(/\s*m$/i, 'm');
+};
+
+const normalizeFieldValue = (fieldId: BeanFieldId, value: unknown): string =>
+  formatFieldValue(fieldId, value)
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[\s._·•:：;,，。/\\()[\]{}]+/g, '');
+
+const parseFieldNote = (
+  note: string
+): {
+  fieldId: BeanFieldId;
+  value: string;
+  componentIndex: number | null;
+} | null => {
+  for (const definition of BEAN_FIELD_DEFINITIONS) {
+    const match = note.match(
+      new RegExp(
+        `^(?:成分\\s*(\\d+)\\s*)?${definition.noteLabel}\\s*(?:[:：]|\\s)\\s*(.+)$`
+      )
+    );
+    if (match) {
+      return {
+        fieldId: definition.id,
+        value: match[2],
+        componentIndex: match[1] ? Number(match[1]) - 1 : null,
+      };
+    }
+  }
+  return null;
 };
 
 export function resolveBeanFieldConfig(
@@ -270,15 +299,6 @@ export function getComponentConfiguredValues(
     .filter(entry => entry.value);
 }
 
-const appendNotePart = (parts: string[], nextPart: string) => {
-  const trimmed = nextPart.trim();
-  if (!trimmed || parts.includes(trimmed)) return;
-  parts.push(trimmed);
-};
-
-const shouldKeepPercentage = (component: BlendComponent): boolean =>
-  component.percentage !== undefined && component.percentage !== null;
-
 export function normalizeCoffeeBeanForFieldConfig<
   T extends Partial<CoffeeBean>,
 >(
@@ -287,45 +307,88 @@ export function normalizeCoffeeBeanForFieldConfig<
 ): T {
   const config = resolveBeanFieldConfig(settings);
   const enabledFieldIds = new Set(getEnabledBeanFieldIds(config));
-  const noteParts = normalizeNoteParts(bean.notes).parts;
+  const components = Array.isArray(bean.blendComponents)
+    ? bean.blendComponents.map(component => ({ ...component }))
+    : [];
+  const originalComponentCount = components.length;
+  const noteParts: string[] = [];
+  const noteKeys = new Set<string>();
 
-  if (!Array.isArray(bean.blendComponents)) {
-    return {
-      ...bean,
-      notes: noteParts.length > 0 ? noteParts.join(' / ') : undefined,
-    };
-  }
+  const appendNote = (note: string) => {
+    const parsed = parseFieldNote(note);
+    const scope = parsed
+      ? (parsed.componentIndex ??
+        (originalComponentCount <= 1 ? 0 : 'unscoped'))
+      : '';
+    const key = parsed
+      ? `${scope}|${parsed.fieldId}|${normalizeFieldValue(parsed.fieldId, parsed.value)}`
+      : `note|${note.toLowerCase()}`;
+    if (!noteKeys.has(key)) {
+      noteKeys.add(key);
+      noteParts.push(note);
+    }
+  };
 
-  const normalizedComponents = bean.blendComponents
+  normalizeNoteParts(bean.notes).forEach(note => {
+    const parsed = parseFieldNote(note);
+    if (!parsed || !enabledFieldIds.has(parsed.fieldId)) {
+      appendNote(note);
+      return;
+    }
+
+    const componentIndex =
+      parsed.componentIndex ?? (components.length <= 1 ? 0 : -1);
+    if (
+      componentIndex < 0 ||
+      componentIndex >= Math.max(components.length, 1)
+    ) {
+      appendNote(note);
+      return;
+    }
+    if (components.length === 0) components.push({});
+
+    const currentValue = getComponentFieldValue(
+      components[componentIndex],
+      parsed.fieldId
+    );
+    if (!currentValue) {
+      components[componentIndex][parsed.fieldId] = formatFieldValue(
+        parsed.fieldId,
+        parsed.value
+      );
+    } else if (
+      normalizeFieldValue(parsed.fieldId, currentValue) !==
+      normalizeFieldValue(parsed.fieldId, parsed.value)
+    ) {
+      appendNote(note);
+    }
+  });
+
+  const normalizedComponents = components
     .map((component, componentIndex) => {
       const nextComponent: BlendComponent = {};
-
-      if (shouldKeepPercentage(component)) {
+      if (component.percentage !== undefined && component.percentage !== null) {
         nextComponent.percentage = component.percentage;
       }
 
       TEXT_FIELD_IDS.forEach(fieldId => {
-        const value = getComponentFieldValue(component, fieldId);
+        const value = formatFieldValue(fieldId, component[fieldId]);
         if (!value) return;
-
         if (enabledFieldIds.has(fieldId)) {
           nextComponent[fieldId] = value;
           return;
         }
-
-        const definition = getBeanFieldDefinition(fieldId);
         const prefix =
-          bean.blendComponents && bean.blendComponents.length > 1
-            ? `成分${componentIndex + 1} `
-            : '';
-        appendNotePart(noteParts, `${prefix}${definition.noteLabel}：${value}`);
+          components.length > 1 ? `成分${componentIndex + 1} ` : '';
+        appendNote(
+          `${prefix}${getBeanFieldDefinition(fieldId).noteLabel}：${value}`
+        );
       });
-
       return nextComponent;
     })
     .filter(
       component =>
-        shouldKeepPercentage(component) ||
+        component.percentage !== undefined ||
         TEXT_FIELD_IDS.some(fieldId =>
           getComponentFieldValue(component, fieldId)
         )

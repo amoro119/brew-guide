@@ -180,7 +180,7 @@ describe('recognition image upload validation', () => {
 
   it('normalizes flat component and note output from fast models', async () => {
     mockModelResponse(
-      '{"name":"测试咖啡豆","blendComponents":["ETHIOPIA","BONA STATION","水洗"],"notes":["2350 M.A.S.L","74158"]}'
+      '{"name":"测试咖啡豆","blendComponents":["ETHIOPIA","BONA STATION","水洗"],"notes":["2200-2300 M.A.S.L","74158"]}'
     );
     const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
     const file = new File([jpegBytes], 'cover.jpg', { type: 'image/jpeg' });
@@ -199,7 +199,7 @@ describe('recognition image upload validation', () => {
           variety: '74158',
         },
       ],
-      notes: '海拔 2350m/处理站：博纳',
+      notes: '海拔 2200-2300m/处理站：博纳',
     });
   });
 
@@ -303,8 +303,8 @@ describe('recognition image upload validation', () => {
     });
   });
 
-  it('moves region text out of the name and drops advertising notes', async () => {
-    mockModelResponse(
+  it('keeps region text in the packaging title and drops advertising notes', async () => {
+    const { getPayload } = mockModelResponse(
       '{"name":"Alo 西达摩 班莎 奇拉卡","notes":"540天锁鲜装","blendComponents":[{"origin":"埃塞俄比亚","process":"精致水洗","variety":"74158"}]}'
     );
     const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
@@ -315,13 +315,54 @@ describe('recognition image upload validation', () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual({
-      name: 'Alo 奇拉卡',
+      name: 'Alo 西达摩 班莎 奇拉卡',
       beanType: 'filter',
       blendComponents: [
         {
           origin: '埃塞俄比亚 西达摩 班莎',
           process: '精致水洗',
           variety: '74158',
+        },
+      ],
+    });
+    expect(getPayload().messages[0].content).toContain(
+      '不要因为某段文字也能写入字段就从主标题机械删除'
+    );
+  });
+
+  it('keeps the Obraje sample title and visible structured fields', async () => {
+    mockModelResponse(
+      '{"name":"OBRAJE 哥伦比亚奥博拉赫庄园","roaster":"MEOW COFFEE","blendComponents":[{"country":"哥伦比亚","region":"NARIÑO","estate":"奥博拉赫庄园","altitude":"2200-2300m","process":"蜜处理","variety":"绿顶瑰夏"}]}'
+    );
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const file = new File([jpegBytes], 'obraje.jpg', { type: 'image/jpeg' });
+
+    const response = await callRecognizeBean(file, {
+      version: 1,
+      fields: [
+        { id: 'country', enabled: true, order: 0 },
+        { id: 'region', enabled: true, order: 1 },
+        { id: 'estate', enabled: true, order: 2 },
+        { id: 'altitude', enabled: true, order: 3 },
+        { id: 'process', enabled: true, order: 4 },
+        { id: 'variety', enabled: true, order: 5 },
+      ],
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({
+      name: 'OBRAJE 哥伦比亚奥博拉赫庄园',
+      roaster: 'MEOW COFFEE',
+      beanType: 'filter',
+      blendComponents: [
+        {
+          country: '哥伦比亚',
+          region: 'NARIÑO',
+          estate: '奥博拉赫庄园',
+          altitude: '2200-2300m',
+          process: '蜜处理',
+          variety: '绿顶瑰夏',
         },
       ],
     });
