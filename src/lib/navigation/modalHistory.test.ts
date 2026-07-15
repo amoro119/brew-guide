@@ -116,6 +116,58 @@ describe('modalHistory navigation source', () => {
   });
 });
 
+describe('bean detail history lifecycle', () => {
+  it('keeps one layer across responsive handoff and pushes again when reopened', () => {
+    installWindow();
+    const mobileClose = vi.fn();
+    const desktopClose = vi.fn();
+    const mobileEntry = { id: 'bean-detail', onClose: mobileClose };
+    const desktopEntry = { id: 'bean-detail', onClose: desktopClose };
+
+    modalHistory.register(mobileEntry);
+    modalHistory.register(desktopEntry);
+    modalHistory.close('bean-detail', true, mobileEntry);
+
+    expect(window.history.pushState).toHaveBeenCalledTimes(1);
+    expect(window.history.go).not.toHaveBeenCalled();
+    expect(modalHistory.getStackIds()).toEqual(['bean-detail']);
+
+    modalHistory.back();
+
+    expect(desktopClose).toHaveBeenCalledTimes(1);
+    expect(mobileClose).not.toHaveBeenCalled();
+
+    const reopenedClose = vi.fn();
+    modalHistory.register({ id: 'bean-detail', onClose: reopenedClose });
+    modalHistory.back();
+
+    expect(window.history.pushState).toHaveBeenCalledTimes(2);
+    expect(window.history.back).toHaveBeenCalledTimes(2);
+    expect(reopenedClose).toHaveBeenCalledTimes(1);
+    expect(modalHistory.getStackIds()).toEqual([]);
+  });
+
+  it('returns from edit to detail before closing the detail', () => {
+    installWindow();
+    const detailClose = vi.fn();
+    const editClose = vi.fn();
+
+    modalHistory.register({ id: 'bean-detail', onClose: detailClose });
+    modalHistory.register({ id: 'bean-detail-edit', onClose: editClose });
+
+    modalHistory.back();
+
+    expect(editClose).toHaveBeenCalledTimes(1);
+    expect(detailClose).not.toHaveBeenCalled();
+    expect(modalHistory.getStackIds()).toEqual(['bean-detail']);
+
+    modalHistory.back();
+
+    expect(detailClose).toHaveBeenCalledTimes(1);
+    expect(modalHistory.getStackIds()).toEqual([]);
+  });
+});
+
 describe('page transition skip', () => {
   it('skips one child and parent exit transition', () => {
     installWindow();

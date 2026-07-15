@@ -63,6 +63,7 @@ import {
   isSimpleChangeRecord,
   isRoastingRecord,
 } from './types';
+import { blurBeanDetailEditorOnEscape } from './utils';
 import HeaderBar from './components/HeaderBar';
 import BeanImageSection from './components/BeanImageSection';
 import BasicInfoSection from './components/BasicInfoSection';
@@ -999,6 +1000,13 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
     completeClose({ preserveSavedDraft: true });
   };
 
+  const handleDetailKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!modalHistory.isTop(isEditMode ? 'bean-detail-edit' : 'bean-detail'))
+      return;
+
+    blurBeanDetailEditorOnEscape(event);
+  };
+
   // 导航处理
   const handleGoToBrewing = () => {
     if (!navigationState.visibleTabs.brewing) return;
@@ -1101,6 +1109,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   return (
     <>
       <div
+        onKeyDown={handleDetailKeyDown}
         className={`flex flex-col overflow-hidden bg-neutral-50 dark:bg-neutral-900 ${
           isLargeScreen ? 'h-full w-full' : 'fixed inset-0 mx-auto'
         }`}

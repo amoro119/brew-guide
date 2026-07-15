@@ -102,18 +102,13 @@ export function useModalHistory(options: UseModalHistoryOptions): void {
       cleanupTimerRef.current = null;
     }
 
-    if (isOpen) {
-      // isOpen 为 true，检查是否已经在栈中
-      if (modalHistory.isOpen(id)) {
-        // 已经注册过，不需要重复注册
-        // 但需要更新回调（因为 onCloseRef 可能已经更新）
-        return;
-      }
+    let entry: ModalEntry | undefined;
 
-      // 注册模态框
+    if (isOpen) {
+      // 始终注册以刷新同 ID 历史层的回调，register 不会重复 push
       closedByPopstateRef.current = false;
 
-      const entry: ModalEntry = {
+      entry = {
         id,
         onClose: event => {
           closedByPopstateRef.current = true;
@@ -140,13 +135,9 @@ export function useModalHistory(options: UseModalHistoryOptions): void {
     // 清理函数
     return () => {
       // 使用延迟清理来处理 StrictMode 的情况
-      // 如果是 StrictMode 的模拟卸载，组件会立即重新挂载，
-      // 新的 effect 会取消这个延迟清理
-      if (isOpen && !closedByPopstateRef.current && modalHistory.isOpen(id)) {
+      if (entry && !closedByPopstateRef.current) {
         cleanupTimerRef.current = setTimeout(() => {
-          if (modalHistory.isOpen(id)) {
-            modalHistory.close(id);
-          }
+          modalHistory.close(id, true, entry);
           cleanupTimerRef.current = null;
         }, 0);
       }

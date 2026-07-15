@@ -143,7 +143,7 @@ class ModalHistoryManager {
   /**
    * 处理 popstate 事件
    */
-  private handlePopState(event: PopStateEvent): void {
+  private handlePopState(): void {
     const source = this.state.nextPopStateSource;
     this.state.nextPopStateSource = 'history';
 
@@ -165,13 +165,6 @@ class ModalHistoryManager {
       return;
     }
 
-    // 检查当前历史状态
-    // 如果当前状态不包含我们的标记，说明用户已经返回到了模态框之前的页面
-    const currentState = event.state;
-    const isOurState = currentState?.[HISTORY_STATE_KEY];
-
-    // 如果当前状态是我们的，且不是栈顶模态框的状态，说明需要关闭栈顶
-    // 如果当前状态不是我们的，也需要关闭栈顶（用户返回到了根页面）
     this.closeTop(source);
   }
 
@@ -353,10 +346,14 @@ class ModalHistoryManager {
    *
    * @param id 要关闭的模态框 ID
    * @param skipOnClose 是否跳过 onClose 回调（默认 true，因为调用者通常已经处理了关闭逻辑）
+   * @param expectedEntry 仅在该注册实例仍持有历史层时关闭
    */
-  close(id: string, skipOnClose = true): void {
+  close(id: string, skipOnClose = true, expectedEntry?: ModalEntry): void {
     const index = this.state.stack.findIndex(m => m.id === id);
-    if (index === -1) {
+    if (
+      index === -1 ||
+      (expectedEntry && this.state.stack[index] !== expectedEntry)
+    ) {
       return;
     }
 

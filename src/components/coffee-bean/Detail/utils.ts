@@ -1,8 +1,24 @@
 'use client';
 
+import type { KeyboardEvent } from 'react';
 import { CoffeeBean } from '@/types/app';
 import { parseDateToTimestamp } from '@/lib/utils/dateUtils';
 import { calculateFlavorInfo } from '@/lib/utils/flavorPeriodUtils';
+
+export const blurBeanDetailEditorOnEscape = (
+  event: KeyboardEvent<HTMLDivElement>
+): void => {
+  if (event.key !== 'Escape' || event.defaultPrevented) return;
+
+  const editable = (event.target as HTMLElement).closest<HTMLElement>(
+    'input, textarea, select, [contenteditable="true"], [role="textbox"]'
+  );
+  if (!editable) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  editable.blur();
+};
 
 // 工具函数：格式化数字显示
 export const formatNumber = (value: string | undefined): string =>

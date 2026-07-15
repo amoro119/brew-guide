@@ -49,13 +49,13 @@ export function useBackButtonExit() {
         const handle = await CapacitorApp.addListener(
           'backButton',
           ({ canGoBack }) => {
-            // 如果应用有历史记录可以返回，则执行默认返回操作
+            if (modalHistory.getStackLength() > 0) {
+              modalHistory.back();
+              return;
+            }
+
             if (canGoBack) {
-              if (modalHistory.getStackLength() > 0) {
-                modalHistory.back();
-              } else {
-                window.history.back();
-              }
+              window.history.back();
               return;
             }
 
