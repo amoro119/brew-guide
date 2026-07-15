@@ -47,6 +47,7 @@ import {
   updateBlendComponentsDelimitedField,
 } from '@/lib/utils/coffeeBeanUtils';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
+import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
 
 interface CoffeeBeanFormProps {
   onSave: (bean: Omit<ExtendedCoffeeBean, 'id' | 'timestamp'>) => void;
@@ -460,12 +461,14 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
             sanitizedValue = sanitizedValue.substring(0, dotIndex + 2);
           }
 
-          // 更新总量，不实时同步剩余量
           setBean(prev => ({
             ...prev,
-            capacity: sanitizedValue,
-            // 总量清空时，剩余量也清空
-            remaining: sanitizedValue.trim() === '' ? '' : prev.remaining,
+            ...getCapacityChangeUpdates(
+              prev.capacity,
+              prev.remaining,
+              sanitizedValue,
+              !isRoastingDraft(prev, roastingSourceBeanId)
+            ),
           }));
           setEditingRemaining(null);
         } else if (field === 'remaining') {

@@ -564,19 +564,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
                 placeholder={isInRoastingMode ? '生豆量' : '总量'}
                 className="w-full border-b border-neutral-300 bg-transparent py-2 text-center outline-none dark:border-neutral-700"
                 onBlur={() => {
-                  // 失焦时更新主表单的总量
                   onBeanChange('capacity')(capacityValue);
-
-                  // 失焦时判断是否需要同步剩余量
-                  // 烘焙模式下不自动同步，让用户手动输入实际熟豆量
-                  if (
-                    !isInRoastingMode &&
-                    capacityValue &&
-                    (!remainingValue || remainingValue.trim() === '')
-                  ) {
-                    setRemainingValue(capacityValue);
-                    onBeanChange('remaining')(capacityValue);
-                  }
 
                   // 烘焙模式下，如果已有剩余量，计算脱水率和烘焙度
                   if (isInRoastingMode && remainingValue) {

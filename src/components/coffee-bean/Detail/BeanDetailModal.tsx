@@ -46,6 +46,7 @@ import {
   EMPTY_EQUIPMENT_NAME_OVERRIDES,
 } from '@/lib/notes/noteDisplay';
 import { getCoffeeBeanImageSource } from '@/lib/coffee-beans/imageRepository';
+import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
 import { getRelatedNotesForBean } from '@/lib/notes/relatedNotes';
 import { prepareCoffeeBeanRoasterFieldsForFormDraft } from '@/lib/utils/coffeeBeanUtils';
 import {
@@ -827,15 +828,18 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   // 容量/剩余量/价格处理
   const handleCapacityBlur = (value: string) => {
     setEditingCapacity(false);
-    if (value) {
-      const currentRemaining = isFormMode
-        ? tempBean.remaining
-        : bean?.remaining;
-      handleUpdateField({
-        capacity: value,
-        remaining: currentRemaining || value,
-      });
-    }
+    if (!value) return;
+
+    const previousBean = isFormMode ? tempBean : bean;
+    if (!previousBean) return;
+
+    void handleUpdateField(
+      getCapacityChangeUpdates(
+        previousBean.capacity,
+        previousBean.remaining,
+        value
+      )
+    );
   };
 
   const handleRemainingBlur = (value: string) => {

@@ -44,6 +44,29 @@ export const isOptionalCoffeeBeanAmount = (value: unknown): boolean => {
   return parseCoffeeBeanAmount(value) !== null;
 };
 
+export const getCapacityChangeUpdates = (
+  previousCapacity: unknown,
+  previousRemaining: string | undefined,
+  nextCapacity: string,
+  syncWhenFull = true
+): { capacity: string; remaining: string | undefined } => {
+  if (!nextCapacity.trim()) return { capacity: nextCapacity, remaining: '' };
+  if (!syncWhenFull) {
+    return { capacity: nextCapacity, remaining: previousRemaining };
+  }
+
+  const previousCapacityAmount = parseCoffeeBeanAmount(previousCapacity);
+  const shouldSyncRemaining =
+    !previousRemaining?.trim() ||
+    (previousCapacityAmount !== null &&
+      previousCapacityAmount === parseCoffeeBeanAmount(previousRemaining));
+
+  return {
+    capacity: nextCapacity,
+    remaining: shouldSyncRemaining ? nextCapacity : previousRemaining,
+  };
+};
+
 export async function createCapacityAdjustmentRecord(
   bean: CoffeeBean,
   originalAmount: number,

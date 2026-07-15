@@ -19,8 +19,25 @@ vi.mock('@/lib/stores/coffeeBeanStore', () => ({
 
 import {
   applyCapacityAdjustmentDelta,
+  getCapacityChangeUpdates,
   revertCapacityAdjustmentRecord,
 } from './capacityAdjustment';
+
+describe('capacity change remaining sync', () => {
+  it.each([
+    ['integer', '250', '250', '300', true, '300'],
+    ['decimal', '250.5', '250.5', '300.5', true, '300.5'],
+    ['equivalent formatting', '250', '250.0', '300', true, '300'],
+    ['consumed inventory', '250', '200', '300', true, '200'],
+    ['empty amounts', '', '', '300', true, '300'],
+    ['roasting conversion', '250', '', '300', false, ''],
+  ])('handles %s', (_label, capacity, remaining, next, sync, expected) => {
+    expect(getCapacityChangeUpdates(capacity, remaining, next, sync)).toEqual({
+      capacity: next,
+      remaining: expected,
+    });
+  });
+});
 
 describe('capacity adjustment inventory sync', () => {
   beforeEach(() => {
