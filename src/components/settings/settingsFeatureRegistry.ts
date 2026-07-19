@@ -190,7 +190,7 @@ const SETTINGS_FEATURES: SettingsFeatureDefinition[] = [
   },
   {
     id: 'random-coffee-bean-settings',
-    label: '随机咖啡豆规则',
+    label: '随机咖啡豆',
     icon: Shuffle,
     settingId: 'random-coffee-bean-settings',
     onClick: 'onOpenRandomCoffeeBeanSettings',

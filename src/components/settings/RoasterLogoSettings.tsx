@@ -28,6 +28,7 @@ import { compressBase64Image } from '@/lib/utils/imageCapture';
 import { TempFileManager } from '@/lib/utils/tempFileManager';
 import { showToast } from '@/components/common/feedback/LightToast';
 import { makeDynamicSettingSearchId } from './settingsSearch';
+import SettingsSearchBar from './SettingsSearchBar';
 
 interface RoasterLogoSettingsProps {
   isOpen: boolean;
@@ -76,6 +77,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
   const roasterConfigList = useSettingsStore(
     state => state.settings.roasterConfigs || []
   );
+  const [searchQuery, setSearchQuery] = useState('');
   const roasters = useMemo(
     () =>
       extractUniqueRoasters(beans, {
@@ -91,8 +93,14 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
     });
     return configMap;
   }, [roasterConfigList]);
+  const filteredRoasters = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return roasters;
+
+    return roasters.filter(roaster => roaster.toLowerCase().includes(query));
+  }, [roasters, searchQuery]);
   const highlightedSettingId = useScrollToHighlightedSetting(
-    roasters.join('\n')
+    filteredRoasters.join('\n')
   );
 
   // 删除确认抽屉状态
@@ -446,7 +454,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
   if (!shouldRender) return null;
 
   return (
-    <SettingPage title="烘焙商图标" isVisible={isVisible} onClose={handleClose}>
+    <SettingPage title="" isVisible={isVisible} onClose={handleClose}>
       <div className="-mt-4 px-6">
         {roasters.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -463,7 +471,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
             {/* 烘焙商列表标题 */}
             <div className="flex items-center justify-between gap-3 pl-3.5">
               <h3 className="text-sm font-medium tracking-wider text-neutral-500 uppercase tabular-nums dark:text-neutral-400">
-                烘焙商列表 ({roasters.length})
+                烘焙商列表 ({filteredRoasters.length})
               </h3>
 
               {isEditingRoasters ? (
@@ -490,257 +498,247 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
                   </button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleStartEditRoasters}
-                  className="flex cursor-pointer items-center rounded-full px-3 text-sm font-medium text-neutral-600 transition-transform active:scale-[0.96] dark:text-neutral-300"
-                >
-                  编辑
-                </button>
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={handleOpenImport}
+                    className="flex cursor-pointer items-center rounded-full px-3 text-sm font-medium text-neutral-500 transition-transform active:scale-[0.96] dark:text-neutral-400"
+                  >
+                    导入
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenExport}
+                    className="flex cursor-pointer items-center rounded-full px-3 text-sm font-medium text-neutral-500 transition-transform active:scale-[0.96] dark:text-neutral-400"
+                  >
+                    导出
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartEditRoasters}
+                    className="flex cursor-pointer items-center rounded-full px-3 text-sm font-medium text-neutral-600 transition-transform active:scale-[0.96] dark:text-neutral-300"
+                  >
+                    编辑
+                  </button>
+                </div>
               )}
             </div>
 
             {/* 烘焙商列表 */}
             <div className="space-y-2">
-              {roasters.map(roaster => {
-                const config = roasterConfigs.get(roaster);
-                const hasLogo = !!config?.logoData;
-                const logoData = config?.logoData;
-                const isUploading = uploading === roaster;
-                const logoPreviewClassName =
-                  'relative size-10 shrink-0 overflow-hidden rounded border border-neutral-200/50 bg-neutral-50/80 dark:border-neutral-700 dark:bg-neutral-900';
-                const draftName = draftRoasterNames[roaster] ?? roaster;
-                const normalizedDraftName = draftName.trim();
-                const hasDraftNameChange =
-                  normalizedDraftName.length > 0 &&
-                  normalizedDraftName !== roaster;
-                const shouldShowRenamePreview =
-                  isEditingRoasters &&
-                  !isSavingRoasters &&
-                  hasDraftNameChange &&
-                  focusedRoasterName !== roaster;
-                const roasterSearchId = makeDynamicSettingSearchId(
-                  'roaster',
-                  roaster
-                );
-                const isSearchHighlighted =
-                  highlightedSettingId === roasterSearchId;
+              {filteredRoasters.length === 0 ? (
+                <div className="rounded bg-neutral-100 px-4 py-6 text-sm text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                  没有找到匹配的烘焙商
+                </div>
+              ) : (
+                filteredRoasters.map(roaster => {
+                  const config = roasterConfigs.get(roaster);
+                  const hasLogo = !!config?.logoData;
+                  const logoData = config?.logoData;
+                  const isUploading = uploading === roaster;
+                  const logoPreviewClassName =
+                    'relative size-10 shrink-0 overflow-hidden rounded border border-neutral-200/50 bg-neutral-50/80 dark:border-neutral-700 dark:bg-neutral-900';
+                  const draftName = draftRoasterNames[roaster] ?? roaster;
+                  const normalizedDraftName = draftName.trim();
+                  const hasDraftNameChange =
+                    normalizedDraftName.length > 0 &&
+                    normalizedDraftName !== roaster;
+                  const shouldShowRenamePreview =
+                    isEditingRoasters &&
+                    !isSavingRoasters &&
+                    hasDraftNameChange &&
+                    focusedRoasterName !== roaster;
+                  const roasterSearchId = makeDynamicSettingSearchId(
+                    'roaster',
+                    roaster
+                  );
+                  const isSearchHighlighted =
+                    highlightedSettingId === roasterSearchId;
 
-                return (
-                  <div
-                    key={roaster}
-                    data-settings-search-id={roasterSearchId}
-                    className={`flex items-center justify-between rounded bg-neutral-100 p-2 transition-colors dark:bg-neutral-800 ${
-                      isSearchHighlighted
-                        ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
-                        : ''
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      {/* 图标预览 */}
-                      {hasLogo && logoData ? (
-                        <button
-                          type="button"
-                          onClick={event =>
-                            handleLogoPreviewClick(
-                              roaster,
-                              logoData,
-                              event.currentTarget
-                            )
-                          }
-                          disabled={isUploading}
-                          className={`${logoPreviewClassName} cursor-zoom-in p-0 transition-transform focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-50 focus-visible:outline-none active:scale-[0.96] disabled:cursor-default disabled:opacity-60 disabled:active:scale-100 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900`}
-                          title="放大图标"
-                          aria-label={`放大 ${roaster} 的图标`}
-                        >
-                          <Image
-                            src={logoData}
-                            alt={roaster}
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </button>
-                      ) : (
-                        <div className={logoPreviewClassName}>
-                          <div className="flex h-full w-full items-center justify-center text-sm font-medium text-neutral-400 dark:text-neutral-600">
-                            {roaster.charAt(0)}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 烘焙商名称 */}
-                      {isEditingRoasters ? (
-                        <div className="relative flex h-5 min-w-0 flex-1 items-center">
-                          <input
-                            ref={el => {
-                              if (el) {
-                                nameInputRefs.current.set(roaster, el);
-                              } else {
-                                nameInputRefs.current.delete(roaster);
-                              }
-                            }}
-                            value={draftName}
-                            onFocus={() => setFocusedRoasterName(roaster)}
-                            onBlur={() =>
-                              setFocusedRoasterName(current =>
-                                current === roaster ? null : current
+                  return (
+                    <div
+                      key={roaster}
+                      data-settings-search-id={roasterSearchId}
+                      className={`flex items-center justify-between rounded bg-neutral-100 p-2 transition-colors dark:bg-neutral-800 ${
+                        isSearchHighlighted
+                          ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        {/* 图标预览 */}
+                        {hasLogo && logoData ? (
+                          <button
+                            type="button"
+                            onClick={event =>
+                              handleLogoPreviewClick(
+                                roaster,
+                                logoData,
+                                event.currentTarget
                               )
                             }
-                            onChange={e =>
-                              setRoasterEditState(current => ({
-                                ...current,
-                                drafts: {
-                                  ...current.drafts,
-                                  [roaster]: e.target.value,
-                                },
-                              }))
-                            }
-                            disabled={isSavingRoasters}
-                            className={`block h-5 w-full min-w-0 bg-transparent p-0 text-sm leading-5 font-medium text-neutral-800 transition-[color,opacity] duration-150 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200 dark:placeholder:text-neutral-600 ${
-                              shouldShowRenamePreview
-                                ? 'pointer-events-none opacity-0'
-                                : 'opacity-100'
-                            }`}
-                            aria-label={`编辑 ${roaster} 的烘焙商名称`}
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
+                            disabled={isUploading}
+                            className={`${logoPreviewClassName} cursor-zoom-in p-0 transition-transform focus-visible:ring-2 focus-visible:ring-neutral-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-50 focus-visible:outline-none active:scale-[0.96] disabled:cursor-default disabled:opacity-60 disabled:active:scale-100 dark:focus-visible:ring-neutral-500/60 dark:focus-visible:ring-offset-neutral-900`}
+                            title="放大图标"
+                            aria-label={`放大 ${roaster} 的图标`}
+                          >
+                            <Image
+                              src={logoData}
+                              alt={roaster}
+                              fill
+                              sizes="40px"
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </button>
+                        ) : (
+                          <div className={logoPreviewClassName}>
+                            <div className="flex h-full w-full items-center justify-center text-sm font-medium text-neutral-400 dark:text-neutral-600">
+                              {roaster.charAt(0)}
+                            </div>
+                          </div>
+                        )}
 
-                          {shouldShowRenamePreview && (
-                            <button
-                              type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => focusRoasterNameInput(roaster)}
-                              className="roaster-rename-preview absolute inset-0 flex min-w-0 cursor-text items-center gap-2 text-left"
-                              aria-label={`继续编辑 ${roaster}，当前目标名称为 ${normalizedDraftName}`}
-                            >
-                              <span className="roaster-rename-preview-old relative max-w-[42%] min-w-0 truncate text-sm leading-5 font-medium text-neutral-500/60 dark:text-neutral-400/60">
-                                {roaster}
+                        {/* 烘焙商名称 */}
+                        {isEditingRoasters ? (
+                          <div className="relative flex h-5 min-w-0 flex-1 items-center">
+                            <input
+                              ref={el => {
+                                if (el) {
+                                  nameInputRefs.current.set(roaster, el);
+                                } else {
+                                  nameInputRefs.current.delete(roaster);
+                                }
+                              }}
+                              value={draftName}
+                              onFocus={() => setFocusedRoasterName(roaster)}
+                              onBlur={() =>
+                                setFocusedRoasterName(current =>
+                                  current === roaster ? null : current
+                                )
+                              }
+                              onChange={e =>
+                                setRoasterEditState(current => ({
+                                  ...current,
+                                  drafts: {
+                                    ...current.drafts,
+                                    [roaster]: e.target.value,
+                                  },
+                                }))
+                              }
+                              disabled={isSavingRoasters}
+                              className={`block h-5 w-full min-w-0 bg-transparent p-0 text-sm leading-5 font-medium text-neutral-800 transition-[color,opacity] duration-150 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200 dark:placeholder:text-neutral-600 ${
+                                shouldShowRenamePreview
+                                  ? 'pointer-events-none opacity-0'
+                                  : 'opacity-100'
+                              }`}
+                              aria-label={`编辑 ${roaster} 的烘焙商名称`}
+                              autoComplete="off"
+                              spellCheck={false}
+                            />
+
+                            {shouldShowRenamePreview && (
+                              <button
+                                type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => focusRoasterNameInput(roaster)}
+                                className="roaster-rename-preview absolute inset-0 flex min-w-0 cursor-text items-center gap-2 text-left"
+                                aria-label={`继续编辑 ${roaster}，当前目标名称为 ${normalizedDraftName}`}
+                              >
+                                <span className="roaster-rename-preview-old relative max-w-[42%] min-w-0 truncate text-sm leading-5 font-medium text-neutral-500/60 dark:text-neutral-400/60">
+                                  {roaster}
+                                  <span
+                                    aria-hidden="true"
+                                    className="roaster-rename-preview-line"
+                                  />
+                                </span>
                                 <span
                                   aria-hidden="true"
-                                  className="roaster-rename-preview-line"
+                                  className="h-px w-3 shrink-0 bg-neutral-300/70 dark:bg-neutral-600/70"
                                 />
-                              </span>
-                              <span
-                                aria-hidden="true"
-                                className="h-px w-3 shrink-0 bg-neutral-300/70 dark:bg-neutral-600/70"
-                              />
-                              <span className="roaster-rename-preview-new min-w-0 flex-1 truncate text-sm leading-5 font-medium text-neutral-800 dark:text-neutral-200">
-                                {normalizedDraftName}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="min-w-0 truncate text-sm leading-5 font-medium text-neutral-800 dark:text-neutral-200">
-                          {roaster}
-                        </span>
-                      )}
-                    </div>
+                                <span className="roaster-rename-preview-new min-w-0 flex-1 truncate text-sm leading-5 font-medium text-neutral-800 dark:text-neutral-200">
+                                  {normalizedDraftName}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="min-w-0 truncate text-sm leading-5 font-medium text-neutral-800 dark:text-neutral-200">
+                            {roaster}
+                          </span>
+                        )}
+                      </div>
 
-                    {/* 操作按钮 */}
-                    <div
-                      className={
-                        isEditingRoasters
-                          ? 'pointer-events-none flex items-center gap-1.5 opacity-0 transition-opacity'
-                          : 'flex items-center gap-1.5 opacity-100 transition-opacity'
-                      }
-                    >
-                      {hasLogo && (
+                      {/* 操作按钮 */}
+                      <div
+                        className={
+                          isEditingRoasters
+                            ? 'pointer-events-none flex items-center gap-1.5 opacity-0 transition-opacity'
+                            : 'flex items-center gap-1.5 opacity-100 transition-opacity'
+                        }
+                      >
+                        {hasLogo && (
+                          <button
+                            type="button"
+                            onClick={e => handleDeleteLogo(roaster, e)}
+                            disabled={isUploading}
+                            className="rounded p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50 dark:hover:bg-neutral-700"
+                            title="删除图标"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={e => handleDeleteLogo(roaster, e)}
+                          onClick={e => triggerFileInput(roaster, e)}
                           disabled={isUploading}
-                          className="rounded p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50 dark:hover:bg-neutral-700"
-                          title="删除图标"
+                          className="rounded px-2.5 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-700"
                         >
-                          <X className="size-4" />
+                          {isUploading ? '添加中...' : hasLogo ? '更换' : '添加'}
                         </button>
-                      )}
 
-                      <button
-                        type="button"
-                        onClick={e => triggerFileInput(roaster, e)}
-                        disabled={isUploading}
-                        className="rounded px-2.5 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-700"
-                      >
-                        {isUploading ? '添加中...' : hasLogo ? '更换' : '添加'}
-                      </button>
-
-                      {/* 隐藏的文件输入 */}
-                      <input
-                        ref={el => {
-                          if (el) {
-                            fileInputRefs.current.set(roaster, el);
-                          }
-                        }}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                        className="hidden"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleFileSelect(roaster, file);
-                          }
-                          e.target.value = '';
-                        }}
-                      />
+                        {/* 隐藏的文件输入 */}
+                        <input
+                          ref={el => {
+                            if (el) {
+                              fileInputRefs.current.set(roaster, el);
+                            } else {
+                              fileInputRefs.current.delete(roaster);
+                            }
+                          }}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleFileSelect(roaster, file);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 使用说明和导入导出 */}
-        {roasters.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h3 className="text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-              使用说明
-            </h3>
-            <div className="rounded bg-neutral-100 p-3.5 dark:bg-neutral-800">
-              <ul className="space-y-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-neutral-400 dark:text-neutral-500">
-                    •
-                  </span>
-                  <span>当咖啡豆未设置图片时，会自动显示对应烘焙商的图标</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-neutral-400 dark:text-neutral-500">
-                    •
-                  </span>
-                  <span>烘焙商名称从咖啡豆名称的第一个词自动识别</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* 导入导出 */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleOpenImport}
-                className="rounded bg-neutral-100 px-3 py-2 text-xs text-neutral-600 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-              >
-                导入图标
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenExport}
-                className="rounded bg-neutral-100 px-3 py-2 text-xs text-neutral-600 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-              >
-                导出图标
-              </button>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
 
         {/* 底部空间 */}
-        <div className="h-16" />
+        <div className="h-28" />
       </div>
+
+      <SettingsSearchBar
+        query={searchQuery}
+        firstResult={null}
+        placeholder="搜索烘焙商"
+        position="fixed"
+        onQueryChange={setSearchQuery}
+        onSelect={() => {}}
+      />
 
       {/* 删除确认抽屉 */}
       <DeleteConfirmDrawer

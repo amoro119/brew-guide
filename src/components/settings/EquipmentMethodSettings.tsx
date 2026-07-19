@@ -1289,9 +1289,6 @@ const EquipmentMethodSettings: React.FC<EquipmentMethodSettingsProps> = ({
             chromeMode="drawer"
             onChromeChange={setMethodChrome}
             enableStageEditing={navigationState.visibleTabs.brewing}
-            grinderDefaultSyncEnabled={
-              effectiveSettings.grinderDefaultSync?.methodForm ?? false
-            }
           />
         </div>
       );

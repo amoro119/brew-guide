@@ -827,13 +827,10 @@ const BrewingNoteFormModal: React.FC<BrewingNoteFormModalProps> = ({
                     method: methodId,
                     params: normalizeBrewingNoteParams(undefined),
                     totalTime: undefined,
-                  }));
-                }}
-                onParamsChange={handleMethodParamsChange}
-                grinderDefaultSyncEnabled={
-                  settings?.grinderDefaultSync?.manualNote ?? true
-                }
-              />
+                }));
+              }}
+              onParamsChange={handleMethodParamsChange}
+            />
             )}
           </div>
         ),

@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, ChevronDown, Info, Link2, Unlink } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import hapticsUtils from '@/lib/ui/haptics';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { useGrinderStore } from '@/lib/stores/grinderStore';
-import { deriveNavigationSettings } from '@/lib/navigation/navigationSettings';
 import { SettingPage, useScrollToHighlightedSetting } from './atomic';
 import {
   makeDynamicSettingSearchId,
@@ -30,20 +29,6 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
 }) => {
   // 使用 settingsStore 获取设置
   const settings = useSettingsStore(state => state.settings) as SettingsOptions;
-  const updateSettings = useSettingsStore(state => state.updateSettings);
-  const navigationState = deriveNavigationSettings(settings.navigationSettings);
-  const showBrewing = navigationState.visibleTabs.brewing;
-
-  // 使用 settingsStore 的 handleChange
-  const handleChange = React.useCallback(
-    async <K extends keyof SettingsOptions>(
-      key: K,
-      value: SettingsOptions[K]
-    ) => {
-      await updateSettings({ [key]: value } as any);
-    },
-    [updateSettings]
-  );
 
   // 控制动画状态
   const [isVisible, setIsVisible] = useState(false);
@@ -108,7 +93,7 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
     deleteGrinder,
   } = useGrinderStore();
   const highlightedSettingId = useScrollToHighlightedSetting(
-    `${grinders.map(grinder => grinder.id).join('\n')}:${addingStep}:${showBrewing}`
+    `${grinders.map(grinder => grinder.id).join('\n')}:${addingStep}`
   );
   const isSearchRowHighlighted = React.useCallback(
     (label: string) => highlightedSettingId === makeSettingRowSearchId(label),
@@ -121,13 +106,6 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
         : '',
     [isSearchRowHighlighted]
   );
-  const shouldOpenDefaultSyncDetails =
-    isSearchRowHighlighted('默认同步设置') ||
-    isSearchRowHighlighted('导航栏参数栏') ||
-    isSearchRowHighlighted('方案表单') ||
-    isSearchRowHighlighted('手动添加笔记') ||
-    isSearchRowHighlighted('笔记编辑表单');
-
   // 初始化 store
   useEffect(() => {
     if (!initialized) {
@@ -186,212 +164,6 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
     <SettingPage title="磨豆机" isVisible={isVisible} onClose={handleClose}>
       {/* 顶部渐变阴影 */}
       <div className="-mt-4 space-y-4 px-6">
-        {/* 使用指南 - 可展开收起（仅在有磨豆机时显示） */}
-        {grinders.length > 0 && (
-          <details
-            data-settings-search-id={makeSettingRowSearchId(
-              '磨豆机系统使用指南'
-            )}
-            open={isSearchRowHighlighted('磨豆机系统使用指南') || undefined}
-            className={`group rounded bg-neutral-100 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('磨豆机系统使用指南')}`}
-          >
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-300">
-              <Info className="h-3.5 w-3.5 shrink-0" />
-              <span>磨豆机系统使用指南</span>
-              <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="space-y-2.5 px-4 pt-1 pb-3 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              <p>
-                添加磨豆机后，点击任意研磨度输入框都会弹出选择器，点击即可填入当前刻度。
-              </p>
-              <p>
-                选中的磨豆机会用胶囊显示，左侧图标（
-                <Link2 className="mx-0.5 inline h-3 w-3 -translate-y-px" />
-                /
-                <Unlink className="mx-0.5 inline h-3 w-3 -translate-y-px" />
-                ）表示同步开关，开启时保存记录会自动更新刻度。
-              </p>
-            </div>
-          </details>
-        )}
-
-        {/* 默认同步设置（仅在有磨豆机时显示） */}
-        {grinders.length > 0 && (
-          <details
-            data-settings-search-id={makeSettingRowSearchId('默认同步设置')}
-            open={shouldOpenDefaultSyncDetails || undefined}
-            className={`group rounded bg-neutral-100 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('默认同步设置')}`}
-          >
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-300">
-              <Link2 className="h-3.5 w-3.5 shrink-0" />
-              <span>默认同步设置</span>
-              <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="space-y-3 px-4 pt-1 pb-4">
-              <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                设置各场景下同步开关的默认状态
-              </p>
-              {/* 导航栏参数栏 */}
-              <div
-                data-settings-search-id={makeSettingRowSearchId('导航栏参数栏')}
-                className={`flex items-center justify-between rounded transition-colors ${getSearchHighlightClass('导航栏参数栏')}`}
-              >
-                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                  导航栏参数栏
-                </span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={settings.grinderDefaultSync?.navigationBar ?? true}
-                    onChange={() => {
-                      const current = settings.grinderDefaultSync || {
-                        navigationBar: true,
-                        methodForm: false,
-                        manualNote: true,
-                        noteEdit: false,
-                      };
-                      handleChange('grinderDefaultSync', {
-                        ...current,
-                        navigationBar: !current.navigationBar,
-                      });
-                      settings.hapticFeedback && hapticsUtils.light();
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-              {/* 方案表单 */}
-              <div
-                data-settings-search-id={makeSettingRowSearchId('方案表单')}
-                className={`flex items-center justify-between rounded transition-colors ${getSearchHighlightClass('方案表单')}`}
-              >
-                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                  方案表单
-                </span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={settings.grinderDefaultSync?.methodForm ?? false}
-                    onChange={() => {
-                      const current = settings.grinderDefaultSync || {
-                        navigationBar: true,
-                        methodForm: false,
-                        manualNote: true,
-                        noteEdit: false,
-                      };
-                      handleChange('grinderDefaultSync', {
-                        ...current,
-                        methodForm: !current.methodForm,
-                      });
-                      settings.hapticFeedback && hapticsUtils.light();
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-              {/* 手动添加笔记 */}
-              <div
-                data-settings-search-id={makeSettingRowSearchId('手动添加笔记')}
-                className={`flex items-center justify-between rounded transition-colors ${getSearchHighlightClass('手动添加笔记')}`}
-              >
-                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                  手动添加笔记
-                </span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={settings.grinderDefaultSync?.manualNote ?? true}
-                    onChange={() => {
-                      const current = settings.grinderDefaultSync || {
-                        navigationBar: true,
-                        methodForm: false,
-                        manualNote: true,
-                        noteEdit: false,
-                      };
-                      handleChange('grinderDefaultSync', {
-                        ...current,
-                        manualNote: !current.manualNote,
-                      });
-                      settings.hapticFeedback && hapticsUtils.light();
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-              {/* 笔记编辑表单 */}
-              <div
-                data-settings-search-id={makeSettingRowSearchId('笔记编辑表单')}
-                className={`flex items-center justify-between rounded transition-colors ${getSearchHighlightClass('笔记编辑表单')}`}
-              >
-                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                  笔记编辑表单
-                </span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={settings.grinderDefaultSync?.noteEdit ?? false}
-                    onChange={() => {
-                      const current = settings.grinderDefaultSync || {
-                        navigationBar: true,
-                        methodForm: false,
-                        manualNote: true,
-                        noteEdit: false,
-                      };
-                      handleChange('grinderDefaultSync', {
-                        ...current,
-                        noteEdit: !current.noteEdit,
-                      });
-                      settings.hapticFeedback && hapticsUtils.light();
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-            </div>
-          </details>
-        )}
-
-        {/* 刻度指示器显示设置（仅在有磨豆机且冲煮开启时显示） */}
-        {grinders.length > 0 && showBrewing && (
-          <div
-            data-settings-search-id={makeSettingRowSearchId('显示刻度指示器')}
-            className={`flex items-center justify-between rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('显示刻度指示器')}`}
-          >
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-                显示刻度指示器
-              </span>
-              <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                在冲煮页面显示当前磨豆机刻度，点击可编辑，长按切换磨豆机
-              </span>
-            </div>
-            <label className="relative inline-flex cursor-pointer items-center">
-              <input
-                type="checkbox"
-                checked={settings.showGrinderScale ?? true}
-                onChange={() => {
-                  handleChange(
-                    'showGrinderScale',
-                    !(settings.showGrinderScale ?? true)
-                  );
-                  settings.hapticFeedback && hapticsUtils.light();
-                }}
-                className="peer sr-only"
-              />
-              <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-            </label>
-          </div>
-        )}
-
-        {/* 分割线（仅在有磨豆机时显示） */}
-        {grinders.length > 0 && (
-          <div className="my-6 h-px bg-neutral-100 dark:bg-neutral-800" />
-        )}
-
         {/* 磨豆机列表 */}
         {grinders.map(grinder => {
           const isEditing = editingId === grinder.id;

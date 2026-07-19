@@ -34,8 +34,6 @@ interface ParamsStepProps {
   onExtractionTimeChange?: (value: number) => void;
   onLiquidWeightChange?: (value: string) => void;
   customEquipment?: CustomEquipment;
-  /** 磨豆机同步默认开关状态 */
-  grinderDefaultSyncEnabled?: boolean;
   /** 是否显示意式萃取时间。 */
   showExtractionTime?: boolean;
 }
@@ -49,7 +47,6 @@ const ParamsStep: React.FC<ParamsStepProps> = ({
   onExtractionTimeChange,
   onLiquidWeightChange,
   customEquipment,
-  grinderDefaultSyncEnabled = false,
   showExtractionTime = true,
 }) => {
   // 检查是否是意式机
@@ -180,7 +177,7 @@ const ParamsStep: React.FC<ParamsStepProps> = ({
               isEspresso ? '例如：特细、浓缩咖啡级' : '例如：中细、特细、中粗等'
             }
             inputClassName="w-full border-b border-neutral-300 bg-transparent py-2 outline-hidden focus:border-neutral-800/50 dark:border-neutral-700 dark:focus:border-neutral-400"
-            defaultSyncEnabled={grinderDefaultSyncEnabled}
+            defaultSyncEnabled={false}
           />
         </div>
 

@@ -197,10 +197,20 @@ const NavigationSettings: React.FC<NavigationSettingsProps> = ({
 
   return (
     <SettingPage title="应用功能" isVisible={isVisible} onClose={handleClose}>
+      <SettingSection title="显示偏好" className="-mt-4">
+        <SettingRow label="简化标签名称" isLast>
+          <SettingToggle
+            checked={settings.simplifiedViewLabels ?? false}
+            onChange={checked =>
+              void updateSettings({ simplifiedViewLabels: checked })
+            }
+          />
+        </SettingRow>
+      </SettingSection>
+
       <SettingSection
         title="启用的功能"
         footer="关闭后隐藏对应入口，并简化相关流程；至少保留一个功能"
-        className="-mt-4"
       >
         {MAIN_NAVIGATION_TABS.map((tab, index) => (
           <SettingRow
@@ -280,17 +290,6 @@ const NavigationSettings: React.FC<NavigationSettingsProps> = ({
           ))}
         </SettingSection>
       )}
-
-      <SettingSection title="显示偏好">
-        <SettingRow label="简化标签名称" isLast>
-          <SettingToggle
-            checked={settings.simplifiedViewLabels ?? false}
-            onChange={checked =>
-              void updateSettings({ simplifiedViewLabels: checked })
-            }
-          />
-        </SettingRow>
-      </SettingSection>
     </SettingPage>
   );
 };

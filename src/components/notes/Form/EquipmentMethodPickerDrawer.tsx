@@ -247,9 +247,6 @@ const EquipmentMethodPickerDrawer: React.FC<
             commonMethods={commonMethodsForEquipment}
             onMethodSelect={handleMethodSelect}
             onParamsChange={handleParamsChange}
-            grinderDefaultSyncEnabled={
-              settings?.grinderDefaultSync?.manualNote ?? true
-            }
             initialParams={initialParams}
           />
         </div>

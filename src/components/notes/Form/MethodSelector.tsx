@@ -17,7 +17,6 @@ interface MethodSelectorProps {
   commonMethods: Method[];
   onMethodSelect: (methodId: string) => void;
   onParamsChange: (method: Method) => void;
-  grinderDefaultSyncEnabled?: boolean;
   /** 笔记保存的方案参数（编辑模式时优先使用） */
   initialParams?: Partial<Method['params']>;
 }
@@ -94,7 +93,6 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
   commonMethods,
   onMethodSelect,
   onParamsChange,
-  grinderDefaultSyncEnabled = true,
   initialParams,
 }) => {
   const isEspresso =
@@ -578,7 +576,6 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
                         className="flex items-center"
                         inputClassName="min-w-12 rounded-sm border border-neutral-300 bg-white px-1 py-0.5 text-left text-xs font-medium text-neutral-800 focus:ring-1 focus:ring-neutral-500 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                         autoWidth
-                        defaultSyncEnabled={grinderDefaultSyncEnabled}
                         dropdownPlacement="right"
                       />
                     </div>
@@ -615,7 +612,6 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
                         className="flex items-center"
                         inputClassName="min-w-12 rounded-sm border border-neutral-300 bg-white px-1 py-0.5 text-left text-xs font-medium text-neutral-800 focus:ring-1 focus:ring-neutral-500 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                         autoWidth
-                        defaultSyncEnabled={grinderDefaultSyncEnabled}
                         dropdownPlacement="right"
                       />
                     </div>

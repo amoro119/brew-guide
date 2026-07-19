@@ -146,14 +146,6 @@ export const defaultSettings: AppSettings = {
   hiddenCommonMethods: {},
   hiddenEquipments: [],
   equipmentNameOverrides: {},
-  grinderDefaultSync: {
-    navigationBar: true,
-    methodForm: true,
-    manualNote: true,
-    noteEdit: true,
-  },
-  showGrinderScale: true,
-
   // 笔记设置
   showFlavorRatingInForm: true,
   showOverallRatingInForm: true,
@@ -319,8 +311,16 @@ interface SettingsStore {
 const mergeSettingsWithDefaults = (
   settings?: Partial<AppSettings> | null
 ): AppSettings => {
-  const { searchSort: _legacySearchSort, ...supportedSettings } = (settings ??
-    {}) as Partial<AppSettings> & { searchSort?: unknown };
+  const {
+    searchSort: _legacySearchSort,
+    grinderDefaultSync: _legacyGrinderDefaultSync,
+    showGrinderScale: _legacyShowGrinderScale,
+    ...supportedSettings
+  } = (settings ?? {}) as Partial<AppSettings> & {
+    searchSort?: unknown;
+    grinderDefaultSync?: unknown;
+    showGrinderScale?: unknown;
+  };
   const safeAreaMargins = settings?.safeAreaMargins;
   const normalizedSafeAreaMargins =
     safeAreaMargins?.top === LEGACY_DEFAULT_SAFE_AREA_MARGINS.top &&
@@ -386,6 +386,8 @@ export const useSettingsStore = create<SettingsStore>()(
             mergeSettingsWithDefaults(normalizedStoredData);
           const legacySettings = stored.data as AppSettings & {
             notesListStyle?: string;
+            grinderDefaultSync?: unknown;
+            showGrinderScale?: unknown;
           };
 
           // 兼容旧字段：notesListStyle -> useClassicNotesListStyle
@@ -401,7 +403,9 @@ export const useSettingsStore = create<SettingsStore>()(
             mergedSettings.supabaseBackupProvider !==
               stored.data.supabaseBackupProvider ||
             JSON.stringify(mergedSettings.layoutSettings) !==
-              JSON.stringify(stored.data.layoutSettings);
+              JSON.stringify(stored.data.layoutSettings) ||
+            legacySettings.grinderDefaultSync !== undefined ||
+            legacySettings.showGrinderScale !== undefined;
 
           if (shouldPersistMergedSettings) {
             await db.appSettings.put({ id: 'main', data: mergedSettings });

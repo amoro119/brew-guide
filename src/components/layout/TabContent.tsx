@@ -688,16 +688,14 @@ const TabContent: React.FC<TabContentProps> = ({
         </div>
 
         {/* 磨豆机刻度指示器 - 在随机按钮上方 */}
-        {(settings.showGrinderScale ?? true) && (
-          <div className="pointer-events-none fixed right-0 bottom-[120px] left-0 z-10 mx-auto mb-(--safe-area-bottom) flex items-center justify-end p-6">
-            <div className="pointer-events-auto">
-              <GrinderScaleIndicator
-                visible={true}
-                hapticFeedback={settings.hapticFeedback}
-              />
-            </div>
+        <div className="pointer-events-none fixed right-0 bottom-[120px] left-0 z-10 mx-auto mb-(--safe-area-bottom) flex items-center justify-end p-6">
+          <div className="pointer-events-auto">
+            <GrinderScaleIndicator
+              visible={true}
+              hapticFeedback={settings.hapticFeedback}
+            />
           </div>
-        )}
+        </div>
 
         {/* 随机选豆按钮 - 单独放置在搜索工具栏上方 */}
         <div className="pointer-events-none fixed right-0 bottom-[60px] left-0 z-10 mx-auto mb-(--safe-area-bottom) flex items-center justify-end p-6">

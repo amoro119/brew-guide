@@ -155,8 +155,6 @@ interface CustomMethodFormProps {
   currentStep?: number;
   /** 步骤变化回调，通知父组件步骤变化 */
   onStepChange?: (step: number) => void;
-  /** 磨豆机同步默认开关状态 */
-  grinderDefaultSyncEnabled?: boolean;
   /** 是否启用冲泡步骤编辑。笔记模式下新增方案只保留基本参数。 */
   enableStageEditing?: boolean;
   chromeMode?: 'internal' | 'drawer';
@@ -188,7 +186,6 @@ const CustomMethodForm = React.forwardRef<
       onBack,
       currentStep: externalStep,
       onStepChange,
-      grinderDefaultSyncEnabled = false,
       enableStageEditing = true,
       chromeMode = 'internal',
       onChromeChange,
@@ -1122,7 +1119,6 @@ const CustomMethodForm = React.forwardRef<
                   : undefined
               }
               customEquipment={customEquipment}
-              grinderDefaultSyncEnabled={grinderDefaultSyncEnabled}
             />
           );
 

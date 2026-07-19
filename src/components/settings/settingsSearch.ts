@@ -322,10 +322,10 @@ export const buildSettingsSearchItems = ({
 
   items.push(
     ...createRowItems('navigation-settings', '应用功能', [
+      '简化标签名称',
       '启用的功能',
       '视图显示',
       '固定视图',
-      '简化标签名称',
     ])
   );
 
@@ -543,13 +543,6 @@ export const buildSettingsSearchItems = ({
   ) {
     items.push(
       ...createRowItems('grinder-settings', '磨豆机', [
-        '磨豆机系统使用指南',
-        '默认同步设置',
-        '导航栏参数栏',
-        '方案表单',
-        '手动添加笔记',
-        '笔记编辑表单',
-        '显示刻度指示器',
         '添加磨豆机',
       ]),
       ...createRowItems('equipment-method-settings', '器具和方案', ['添加器具'])

@@ -8,6 +8,8 @@ interface SettingsSearchBarProps {
   query: string;
   firstResult: SettingsSearchItem | null;
   isVisible?: boolean;
+  placeholder?: string;
+  position?: 'absolute' | 'fixed';
   onQueryChange: (query: string) => void;
   onSelect: (item: SettingsSearchItem) => void;
 }
@@ -16,6 +18,8 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   query,
   firstResult,
   isVisible = true,
+  placeholder = '搜索',
+  position = 'absolute',
   onQueryChange,
   onSelect,
 }) => {
@@ -101,11 +105,15 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   }, []);
   const hasQuery = query.length > 0;
   const searchBarTranslateY = isVisible ? -keyboardOffset : 24;
+  const positionClass =
+    position === 'fixed'
+      ? 'fixed inset-x-0 bottom-0'
+      : 'absolute inset-x-0 bottom-0';
 
   return (
     <div
       aria-hidden={!isVisible}
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+      className={`pointer-events-none ${positionClass} z-30 px-6 pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]`}
       style={{
         opacity: isVisible ? 1 : 0,
         transform: `translate3d(0, ${searchBarTranslateY}px, 0)`,
@@ -134,7 +142,7 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
               onKeyDown={handleInputKeyDown}
               data-keyboard-avoidance="manual"
               aria-label="搜索"
-              placeholder="搜索"
+              placeholder={placeholder}
               className="min-w-0 flex-1 bg-transparent text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
             />
           </div>

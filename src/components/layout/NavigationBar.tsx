@@ -1743,10 +1743,6 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                     className="inline-flex min-w-0"
                                     inputClassName="w-auto bg-transparent text-center text-xs outline-hidden border-b border-dashed border-neutral-300 pb-0.5 dark:border-neutral-600"
                                     autoWidth
-                                    defaultSyncEnabled={
-                                      settings.grinderDefaultSync
-                                        ?.navigationBar ?? true
-                                    }
                                   />
                                   <span className="shrink-0 select-none md:hidden">
                                     ·
@@ -1887,10 +1883,6 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
                                       className="inline-flex min-w-0"
                                       inputClassName="w-auto bg-transparent text-center text-xs outline-hidden border-b border-dashed border-neutral-300 pb-0.5 dark:border-neutral-600"
                                       autoWidth
-                                      defaultSyncEnabled={
-                                        settings.grinderDefaultSync
-                                          ?.navigationBar ?? true
-                                      }
                                     />
                                   </>
                                 )}

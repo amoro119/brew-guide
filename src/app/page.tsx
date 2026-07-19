@@ -4311,9 +4311,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
               onCloseImportForm={() => {
                 setShowImportForm(false);
               }}
-              grinderDefaultSyncEnabled={
-                settings.grinderDefaultSync?.methodForm ?? false
-              }
             />
 
             {hasLegacyDataNotice && (

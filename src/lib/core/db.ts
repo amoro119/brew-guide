@@ -254,17 +254,6 @@ export interface AppSettings {
   // 系统预设器具名称覆盖，key 为系统器具 id。
   equipmentNameOverrides?: Record<string, string>;
 
-  // 磨豆机默认同步设置
-  grinderDefaultSync?: {
-    navigationBar: boolean;
-    methodForm: boolean;
-    manualNote: boolean;
-    noteEdit: boolean;
-  };
-
-  // 磨豆机刻度显示设置
-  showGrinderScale?: boolean;
-
   // 笔记设置
   showFlavorRatingInForm: boolean;
   showOverallRatingInForm: boolean;

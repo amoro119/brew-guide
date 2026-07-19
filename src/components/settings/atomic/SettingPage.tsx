@@ -36,9 +36,11 @@ const SettingPage: React.FC<SettingPageProps> = ({
       {isEmbedded ? (
         <div className="pt-safe-top z-20">
           <div className={`${embeddedContentClass} pr-6 pl-3`}>
-            <h2 className="pl-3.5 text-xl font-medium text-neutral-800 dark:text-neutral-200">
-              {title}
-            </h2>
+            {title ? (
+              <h2 className="pl-3.5 text-xl font-medium text-neutral-800 dark:text-neutral-200">
+                {title}
+              </h2>
+            ) : null}
           </div>
         </div>
       ) : (
@@ -49,9 +51,11 @@ const SettingPage: React.FC<SettingPageProps> = ({
             className="flex flex-5 cursor-pointer items-center rounded-full text-neutral-700 dark:text-neutral-300"
           >
             <ChevronLeft className="-ml-1 h-5 w-5" />
-            <h2 className="pl-2.5 text-xl font-medium text-neutral-800 dark:text-neutral-200">
-              {title}
-            </h2>
+            {title ? (
+              <h2 className="pl-2.5 text-xl font-medium text-neutral-800 dark:text-neutral-200">
+                {title}
+              </h2>
+            ) : null}
           </button>
         </div>
       )}

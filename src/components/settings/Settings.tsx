@@ -949,7 +949,7 @@ const Settings: React.FC<SettingsProps> = ({
                               />
                             </div>
                             <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-                              群满 200 人哩，加开发者拉你进群吧
+                              群满 200 人了，加开发者小号拉你进群吧
                             </p>
                           </div>
                         ),
