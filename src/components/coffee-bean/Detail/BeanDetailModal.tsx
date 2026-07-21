@@ -46,6 +46,10 @@ import {
   EMPTY_EQUIPMENT_NAME_OVERRIDES,
 } from '@/lib/notes/noteDisplay';
 import { getCoffeeBeanImageSource } from '@/lib/coffee-beans/imageRepository';
+import {
+  BEAN_COMPONENT_TEXT_FIELD_IDS,
+  getComponentFieldValue,
+} from '@/lib/coffee-beans/beanFields';
 import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
 import { getRelatedNotesForBean } from '@/lib/notes/relatedNotes';
 import { prepareCoffeeBeanRoasterFieldsForFormDraft } from '@/lib/utils/coffeeBeanUtils';
@@ -343,16 +347,10 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
     !isFormMode &&
     (bean?.blendComponents?.filter(
       component =>
-        component.origin?.trim() ||
-        component.country?.trim() ||
-        component.region?.trim() ||
-        component.estate?.trim() ||
-        component.processingStation?.trim() ||
-        component.altitude?.trim() ||
-        component.variety?.trim() ||
-        component.batch?.trim() ||
-        component.process?.trim() ||
-        component.percentage !== undefined
+        component.percentage !== undefined ||
+        BEAN_COMPONENT_TEXT_FIELD_IDS.some(fieldId =>
+          Boolean(getComponentFieldValue(component, fieldId))
+        )
     ).length ?? 0) > 1;
   const hasFlavorNotesSection =
     isFormMode || !!(bean?.flavor?.length || bean?.notes);

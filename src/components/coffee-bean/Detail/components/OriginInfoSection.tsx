@@ -6,7 +6,10 @@ import HighlightText from '@/components/common/ui/HighlightText';
 import { BEAN_TYPES } from '../types';
 import BlendComponentTagRows from './BlendComponentTagRows';
 import { updateBlendComponentsDelimitedField } from '@/lib/utils/coffeeBeanUtils';
-import { hasStructuredOriginFields } from '@/lib/coffee-beans/beanFields';
+import {
+  getComponentFieldValue,
+  hasStructuredOriginFields,
+} from '@/lib/coffee-beans/beanFields';
 import { useRoastLevelSuggestions } from '@/components/coffee-bean/Form/hooks/useCoffeeBeanFieldSuggestions';
 import SuggestionDropdown, {
   SUGGESTION_DROPDOWN_Z_INDEX,
@@ -187,7 +190,8 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const variety = firstComponent?.variety || '';
   const roastLevel = currentBean?.roastLevel || '';
   const shouldShowEstateField =
-    showEstateField || components.some(component => component.estate?.trim());
+    showEstateField ||
+    components.some(component => getComponentFieldValue(component, 'estate'));
 
   // 初始化成分值
   useEffect(() => {

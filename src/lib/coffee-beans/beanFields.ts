@@ -102,6 +102,12 @@ const DEFAULT_ENABLED_FIELD_IDS: BeanFieldId[] = [
 const stringifyFieldValue = (value: unknown): string => {
   if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map(item => stringifyFieldValue(item))
+      .filter(Boolean)
+      .join(' / ');
+  }
   return '';
 };
 

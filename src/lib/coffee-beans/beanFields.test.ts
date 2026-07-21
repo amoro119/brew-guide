@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getComponentFieldValue,
   getComponentOriginDisplay,
   normalizeCoffeeBeanForFieldConfig,
   resolveBeanFieldConfig,
@@ -190,5 +191,25 @@ describe('bean field configuration', () => {
     expect(getComponentOriginDisplay({ origin: '埃塞俄比亚 西达摩' })).toBe(
       '埃塞俄比亚 西达摩'
     );
+  });
+});
+
+describe('getComponentFieldValue', () => {
+  it('stringifies non-string process values without throwing', () => {
+    expect(
+      getComponentFieldValue(
+        { process: ['水洗', '日晒'] as unknown as string },
+        'process'
+      )
+    ).toBe('水洗 / 日晒');
+    expect(
+      getComponentFieldValue({ process: 123 as unknown as string }, 'process')
+    ).toBe('123');
+    expect(
+      getComponentFieldValue(
+        { process: { name: '水洗' } as unknown as string },
+        'process'
+      )
+    ).toBe('');
   });
 });

@@ -7,6 +7,7 @@ import { usePresetSuggestions } from '@/components/coffee-bean/Form/hooks/usePre
 import TagAutocompleteInput from './TagAutocompleteInput';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import {
+  getComponentFieldValue,
   getEnabledBeanFieldIds,
   resolveBeanFieldConfig,
   type BeanFieldId,
@@ -186,7 +187,11 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
   const visibleFieldIds = new Set<BeanFieldId>(enabledFieldIds);
 
   fieldConfigs.forEach(config => {
-    if (components.some(component => component[config.field]?.trim())) {
+    if (
+      components.some(component =>
+        getComponentFieldValue(component, config.field as BeanFieldId)
+      )
+    ) {
       visibleFieldIds.add(config.field as BeanFieldId);
     }
   });

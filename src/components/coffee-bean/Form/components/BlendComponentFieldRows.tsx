@@ -5,6 +5,7 @@ import { useBlendComponentSuggestions } from '../hooks/useBlendComponentSuggesti
 import { usePresetSuggestions } from '../hooks/usePresetSuggestions';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import {
+  getComponentFieldValue,
   getEnabledBeanFieldIds,
   resolveBeanFieldConfig,
   type BeanFieldId,
@@ -105,7 +106,7 @@ const BlendComponentFieldInput: React.FC<BlendComponentFieldInputProps> = ({
   return (
     <AutocompleteInput
       label={config.label}
-      value={component[config.field] || ''}
+      value={getComponentFieldValue(component, config.field as BeanFieldId)}
       onChange={value => onChange(index, config.field, value)}
       placeholder={config.placeholder}
       suggestions={presetSuggestions.suggestions}
@@ -130,7 +131,7 @@ const BlendComponentFieldRows: React.FC<BlendComponentFieldRowsProps> = ({
   const visibleFieldIds = new Set<BeanFieldId>(enabledFieldIds);
 
   fieldConfigs.forEach(config => {
-    if (component[config.field]?.trim()) {
+    if (getComponentFieldValue(component, config.field as BeanFieldId)) {
       visibleFieldIds.add(config.field as BeanFieldId);
     }
   });
