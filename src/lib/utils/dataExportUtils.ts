@@ -4,7 +4,11 @@ import { exportJsonFile, type JsonExportResult } from '@/lib/utils/jsonExport';
 
 export type DataExportMode = JsonExportResult['mode'];
 
-export interface DataExportResult extends JsonExportResult {}
+export type DataExportResult = JsonExportResult;
+
+export interface DataExportOptions {
+  returnIncompleteResult?: boolean;
+}
 
 const formatDatePart = (value: number): string =>
   value.toString().padStart(2, '0');
@@ -20,7 +24,8 @@ export const createDataExportFileName = (date: Date = new Date()): string => {
 };
 
 export async function exportDataAsJsonFile(
-  jsonData: string
+  jsonData: string,
+  options: DataExportOptions = {}
 ): Promise<DataExportResult> {
   return exportJsonFile({
     jsonData,
@@ -28,5 +33,6 @@ export async function exportDataAsJsonFile(
     title: '导出数据',
     text: '请选择保存位置',
     dialogTitle: '导出数据',
+    returnIncompleteResult: options.returnIncompleteResult,
   });
 }

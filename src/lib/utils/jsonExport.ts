@@ -1,6 +1,5 @@
 'use client';
 
-import { Capacitor } from '@capacitor/core';
 import {
   TempFileManager,
   type JsonFileSaveMode,
@@ -19,6 +18,7 @@ export interface JsonExportOptions {
   title?: string;
   text?: string;
   dialogTitle?: string;
+  returnIncompleteResult?: boolean;
 }
 
 const JSON_EXTENSION = '.json';
@@ -35,63 +35,31 @@ const ensureJsonFileName = (fileName: string): string => {
     : `${trimmedFileName}${JSON_EXTENSION}`;
 };
 
-const downloadJsonInWeb = (jsonData: string, fileName: string): void => {
-  const blob = new Blob([jsonData], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-
-  setTimeout(() => {
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  }, 100);
-};
-
 export async function exportJsonFile({
   jsonData,
   fileName,
   title = '导出数据',
   text = '请选择保存位置',
   dialogTitle = '导出数据',
+  returnIncompleteResult = false,
 }: JsonExportOptions): Promise<JsonExportResult> {
   const normalizedFileName = ensureJsonFileName(fileName);
-
-  if (!Capacitor.isNativePlatform()) {
-    downloadJsonInWeb(jsonData, normalizedFileName);
-    return {
-      mode: 'web-download',
-      fileName: normalizedFileName,
-    };
-  }
-
-  if (Capacitor.getPlatform() === 'android') {
-    const mode = await TempFileManager.saveJsonFile(
-      jsonData,
-      normalizedFileName,
-      {
-        title,
-        text,
-        dialogTitle,
-      }
-    );
-    return {
-      mode,
-      fileName: normalizedFileName,
-    };
-  }
-
-  await TempFileManager.shareJsonFile(jsonData, normalizedFileName, {
+  const mode = await TempFileManager.saveJsonFile(jsonData, normalizedFileName, {
     title,
     text,
     dialogTitle,
   });
 
+  if (!returnIncompleteResult && mode === 'activation-required') {
+    throw new Error('分享需要再次点击');
+  }
+
+  if (!returnIncompleteResult && mode === 'cancelled') {
+    throw new Error('已取消分享');
+  }
+
   return {
-    mode: 'native-share',
+    mode,
     fileName: normalizedFileName,
   };
 }

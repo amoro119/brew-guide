@@ -30,6 +30,7 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     message: '',
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [preparedExportData, setPreparedExportData] = useState<string>();
   const [isRecompressing, setIsRecompressing] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
@@ -42,15 +43,22 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     setIsExporting(true);
     const operationId = recordCrashOperationStart('settings:data-export', {
       entry: 'settings:data-management',
+      prepared: Boolean(preparedExportData),
     });
     try {
-      const jsonData = await DataManagerUtil.exportAllData({
-        collectDiagnostics: true,
+      const jsonData =
+        preparedExportData ??
+        (await DataManagerUtil.exportAllData({
+          collectDiagnostics: true,
+        }));
+      if (!preparedExportData) {
+        recordCrashOperationStep('data-export:before-save', {
+          jsonLength: jsonData.length,
+        });
+      }
+      const exportResult = await exportDataAsJsonFile(jsonData, {
+        returnIncompleteResult: true,
       });
-      recordCrashOperationStep('data-export:before-save', {
-        jsonLength: jsonData.length,
-      });
-      const exportResult = await exportDataAsJsonFile(jsonData);
       recordCrashOperationComplete(
         {
           status: 'success',
@@ -60,6 +68,22 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
         operationId
       );
 
+      if (
+        exportResult.mode === 'activation-required' ||
+        exportResult.mode === 'cancelled'
+      ) {
+        setPreparedExportData(jsonData);
+        setStatus({
+          type: 'info',
+          message:
+            exportResult.mode === 'activation-required'
+              ? '数据已准备好，请再次点击分享数据'
+              : '已取消分享，可再次点击分享数据',
+        });
+        return;
+      }
+
+      setPreparedExportData(undefined);
       if (exportResult.mode === 'native-share') {
         setStatus({
           type: 'success',
@@ -239,7 +263,13 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
             disabled={isExporting}
             className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('导出数据')}`}
           >
-            <span>{isExporting ? '导出中...' : '导出数据'}</span>
+            <span>
+              {isExporting
+                ? '导出中...'
+                : preparedExportData
+                  ? '分享数据'
+                  : '导出数据'}
+            </span>
             <ChevronRight className="size-4 text-neutral-400" />
           </button>
 

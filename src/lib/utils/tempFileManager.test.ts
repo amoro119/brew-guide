@@ -27,6 +27,7 @@ vi.mock('./nativeDocumentSaver', () => ({
 }));
 
 import { TempFileManager } from './tempFileManager';
+import { exportJsonFile } from './jsonExport';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -157,5 +158,111 @@ describe('TempFileManager image saving', () => {
     expect(appendChild).toHaveBeenCalledWith(link);
     expect(downloadClick).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledOnce();
+  });
+});
+
+describe('TempFileManager JSON saving', () => {
+  it('uses Web Share with a JSON file in an installed iOS PWA', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const canShare = vi.fn().mockReturnValue(true);
+    const downloadClick = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation: { isActive: true },
+      canShare,
+      share,
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: downloadClick }),
+    });
+
+    const mode = await TempFileManager.saveJsonFile(
+      '{"beans":[]}',
+      'brew-guide-data.json',
+      {
+        title: '导出数据',
+        text: '请选择保存位置',
+        dialogTitle: '导出数据',
+      }
+    );
+
+    const sharedFile = share.mock.calls[0]?.[0].files[0];
+    expect(canShare).toHaveBeenCalledOnce();
+    expect(share).toHaveBeenCalledOnce();
+    expect(sharedFile).toBeInstanceOf(File);
+    expect(sharedFile.name).toBe('brew-guide-data.json');
+    expect(sharedFile.type).toBe('application/json');
+    expect(downloadClick).not.toHaveBeenCalled();
+    expect(mode).toBe('native-share');
+  });
+
+  it('keeps JSON data when sharing needs a fresh user gesture', async () => {
+    const share = vi.fn();
+    const downloadClick = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation: { isActive: false },
+      canShare: () => true,
+      share,
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: downloadClick }),
+    });
+
+    const mode = await TempFileManager.saveJsonFile(
+      '{"beans":[]}',
+      'brew-guide-data.json'
+    );
+
+    expect(mode).toBe('activation-required');
+    expect(share).not.toHaveBeenCalled();
+    expect(downloadClick).not.toHaveBeenCalled();
+  });
+
+  it('does not report incomplete JSON shares as exported by default', async () => {
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation: { isActive: false },
+      canShare: () => true,
+      share: vi.fn(),
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+
+    await expect(
+      exportJsonFile({
+        jsonData: '{"beans":[]}',
+        fileName: 'brew-guide-data',
+      })
+    ).rejects.toThrow('分享需要再次点击');
+
+    await expect(
+      exportJsonFile({
+        jsonData: '{"beans":[]}',
+        fileName: 'brew-guide-data',
+        returnIncompleteResult: true,
+      })
+    ).resolves.toMatchObject({
+      mode: 'activation-required',
+      fileName: 'brew-guide-data.json',
+    });
   });
 });

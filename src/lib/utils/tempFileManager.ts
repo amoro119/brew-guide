@@ -20,7 +20,9 @@ interface ShareOptions {
 export type JsonFileSaveMode =
   | 'web-download'
   | 'android-document'
-  | 'native-share';
+  | 'native-share'
+  | 'cancelled'
+  | 'activation-required';
 
 export type ImageSaveOutcome =
   | 'saved'
@@ -61,6 +63,10 @@ export class TempFileManager {
     }
 
     return new File([bytes], fileName, { type: mimeType });
+  }
+
+  private static createJsonFile(jsonData: string, fileName: string): File {
+    return new File([jsonData], fileName, { type: this.JSON_MIME_TYPE });
   }
 
   private static async blobToBase64Data(blob: Blob): Promise<string> {
@@ -115,6 +121,48 @@ export class TempFileManager {
     try {
       await navigator.share(shareData);
       return 'shared';
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return 'cancelled';
+      }
+      if (
+        error instanceof DOMException &&
+        error.name === 'NotAllowedError' &&
+        this.isUserActivationExpired()
+      ) {
+        return 'activation-required';
+      }
+      throw error;
+    }
+  }
+
+  private static async shareJsonInIOSPWA(
+    jsonData: string,
+    fileName: string,
+    shareOptions: ShareOptions
+  ): Promise<JsonFileSaveMode> {
+    const file = this.createJsonFile(jsonData, fileName);
+    const shareData: ShareData = {
+      files: [file],
+      title: shareOptions.title,
+      text: shareOptions.text,
+    };
+
+    if (
+      typeof navigator.share !== 'function' ||
+      (typeof navigator.canShare === 'function' &&
+        !navigator.canShare(shareData))
+    ) {
+      throw new Error('当前设备不支持分享数据文件');
+    }
+
+    if (this.isUserActivationExpired()) {
+      return 'activation-required';
+    }
+
+    try {
+      await navigator.share(shareData);
+      return 'native-share';
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return 'cancelled';
@@ -430,6 +478,9 @@ export class TempFileManager {
     }
   ): Promise<JsonFileSaveMode> {
     if (!Capacitor.isNativePlatform()) {
+      if (getIsIOS() && getIsStandalone()) {
+        return this.shareJsonInIOSPWA(jsonData, fileName, shareOptions);
+      }
       await this.shareJsonFileWeb(jsonData, fileName);
       return 'web-download';
     }
