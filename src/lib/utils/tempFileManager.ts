@@ -31,6 +31,8 @@ export type ImageSaveOutcome =
   | 'cancelled'
   | 'activation-required';
 
+export type FileShareOutcome = Exclude<ImageSaveOutcome, 'saved'>;
+
 /**
  * 临时文件管理器
  * 提供统一的临时文件创建、分享和自动清理功能
@@ -39,6 +41,14 @@ export class TempFileManager {
   private static readonly TEMP_FILE_PREFIX = 'brew-guide-temp-';
   private static readonly NATIVE_TEXT_CHUNK_SIZE = 128 * 1024;
   private static readonly JSON_MIME_TYPE = 'application/json';
+  private static pendingIOSPWAShare:
+    | {
+        file: File;
+        shareOptions: Pick<ShareOptions, 'title' | 'text'>;
+        unsupportedMessage: string;
+      }
+    | undefined;
+  private static pendingIOSPWAShareAbort: AbortController | undefined;
 
   private static isUserActivationExpired(): boolean {
     return navigator.userActivation?.isActive === false;
@@ -96,25 +106,44 @@ export class TempFileManager {
     link.remove();
   }
 
-  private static async shareImageInIOSPWA(
-    imageData: string,
-    fileName: string
-  ): Promise<ImageSaveOutcome> {
-    const file = this.createImageFile(imageData, fileName);
+  private static downloadBlob(data: Blob, fileName: string): void {
+    const url = URL.createObjectURL(data);
+
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = url;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  private static async shareFileInIOSPWA(
+    file: File,
+    shareOptions: Pick<ShareOptions, 'title' | 'text'>,
+    unsupportedMessage: string,
+    retryOnNextClick = false
+  ): Promise<Exclude<FileShareOutcome, 'downloaded'>> {
     const shareData: ShareData = {
       files: [file],
-      title: 'Brew Guide 图片',
+      title: shareOptions.title,
     };
+
+    if (shareOptions.text) {
+      shareData.text = shareOptions.text;
+    }
 
     if (
       typeof navigator.share !== 'function' ||
       (typeof navigator.canShare === 'function' &&
         !navigator.canShare(shareData))
     ) {
-      throw new Error('当前设备不支持分享图片文件');
+      throw new Error(unsupportedMessage);
     }
 
     if (this.isUserActivationExpired()) {
+      if (retryOnNextClick) {
+        this.scheduleIOSPWAShareRetry(file, shareOptions, unsupportedMessage);
+      }
       return 'activation-required';
     }
 
@@ -130,10 +159,67 @@ export class TempFileManager {
         error.name === 'NotAllowedError' &&
         this.isUserActivationExpired()
       ) {
+        if (retryOnNextClick) {
+          this.scheduleIOSPWAShareRetry(file, shareOptions, unsupportedMessage);
+        }
         return 'activation-required';
       }
       throw error;
     }
+  }
+
+  private static scheduleIOSPWAShareRetry(
+    file: File,
+    shareOptions: Pick<ShareOptions, 'title' | 'text'>,
+    unsupportedMessage: string
+  ): void {
+    if (typeof document === 'undefined') return;
+    if (typeof document.addEventListener !== 'function') return;
+
+    this.pendingIOSPWAShareAbort?.abort();
+    this.pendingIOSPWAShare = { file, shareOptions, unsupportedMessage };
+
+    const controller = new AbortController();
+    this.pendingIOSPWAShareAbort = controller;
+
+    document.addEventListener(
+      'click',
+      event => {
+        const pendingShare = this.pendingIOSPWAShare;
+        if (!pendingShare) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        controller.abort();
+        if (this.pendingIOSPWAShareAbort === controller) {
+          this.pendingIOSPWAShareAbort = undefined;
+        }
+        this.pendingIOSPWAShare = undefined;
+
+        void this.shareFileInIOSPWA(
+          pendingShare.file,
+          pendingShare.shareOptions,
+          pendingShare.unsupportedMessage
+        ).catch(error => {
+          console.error('分享文件失败:', error);
+        });
+      },
+      { capture: true, once: true, signal: controller.signal }
+    );
+  }
+
+  private static async shareImageInIOSPWA(
+    imageData: string,
+    fileName: string
+  ): Promise<ImageSaveOutcome> {
+    return this.shareFileInIOSPWA(
+      this.createImageFile(imageData, fileName),
+      {
+        title: 'Brew Guide 图片',
+        text: '',
+      },
+      '当前设备不支持分享图片文件'
+    );
   }
 
   private static async shareJsonInIOSPWA(
@@ -141,41 +227,13 @@ export class TempFileManager {
     fileName: string,
     shareOptions: ShareOptions
   ): Promise<JsonFileSaveMode> {
-    const file = this.createJsonFile(jsonData, fileName);
-    const shareData: ShareData = {
-      files: [file],
-      title: shareOptions.title,
-      text: shareOptions.text,
-    };
+    const outcome = await this.shareFileInIOSPWA(
+      this.createJsonFile(jsonData, fileName),
+      shareOptions,
+      '当前设备不支持分享数据文件'
+    );
 
-    if (
-      typeof navigator.share !== 'function' ||
-      (typeof navigator.canShare === 'function' &&
-        !navigator.canShare(shareData))
-    ) {
-      throw new Error('当前设备不支持分享数据文件');
-    }
-
-    if (this.isUserActivationExpired()) {
-      return 'activation-required';
-    }
-
-    try {
-      await navigator.share(shareData);
-      return 'native-share';
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return 'cancelled';
-      }
-      if (
-        error instanceof DOMException &&
-        error.name === 'NotAllowedError' &&
-        this.isUserActivationExpired()
-      ) {
-        return 'activation-required';
-      }
-      throw error;
-    }
+    return outcome === 'shared' ? 'native-share' : outcome;
   }
 
   /**
@@ -300,17 +358,18 @@ export class TempFileManager {
    * @param imageData base64格式的图片数据
    * @param fileName 文件名（不包含扩展名）
    * @param shareOptions 分享选项
-   * @returns Promise<void>
+   * @returns 导出方式或分享状态
    */
   static async shareImageFile(
     imageData: string,
     fileName: string,
     shareOptions: ShareOptions
-  ): Promise<void> {
+  ): Promise<FileShareOutcome> {
     if (Capacitor.isNativePlatform()) {
       await this.shareImageFileNative(imageData, fileName, shareOptions);
+      return 'shared';
     } else {
-      await this.shareImageFileWeb(imageData, fileName);
+      return this.shareImageFileWeb(imageData, fileName, shareOptions);
     }
   }
 
@@ -365,32 +424,41 @@ export class TempFileManager {
   }
 
   /**
-   * Web平台图片分享（直接下载）
+   * Web平台图片分享：iOS PWA 使用系统分享，其他浏览器直接下载。
    */
   private static async shareImageFileWeb(
     imageData: string,
-    fileName: string
-  ): Promise<void> {
-    const link = document.createElement('a');
-    link.download = `${fileName}-${new Date().getTime()}.png`;
-    link.href = imageData;
-    link.click();
+    fileName: string,
+    shareOptions: ShareOptions
+  ): Promise<FileShareOutcome> {
+    const downloadFileName = `${fileName}-${new Date().getTime()}.png`;
 
-    // Web平台不需要清理，因为没有创建持久化文件
+    if (getIsIOS() && getIsStandalone()) {
+      return this.shareFileInIOSPWA(
+        this.createImageFile(imageData, downloadFileName),
+        shareOptions,
+        '当前设备不支持分享图片文件',
+        true
+      );
+    }
+
+    this.downloadImage(imageData, downloadFileName);
+    return 'downloaded';
   }
 
   /**
-   * 创建临时二进制文件并分享。Web 端保持与现有导出一致，直接触发下载。
+   * 创建临时二进制文件并分享。iOS PWA 优先使用系统分享，其他 Web 端直接下载。
    */
   static async shareBinaryFile(
     data: Blob,
     fileName: string,
     shareOptions: ShareOptions
-  ): Promise<void> {
+  ): Promise<FileShareOutcome> {
     if (Capacitor.isNativePlatform()) {
       await this.shareBinaryFileNative(data, fileName, shareOptions);
+      return 'shared';
     } else {
-      await this.shareBinaryFileWeb(data, fileName);
+      return this.shareBinaryFileWeb(data, fileName, shareOptions);
     }
   }
 
@@ -434,16 +502,23 @@ export class TempFileManager {
 
   private static async shareBinaryFileWeb(
     data: Blob,
-    fileName: string
-  ): Promise<void> {
-    const url = URL.createObjectURL(data);
+    fileName: string,
+    shareOptions: ShareOptions
+  ): Promise<FileShareOutcome> {
+    if (getIsIOS() && getIsStandalone()) {
+      const file = new File([data], fileName, {
+        type: data.type || 'application/octet-stream',
+      });
+      return this.shareFileInIOSPWA(
+        file,
+        shareOptions,
+        '当前设备不支持分享文件',
+        true
+      );
+    }
 
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = url;
-    link.click();
-
-    URL.revokeObjectURL(url);
+    this.downloadBlob(data, fileName);
+    return 'downloaded';
   }
 
   /**
@@ -457,11 +532,12 @@ export class TempFileManager {
     jsonData: string,
     fileName: string,
     shareOptions: ShareOptions
-  ): Promise<void> {
+  ): Promise<JsonFileSaveMode> {
     if (Capacitor.isNativePlatform()) {
       await this.shareJsonFileNative(jsonData, fileName, shareOptions);
+      return 'native-share';
     } else {
-      await this.shareJsonFileWeb(jsonData, fileName);
+      return this.shareJsonFileWeb(jsonData, fileName, shareOptions);
     }
   }
 
@@ -478,11 +554,7 @@ export class TempFileManager {
     }
   ): Promise<JsonFileSaveMode> {
     if (!Capacitor.isNativePlatform()) {
-      if (getIsIOS() && getIsStandalone()) {
-        return this.shareJsonInIOSPWA(jsonData, fileName, shareOptions);
-      }
-      await this.shareJsonFileWeb(jsonData, fileName);
-      return 'web-download';
+      return this.shareJsonFileWeb(jsonData, fileName, shareOptions);
     }
 
     if (Capacitor.getPlatform() === 'android') {
@@ -602,22 +674,20 @@ export class TempFileManager {
   }
 
   /**
-   * Web平台JSON文件分享（直接下载）
+   * Web平台JSON文件分享：iOS PWA 使用系统分享，其他浏览器直接下载。
    */
   private static async shareJsonFileWeb(
     jsonData: string,
-    fileName: string
-  ): Promise<void> {
+    fileName: string,
+    shareOptions: ShareOptions
+  ): Promise<JsonFileSaveMode> {
+    if (getIsIOS() && getIsStandalone()) {
+      return this.shareJsonInIOSPWA(jsonData, fileName, shareOptions);
+    }
+
     const blob = new Blob([jsonData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = url;
-    link.click();
-
-    // 清理URL对象
-    URL.revokeObjectURL(url);
+    this.downloadBlob(blob, fileName);
+    return 'web-download';
   }
 
   /**

@@ -400,11 +400,25 @@ export async function exportSelectedBeans({
     document.body.removeChild(tempContainer);
 
     // 分享图片
-    await TempFileManager.shareImageFile(imageData, 'coffee-beans-share', {
-      title: '',
-      text: '',
-      dialogTitle: '',
-    });
+    const shareOutcome = await TempFileManager.shareImageFile(
+      imageData,
+      'coffee-beans-share',
+      {
+        title: '',
+        text: '',
+        dialogTitle: '',
+      }
+    );
+
+    if (shareOutcome === 'activation-required') {
+      onSuccess('咖啡豆图片已生成，请再次点击分享');
+      return;
+    }
+
+    if (shareOutcome === 'cancelled') {
+      onSuccess('已取消分享');
+      return;
+    }
 
     onSuccess('咖啡豆已保存为图片');
   } catch (error) {

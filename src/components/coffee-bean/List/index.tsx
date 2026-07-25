@@ -1875,15 +1875,24 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         ]);
       const result = await createCoffeeBeanSharePackage(beans, selectedBeans);
 
-      await TempFileManager.shareBinaryFile(result.blob, result.fileName, {
-        title: '分享咖啡豆',
-        text: `${result.beanCount} 款咖啡豆`,
-        dialogTitle: '分享咖啡豆',
-      });
+      const shareOutcome = await TempFileManager.shareBinaryFile(
+        result.blob,
+        result.fileName,
+        {
+          title: '分享咖啡豆',
+          text: `${result.beanCount} 款咖啡豆`,
+          dialogTitle: '分享咖啡豆',
+        }
+      );
 
       showToast({
-        type: 'success',
-        title: '咖啡豆压缩包已保存',
+        type: shareOutcome === 'cancelled' ? 'info' : 'success',
+        title:
+          shareOutcome === 'activation-required'
+            ? '压缩包已生成，请再次点击分享'
+            : shareOutcome === 'cancelled'
+              ? '已取消分享'
+              : '咖啡豆压缩包已保存',
         duration: 2000,
       });
       handleCancelShare();

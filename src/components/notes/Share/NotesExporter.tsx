@@ -329,11 +329,25 @@ export async function exportSelectedNotes({
     document.body.removeChild(tempContainer);
 
     // 使用统一的临时文件管理器分享图片
-    await TempFileManager.shareImageFile(imageData, 'brew-notes', {
-      title: '我的咖啡冲煮笔记',
-      text: '我的咖啡冲煮笔记',
-      dialogTitle: '分享我的咖啡冲煮笔记',
-    });
+    const shareOutcome = await TempFileManager.shareImageFile(
+      imageData,
+      'brew-notes',
+      {
+        title: '我的咖啡冲煮笔记',
+        text: '我的咖啡冲煮笔记',
+        dialogTitle: '分享我的咖啡冲煮笔记',
+      }
+    );
+
+    if (shareOutcome === 'activation-required') {
+      onSuccess('笔记图片已生成，请再次点击分享');
+      return;
+    }
+
+    if (shareOutcome === 'cancelled') {
+      onSuccess('已取消分享');
+      return;
+    }
 
     onSuccess('笔记已保存为图片');
   } catch (error) {

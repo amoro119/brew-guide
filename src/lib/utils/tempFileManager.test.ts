@@ -161,6 +161,149 @@ describe('TempFileManager image saving', () => {
   });
 });
 
+describe('TempFileManager image sharing', () => {
+  it('uses Web Share for exported images in an installed iOS PWA', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const canShare = vi.fn().mockReturnValue(true);
+    const downloadClick = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation: { isActive: true },
+      canShare,
+      share,
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: downloadClick }),
+    });
+
+    const outcome = await TempFileManager.shareImageFile(
+      'data:image/png;base64,iVBORw0KGgo=',
+      'brew-notes',
+      {
+        title: '我的咖啡冲煮笔记',
+        text: '我的咖啡冲煮笔记',
+        dialogTitle: '分享我的咖啡冲煮笔记',
+      }
+    );
+
+    const sharedFile = share.mock.calls[0]?.[0].files[0];
+    expect(canShare).toHaveBeenCalledOnce();
+    expect(share).toHaveBeenCalledOnce();
+    expect(sharedFile).toBeInstanceOf(File);
+    expect(sharedFile.name).toMatch(/^brew-notes-\d+\.png$/);
+    expect(sharedFile.type).toBe('image/png');
+    expect(downloadClick).not.toHaveBeenCalled();
+    expect(outcome).toBe('shared');
+  });
+
+  it('keeps exported images when sharing needs a fresh user gesture', async () => {
+    const share = vi.fn();
+    const downloadClick = vi.fn();
+    const userActivation = { isActive: false };
+    let retryShare: ((event: Event) => void) | undefined;
+
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation,
+      canShare: () => true,
+      share,
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: downloadClick }),
+      addEventListener: vi.fn(
+        (_type: string, listener: EventListenerOrEventListenerObject) => {
+          retryShare =
+            typeof listener === 'function'
+              ? listener
+              : listener.handleEvent.bind(listener);
+        }
+      ),
+    });
+
+    const outcome = await TempFileManager.shareImageFile(
+      'data:image/png;base64,iVBORw0KGgo=',
+      'brew-notes',
+      {
+        title: '我的咖啡冲煮笔记',
+        text: '我的咖啡冲煮笔记',
+        dialogTitle: '分享我的咖啡冲煮笔记',
+      }
+    );
+
+    expect(outcome).toBe('activation-required');
+    expect(share).not.toHaveBeenCalled();
+    expect(downloadClick).not.toHaveBeenCalled();
+
+    userActivation.isActive = true;
+    retryShare?.(
+      new Event('click', {
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(share).toHaveBeenCalledOnce();
+  });
+});
+
+describe('TempFileManager binary sharing', () => {
+  it('uses Web Share for binary files in an installed iOS PWA', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const canShare = vi.fn().mockReturnValue(true);
+    const downloadClick = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+      standalone: true,
+      userActivation: { isActive: true },
+      canShare,
+      share,
+    });
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: true }),
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: downloadClick }),
+    });
+
+    const outcome = await TempFileManager.shareBinaryFile(
+      new Blob(['zip'], { type: 'application/zip' }),
+      'coffee-beans.zip',
+      {
+        title: '分享咖啡豆',
+        text: '2 款咖啡豆',
+        dialogTitle: '分享咖啡豆',
+      }
+    );
+
+    const sharedFile = share.mock.calls[0]?.[0].files[0];
+    expect(canShare).toHaveBeenCalledOnce();
+    expect(share).toHaveBeenCalledOnce();
+    expect(sharedFile).toBeInstanceOf(File);
+    expect(sharedFile.name).toBe('coffee-beans.zip');
+    expect(sharedFile.type).toBe('application/zip');
+    expect(downloadClick).not.toHaveBeenCalled();
+    expect(outcome).toBe('shared');
+  });
+});
+
 describe('TempFileManager JSON saving', () => {
   it('uses Web Share with a JSON file in an installed iOS PWA', async () => {
     const share = vi.fn().mockResolvedValue(undefined);

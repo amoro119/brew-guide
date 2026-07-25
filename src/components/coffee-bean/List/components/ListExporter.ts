@@ -214,15 +214,24 @@ export const exportListPreview = async (
     root.unmount();
 
     // 直接分享图片，使用简洁的分享选项
-    await TempFileManager.shareImageFile(imageData, 'coffee-list-preview', {
-      title: '',
-      text: '',
-      dialogTitle: '',
-    });
+    const shareOutcome = await TempFileManager.shareImageFile(
+      imageData,
+      'coffee-list-preview',
+      {
+        title: '',
+        text: '',
+        dialogTitle: '',
+      }
+    );
 
     return {
       success: true,
-      message: '列表预览图已生成',
+      message:
+        shareOutcome === 'activation-required'
+          ? '列表预览图已生成，请再次点击分享'
+          : shareOutcome === 'cancelled'
+            ? '已取消分享'
+            : '列表预览图已生成',
     };
   } catch (error) {
     console.error('生成咖啡豆列表图片失败:', error);

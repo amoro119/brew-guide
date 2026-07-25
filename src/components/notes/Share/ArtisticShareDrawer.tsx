@@ -312,13 +312,25 @@ const ArtisticShareDrawer: React.FC<ArtisticShareDrawerProps> = ({
     try {
       const dataUrl = await generateImageWithCanvas(imageSrc);
 
-      await TempFileManager.shareImageFile(dataUrl, filename, {
-        title: '分享图片',
-        text: '分享图片',
-        dialogTitle: '保存图片',
-      });
+      const shareOutcome = await TempFileManager.shareImageFile(
+        dataUrl,
+        filename,
+        {
+          title: '分享图片',
+          text: '分享图片',
+          dialogTitle: '保存图片',
+        }
+      );
 
-      showToast({ type: 'success', title: '图片已生成' });
+      showToast({
+        type: shareOutcome === 'cancelled' ? 'info' : 'success',
+        title:
+          shareOutcome === 'activation-required'
+            ? '图片已生成，请再次点击分享'
+            : shareOutcome === 'cancelled'
+              ? '已取消分享'
+              : '图片已生成',
+      });
     } catch (error) {
       console.error('Failed to generate image:', error);
       showToast({ type: 'error', title: '生成图片失败' });
