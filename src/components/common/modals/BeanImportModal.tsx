@@ -1289,14 +1289,14 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
           onClick={handleOpenCamera}
           className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
         >
-          拍照识别图片
+          拍照识别咖啡豆
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={handleUploadImageClick}
           className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
         >
-          相册识别图片
+          图片识别咖啡豆
         </motion.button>
         {settings?.experimentalBeanSharePackageEnabled && (
           <motion.button
