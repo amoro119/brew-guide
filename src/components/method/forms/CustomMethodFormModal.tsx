@@ -95,7 +95,8 @@ const CustomMethodFormModal: React.FC<CustomMethodFormModalProps> = ({
   // 加载自定义器具 - 优化为仅在首次挂载和选择新器具时加载
   useEffect(() => {
     const fetchCustomEquipments = async () => {
-      if (!showCustomForm) return; // 不显示表单时不加载
+      // 新建和导入方案都需要知道当前器具，两个表单都不显示时不加载
+      if (!showCustomForm && !showImportForm) return;
 
       try {
         const equipments = await loadCustomEquipments();
@@ -128,7 +129,7 @@ const CustomMethodFormModal: React.FC<CustomMethodFormModalProps> = ({
     };
 
     fetchCustomEquipments();
-  }, [selectedEquipment, showCustomForm]); // 只在selectedEquipment或showCustomForm变化时重新加载
+  }, [selectedEquipment, showCustomForm, showImportForm]); // 只在selectedEquipment或表单显示状态变化时重新加载
 
   // 根据表单数据保存自定义方法
   const handleSaveMethod = useCallback(

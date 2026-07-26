@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import { showToast } from '@/components/common/feedback/LightToast';
@@ -11,6 +11,13 @@ import AddCircleIcon from '@public/images/icons/ui/add-circle.svg';
 import AddBoxIcon from '@public/images/icons/ui/add-box.svg';
 import { type Method, type CustomEquipment } from '@/lib/core/config';
 import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
+import { transferMethodToEquipment } from '@/lib/brewing/methodTransfer';
+import {
+  EquipmentSourceStep,
+  PickerDivider,
+  SourceMethodStep,
+  useMethodImportSources,
+} from './CrossEquipmentMethodPicker';
 
 // 模拟 API 开关 - 设置为 true 时使用模拟数据
 const USE_MOCK_API = false;
@@ -82,7 +89,12 @@ interface MethodImportModalProps {
 }
 
 // 步骤类型定义
-type ImportStep = 'main' | 'json-input' | 'recognizing';
+type ImportStep =
+  | 'main'
+  | 'json-input'
+  | 'recognizing'
+  | 'equipment-select'
+  | 'method-select';
 
 // 扫描线动画组件
 const CornerBorder: React.FC<{
@@ -165,19 +177,33 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
   );
   // JSON 输入内容
   const [jsonInputValue, setJsonInputValue] = useState('');
+  // 从其他器具导入时选中的来源器具
+  const [sourceEquipmentId, setSourceEquipmentId] = useState<string | null>(
+    null
+  );
   // 图片输入 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
   // JSON 输入框 ref
   const jsonTextareaRef = useRef<HTMLTextAreaElement>(null);
-  // 剪贴板识别状态
-  const [clipboardStatus, setClipboardStatus] = useState<'idle' | 'error'>(
-    'idle'
+
+  // 其他器具中可导入的方案
+  const importSources = useMethodImportSources({
+    targetEquipment: customEquipment,
+    enabled: showForm,
+  });
+  const selectedSource = sourceEquipmentId
+    ? importSources.find(source => source.id === sourceEquipmentId)
+    : undefined;
+  const existingMethodNames = useMemo(
+    () => existingMethods.map(method => method.name),
+    [existingMethods]
   );
 
   // 返回主界面
   const goBackToMain = useCallback(() => {
     setCurrentStep('main');
     setJsonInputValue('');
+    setSourceEquipmentId(null);
     // 清理图片 URL
     if (recognizingImageUrl) {
       URL.revokeObjectURL(recognizingImageUrl);
@@ -187,9 +213,9 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
   }, [recognizingImageUrl]);
 
   const resetImportState = useCallback(() => {
-    setClipboardStatus('idle');
     setCurrentStep('main');
     setJsonInputValue('');
+    setSourceEquipmentId(null);
     setIsRecognizing(false);
     if (recognizingImageUrl) {
       URL.revokeObjectURL(recognizingImageUrl);
@@ -209,7 +235,10 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
 
   // 处理添加数据（通用）
   const handleImportData = useCallback(
-    async (data: unknown) => {
+    async (data: unknown, options?: { allowEmptyStages?: boolean }) => {
+      // 从其他器具复制已有方案时，无步骤方案同样有效
+      const acceptEmptyStages = options?.allowEmptyStages ?? allowEmptyStages;
+
       try {
         const methodData = data as Record<string, unknown>;
 
@@ -233,7 +262,7 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
         if (
           !params.stages ||
           !Array.isArray(params.stages) ||
-          (!allowEmptyStages && params.stages.length === 0)
+          (!acceptEmptyStages && params.stages.length === 0)
         ) {
           showToast({ type: 'error', title: '方案缺少冲煮步骤' });
           return;
@@ -263,6 +292,12 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
             ratio: (params.ratio as string) || '',
             grindSize: (params.grindSize as string) || '',
             temp: (params.temp as string) || '',
+            ...(typeof params.extractionTime === 'number'
+              ? { extractionTime: params.extractionTime }
+              : {}),
+            ...(typeof params.liquidWeight === 'string'
+              ? { liquidWeight: params.liquidWeight }
+              : {}),
             stages: params.stages as Method['params']['stages'],
           },
         };
@@ -278,8 +313,9 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
     [allowEmptyStages, existingMethods, onImport, onClose]
   );
 
-  // 处理输入JSON - 进入 JSON 输入步骤
-  const handleInputJSON = useCallback(() => {
+  // 进入 JSON 输入步骤
+  const openJsonInput = useCallback((initialValue = '') => {
+    setJsonInputValue(initialValue);
     setCurrentStep('json-input');
     // 等待动画完成后聚焦输入框
     setTimeout(() => {
@@ -287,35 +323,63 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
     }, 300);
   }, []);
 
-  // 处理剪贴板识别
-  const handleClipboardRecognition = useCallback(async () => {
-    // 如果当前是错误状态，切换到 JSON 输入模式
-    if (clipboardStatus === 'error') {
-      setClipboardStatus('idle');
-      handleInputJSON();
-      return;
-    }
-
+  // 处理输入入口：先尝试读取一次剪切板，无法识别再进入手动输入。
+  const handleInputJSON = useCallback(async () => {
     try {
       const clipboardText = await navigator.clipboard.readText();
       if (!clipboardText.trim()) {
-        setClipboardStatus('error');
+        openJsonInput();
         return;
       }
 
-      // 尝试提取JSON数据
       const { extractJsonFromText } = await import('@/lib/utils/jsonUtils');
       const methodData = extractJsonFromText(clipboardText, customEquipment);
 
       if (methodData && 'params' in methodData && 'name' in methodData) {
         await handleImportData(methodData);
       } else {
-        setClipboardStatus('error');
+        openJsonInput();
       }
     } catch (_error) {
-      setClipboardStatus('error');
+      openJsonInput();
     }
-  }, [handleImportData, clipboardStatus, handleInputJSON, customEquipment]);
+  }, [customEquipment, handleImportData, openJsonInput]);
+
+  // 进入「从其他器具导入」流程
+  const handleSelectFromEquipment = useCallback(() => {
+    setSourceEquipmentId(null);
+    setCurrentStep('equipment-select');
+  }, []);
+
+  // 选中来源器具后展示它的方案
+  const handleSelectSourceEquipment = useCallback((equipmentId: string) => {
+    setSourceEquipmentId(equipmentId);
+    setCurrentStep('method-select');
+  }, []);
+
+  // 返回来源器具列表
+  const handleBackToEquipmentSelect = useCallback(() => {
+    setSourceEquipmentId(null);
+    setCurrentStep('equipment-select');
+  }, []);
+
+  // 导入其他器具的方案（注水方式适配到当前器具）
+  const handleImportSourceMethod = useCallback(
+    (method: Method) => {
+      if (!selectedSource || !customEquipment) return;
+
+      void handleImportData(
+        transferMethodToEquipment(
+          method,
+          selectedSource.equipment,
+          customEquipment
+        ),
+        // 已有方案可能是无步骤方案，直接沿用
+        { allowEmptyStages: true }
+      );
+    },
+    [customEquipment, handleImportData, selectedSource]
+  );
 
   // 识别单张图片的核心函数
   const recognizeSingleImage = useCallback(
@@ -427,25 +491,6 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
     goBackToMain();
   }, [goBackToMain]);
 
-  // 操作项配置
-  const actions = [
-    {
-      id: 'image',
-      label: '图片识别冲煮方案（推荐）',
-      onClick: handleUploadImageClick,
-    },
-    {
-      id: 'clipboard',
-      label: clipboardStatus === 'error' ? '识别失败，再试一次' : '识别剪切板',
-      onClick: handleClipboardRecognition,
-    },
-    {
-      id: 'json',
-      label: '输入 JSON',
-      onClick: handleInputJSON,
-    },
-  ];
-
   // 主界面内容
   const mainContent = (
     <>
@@ -475,16 +520,33 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
 
       {/* 操作按钮列表 */}
       <div className="flex flex-col gap-2">
-        {actions.map(action => (
-          <motion.button
-            key={action.id}
-            whileTap={{ scale: 0.98 }}
-            onClick={action.onClick}
-            className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
-          >
-            {action.label}
-          </motion.button>
-        ))}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleUploadImageClick}
+          className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+        >
+          图片识别方案
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleInputJSON}
+          className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+        >
+          输入 JSON
+        </motion.button>
+        {/* 没有当前器具信息时无法适配注水方式，不提供该入口 */}
+        {customEquipment && (
+          <>
+            <PickerDivider />
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSelectFromEquipment}
+              className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+            >
+              从其他器具导入
+            </motion.button>
+          </>
+        )}
       </div>
     </>
   );
@@ -566,6 +628,27 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
     </>
   );
 
+  // 选择来源器具界面
+  const equipmentSelectContent = (
+    <EquipmentSourceStep
+      sources={importSources}
+      onSelect={handleSelectSourceEquipment}
+      onBack={goBackToMain}
+    />
+  );
+
+  // 选择来源方案界面
+  const methodSelectContent = selectedSource ? (
+    <SourceMethodStep
+      source={selectedSource}
+      existingMethodNames={existingMethodNames}
+      onSelect={handleImportSourceMethod}
+      onBack={handleBackToEquipmentSelect}
+    />
+  ) : (
+    equipmentSelectContent
+  );
+
   // 根据步骤渲染内容
   const renderContent = () => {
     switch (currentStep) {
@@ -573,6 +656,10 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
         return recognizingContent;
       case 'json-input':
         return jsonInputContent;
+      case 'equipment-select':
+        return equipmentSelectContent;
+      case 'method-select':
+        return methodSelectContent;
       default:
         return mainContent;
     }
