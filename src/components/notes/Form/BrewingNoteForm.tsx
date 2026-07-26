@@ -1341,7 +1341,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
             image: '',
             images: [],
             rating: 0,
-            notes: formData.notes.trim() || '快捷扣除',
+            notes: formData.notes.trim(),
           }
         : formData;
       const noteTaste = isSavingQuickRecord ? {} : finalTaste;

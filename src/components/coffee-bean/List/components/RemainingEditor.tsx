@@ -331,7 +331,7 @@ const RemainingEditor: React.FC<RemainingEditorProps> = ({
           roastDate: coffeeBean.roastDate,
           roaster: coffeeBean.roaster,
         },
-        notes: '快捷扣除',
+        notes: '',
         rating: 0,
         taste: { acidity: 0, sweetness: 0, bitterness: 0, body: 0 },
         params: {

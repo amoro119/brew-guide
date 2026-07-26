@@ -1993,7 +1993,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
             quickDecrementAmount: coffeeAmount,
             rating: 0,
             taste: {},
-            notes: '快捷扣除',
+            notes: '',
           };
 
           await useBrewingNoteStore.getState().addNote(quickDecrementNote);
