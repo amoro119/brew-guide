@@ -243,26 +243,6 @@ function PickerRow<T>({
 }
 
 /**
- * 三段短线，替代原生边框虚线，降低视觉重量
- */
-const DashTrio: React.FC = () => (
-  <span aria-hidden className="flex items-center gap-1">
-    <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
-    <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
-    <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
-  </span>
-);
-
-/**
- * 分割线，仅保留居中的三段短线
- */
-export const PickerDivider: React.FC = () => (
-  <div className="flex shrink-0 items-center justify-center py-1">
-    <DashTrio />
-  </div>
-);
-
-/**
  * 分组标题，与列表项左对齐，不带任何分割线
  */
 export const PickerGroupTitle: React.FC<{ label: string }> = ({ label }) => (

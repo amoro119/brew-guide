@@ -1298,15 +1298,6 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         >
           图片识别咖啡豆
         </motion.button>
-        {settings?.experimentalBeanSharePackageEnabled && (
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={handleUploadPackageClick}
-            className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
-          >
-            选择压缩包
-          </motion.button>
-        )}
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={handleInputJSON}
@@ -1314,6 +1305,18 @@ const BeanImportModal: React.FC<BeanImportModalProps> = ({
         >
           输入 JSON
         </motion.button>
+        {settings?.experimentalBeanSharePackageEnabled && (
+          <>
+            <ActionDrawer.Divider />
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={handleUploadPackageClick}
+              className="w-full rounded-full bg-neutral-100 px-4 py-3 text-left text-sm font-medium text-neutral-800 dark:bg-neutral-800 dark:text-white"
+            >
+              选择压缩包
+            </motion.button>
+          </>
+        )}
       </div>
     </>
   );

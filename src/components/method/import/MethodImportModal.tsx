@@ -14,7 +14,6 @@ import { isSupportedSourceImageFile } from '@/lib/images/imageFormat';
 import { transferMethodToEquipment } from '@/lib/brewing/methodTransfer';
 import {
   EquipmentSourceStep,
-  PickerDivider,
   SourceMethodStep,
   useMethodImportSources,
 } from './CrossEquipmentMethodPicker';
@@ -537,7 +536,7 @@ const MethodImportModal: React.FC<MethodImportModalProps> = ({
         {/* 没有当前器具信息时无法适配注水方式，不提供该入口 */}
         {customEquipment && (
           <>
-            <PickerDivider />
+            <ActionDrawer.Divider />
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={handleSelectFromEquipment}

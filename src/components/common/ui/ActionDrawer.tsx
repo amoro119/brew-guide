@@ -207,6 +207,7 @@ const ActionDrawer: React.FC<ActionDrawerProps> & {
   PrimaryButton: React.FC<ActionDrawerButtonProps>;
   SecondaryButton: React.FC<ActionDrawerButtonProps>;
   DangerButton: React.FC<ActionDrawerButtonProps>;
+  Divider: React.FC;
   Switcher: React.FC<ActionDrawerSwitcherProps>;
 } = ({
   isOpen,
@@ -423,6 +424,21 @@ const ActionDrawerDangerButton: React.FC<ActionDrawerButtonProps> = ({
 );
 
 /**
+ * 分割线组件
+ *
+ * 用于在按钮列表中分隔次要入口，仅保留居中的三段短线以减轻视觉重量
+ */
+const ActionDrawerDivider: React.FC = () => (
+  <div aria-hidden className="flex shrink-0 items-center justify-center py-1">
+    <span className="flex items-center gap-1">
+      <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
+      <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
+      <span className="h-px w-2 bg-neutral-200/50 dark:bg-neutral-800/50" />
+    </span>
+  </div>
+);
+
+/**
  * 内容切换容器组件
  *
  * 用于在抽屉内部实现内容切换动画，统一使用 popLayout 模式和标准动画规范。
@@ -469,6 +485,7 @@ ActionDrawer.Actions = ActionDrawerActions;
 ActionDrawer.PrimaryButton = ActionDrawerPrimaryButton;
 ActionDrawer.SecondaryButton = ActionDrawerSecondaryButton;
 ActionDrawer.DangerButton = ActionDrawerDangerButton;
+ActionDrawer.Divider = ActionDrawerDivider;
 ActionDrawer.Switcher = ActionDrawerSwitcher;
 
 export default ActionDrawer;
