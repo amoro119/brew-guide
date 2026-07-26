@@ -25,6 +25,11 @@ interface GrindSizeDrawerProps {
   initialGrinderId?: string;
   /** 磨豆机切换回调 */
   onGrinderChange?: (grinderId: string) => void;
+  /**
+   * 研磨度输入框的 ref
+   * 由触发方（如 GrinderScaleIndicator）持有，以便在点击手势内同步聚焦
+   */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 /**
@@ -40,6 +45,7 @@ const GrindSizeDrawer: React.FC<GrindSizeDrawerProps> = ({
   onClose,
   initialGrinderId,
   onGrinderChange,
+  inputRef: externalInputRef,
 }) => {
   const { grinders, updateGrinder } = useGrinderStore();
   const { equipments: customEquipments } = useCustomEquipmentStore();
@@ -55,7 +61,8 @@ const GrindSizeDrawer: React.FC<GrindSizeDrawerProps> = ({
   );
   const [editValue, setEditValue] = useState('');
   const [showGrinderSelector, setShowGrinderSelector] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? localInputRef;
   const roasterSettings: RoasterSettings = {
     roasterFieldEnabled,
     roasterSeparator,
@@ -116,17 +123,6 @@ const GrindSizeDrawer: React.FC<GrindSizeDrawerProps> = ({
       setEditValue(selectedGrinder.currentGrindSize || '');
     }
   }, [selectedGrinder]);
-
-  // 自动聚焦输入框
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      // 动画完成后自动聚焦输入框
-      const focusTimer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 400);
-      return () => clearTimeout(focusTimer);
-    }
-  }, [isOpen]);
 
   // 保存研磨度
   const handleSave = useCallback(async () => {
