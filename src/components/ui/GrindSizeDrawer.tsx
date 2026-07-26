@@ -177,7 +177,7 @@ const GrindSizeDrawer: React.FC<GrindSizeDrawerProps> = ({
   if (!selectedGrinder) return null;
 
   return (
-    <ActionDrawer isOpen={isOpen} onClose={onClose}>
+    <ActionDrawer isOpen={isOpen} onClose={onClose} repositionInputs={false}>
       <ActionDrawer.Content>
         {/* 磨豆机选择器 - 左上角紧凑布局 */}
         <div>

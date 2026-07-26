@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGrinderStore } from '@/lib/stores/grinderStore';
 import { useInputFocus } from '@/lib/hooks/useInputFocus';
@@ -25,8 +25,6 @@ const BUTTON_BASE_CLASS =
   'rounded-full border border-neutral-200/50 dark:border-neutral-700/50 bg-neutral-100 dark:bg-neutral-800';
 const SELECTED_GRINDER_STORAGE_KEY =
   'brew-guide:grinder-scale-indicator:selectedGrinderId';
-/** 抽屉滑入完成后再聚焦，避免键盘和进场动画同时进行导致抖动 */
-const FOCUS_DELAY_MS = 400;
 
 // 字体大小映射
 const FONT_SIZE_MAP = [
@@ -67,8 +65,7 @@ const GrinderScaleIndicator: React.FC<GrinderScaleIndicatorProps> = ({
         : localStorage.getItem(SELECTED_GRINDER_STORAGE_KEY)
   );
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { inputRef, focusNow } = useInputFocus<HTMLInputElement>();
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { inputRef, activateAndFocus } = useInputFocus<HTMLInputElement>();
 
   // 初始化 store
   useEffect(() => {
@@ -88,33 +85,14 @@ const GrinderScaleIndicator: React.FC<GrinderScaleIndicatorProps> = ({
     [grinders, selectedGrinderId]
   );
 
-  // 卸载时清理聚焦定时器
-  useEffect(
-    () => () => {
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    },
-    []
-  );
-
   // 处理按钮点击
   const handleClick = () => {
     if (hapticFeedback) hapticsUtils.light();
-    setIsDrawerOpen(true);
-
-    // 等抽屉滑入完成后再聚焦输入框。
-    // 定时器必须在点击回调里创建：WebKit/Gecko 只把用户手势转发给手势内创建的
-    // 一次性定时器（上限 1s），放到 useEffect 里创建就脱离了手势，
-    // iOS PWA 会聚焦成功但不弹键盘。
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = setTimeout(focusNow, FOCUS_DELAY_MS);
+    activateAndFocus(() => setIsDrawerOpen(true));
   };
 
   // 关闭抽屉
   const handleCloseDrawer = () => {
-    if (focusTimerRef.current) {
-      clearTimeout(focusTimerRef.current);
-      focusTimerRef.current = null;
-    }
     setIsDrawerOpen(false);
   };
 
