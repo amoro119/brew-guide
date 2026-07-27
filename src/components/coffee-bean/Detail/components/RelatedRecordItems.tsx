@@ -73,6 +73,7 @@ SourceGreenBeanItem.displayName = 'SourceGreenBeanItem';
 
 export const ChangeRecordItem: React.FC<{ note: BrewingNote }> = React.memo(
   ({ note }) => {
+    const noteText = note.notes?.trim();
     let displayLabel = '0g';
 
     if (note.source === 'quick-decrement') {
@@ -97,14 +98,12 @@ export const ChangeRecordItem: React.FC<{ note: BrewingNote }> = React.memo(
         <div className="w-12 overflow-hidden rounded-xs bg-neutral-200/50 px-1 py-px text-center text-xs font-medium whitespace-nowrap text-neutral-600 dark:bg-neutral-700/50 dark:text-neutral-300">
           {displayLabel}
         </div>
-        {note.notes && (
-          <div
-            className="min-w-0 flex-1 truncate text-xs text-neutral-600 dark:text-neutral-300"
-            title={note.notes}
-          >
-            {note.notes}
-          </div>
-        )}
+        <div
+          className="min-w-0 flex-1 truncate text-xs text-neutral-600 dark:text-neutral-300"
+          title={noteText || undefined}
+        >
+          {noteText}
+        </div>
         <div
           className="w-20 overflow-hidden text-right text-xs font-medium tracking-wide whitespace-nowrap text-neutral-600 dark:text-neutral-400"
           title={formatDateAbsolute(note.timestamp)}
