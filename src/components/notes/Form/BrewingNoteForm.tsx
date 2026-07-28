@@ -279,6 +279,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   // 初始化选中的咖啡豆
   useEffect(() => {
     if (!canUseCoffeeBeanModule) return;
+    if (userSelectedBeanRef.current) return;
     if (initialData.beanId && coffeeBeans.length > 0 && !selectedCoffeeBean) {
       const foundBean = coffeeBeans.find(
         bean => bean.id === initialData.beanId
@@ -318,6 +319,9 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
   >([]);
   const [availableMethods, setAvailableMethods] = useState<Method[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState(
+    initialData.equipment || ''
+  );
+  const [equipmentPickerEquipmentId, setEquipmentPickerEquipmentId] = useState(
     initialData.equipment || ''
   );
   const setPersistedEquipment = useEquipmentStore(
@@ -870,7 +874,10 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       try {
         // 更新器具
         setSelectedEquipment(selection.equipmentId);
-        if (!id) {
+        if (selection.equipmentId) {
+          setEquipmentPickerEquipmentId(selection.equipmentId);
+        }
+        if (!id && selection.equipmentId) {
           setPersistedEquipment(selection.equipmentId);
         }
 
@@ -884,9 +891,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         } else {
           // 没有选择方案，清空方案
           setSelectedMethod('');
-          if (selectedMethod) {
-            applyMethodParams(undefined, '');
-          }
+          applyMethodParams(undefined, '');
         }
 
         // 关闭抽屉
@@ -900,7 +905,6 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
     [
       applyMethodParams,
       id,
-      selectedMethod,
       setPersistedEquipment,
       updateMethodParams,
     ]
@@ -928,8 +932,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
 
   const equipmentMethodValue = useMemo(
     () =>
-      [currentEquipmentName, currentMethodName].filter(Boolean).join(' · ') ||
-      '可选',
+      [currentEquipmentName, currentMethodName].filter(Boolean).join(' · '),
     [currentEquipmentName, currentMethodName]
   );
 
@@ -1279,6 +1282,23 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
             console.error('同步咖啡豆容量失败:', error);
           }
         }
+      } else if (
+        canUseCoffeeBeanModule &&
+        !selectedCoffeeBean &&
+        userSelectedBeanRef.current &&
+        initialData.id &&
+        !isCopy &&
+        initialData.source !== 'capacity-adjustment'
+      ) {
+        try {
+          const originalCoffeeAmount = getInitialCoffeeAmount();
+
+          if (originalBeanId && originalCoffeeAmount > 0) {
+            await increaseBeanRemaining(originalBeanId, originalCoffeeAmount);
+          }
+        } catch (error) {
+          console.error('同步咖啡豆容量失败:', error);
+        }
       }
 
       // 规范化器具ID（将名称转换为ID）
@@ -1293,7 +1313,11 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
       const finalMethod = normalizedSelection.method;
       const finalParams = normalizeBrewingNoteParams(methodParams);
       const finalTotalTime = parseFloat(totalTimeStr);
-      const noteBeanId = finalBeanId ?? initialData.beanId;
+      const noteBeanId =
+        finalBeanId ??
+        (canUseCoffeeBeanModule && userSelectedBeanRef.current
+          ? undefined
+          : initialData.beanId);
 
       if (isSavingQuickRecord && deductedCoffeeAmount <= 0) {
         alert('扣除失败，请重试');
@@ -1315,7 +1339,9 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         finalTaste = {};
       }
 
-      const isConvertingToNormal = isChangeRecordEdit && !isQuickMode;
+      const isConvertingToNormal =
+        isChangeRecordEdit &&
+        (!isQuickMode || (isCapacityAdjustmentEdit && !noteBeanId));
       const preservedSource = isSavingQuickRecord
         ? 'quick-decrement'
         : isConvertingToNormal
@@ -2070,7 +2096,7 @@ const BrewingNoteForm: React.FC<BrewingNoteFormProps> = ({
         isOpen={showEquipmentMethodDrawer}
         onClose={() => setShowEquipmentMethodDrawer(false)}
         onSelect={handleEquipmentMethodSelection}
-        selectedEquipmentId={selectedEquipment}
+        selectedEquipmentId={selectedEquipment || equipmentPickerEquipmentId}
         selectedMethodId={selectedMethod}
         initialParams={{
           ...methodParams,

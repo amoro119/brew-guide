@@ -207,7 +207,6 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
               onCreatePendingBean={handleCreatePendingBean}
               searchQuery={searchQuery}
               showStatusDots={showStatusDots}
-              showSkipOption={false}
             />
           </div>
         </div>

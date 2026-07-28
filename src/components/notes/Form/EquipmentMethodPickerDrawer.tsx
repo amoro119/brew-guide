@@ -102,7 +102,9 @@ const EquipmentMethodPickerDrawer: React.FC<
   useEffect(() => {
     if (isOpen) {
       // 同步外部状态到内部
-      setTempEquipmentId(selectedEquipmentId || '');
+      if (selectedEquipmentId) {
+        setTempEquipmentId(selectedEquipmentId);
+      }
       setTempMethodId(selectedMethodId || '');
     }
   }, [isOpen, selectedEquipmentId, selectedMethodId]);
@@ -178,6 +180,18 @@ const EquipmentMethodPickerDrawer: React.FC<
     ]
   );
 
+  const handleSkipMethodSelect = useCallback(() => {
+    triggerHaptic();
+    onSelect({
+      equipmentId: '',
+      equipmentName: '',
+      methodId: undefined,
+      methodName: undefined,
+      method: undefined,
+    });
+    onClose();
+  }, [onClose, onSelect, triggerHaptic]);
+
   // 处理方案参数变化（MethodSelector 内部编辑参数时）
   const handleParamsChange = useCallback(
     (method: Method) => {
@@ -246,6 +260,7 @@ const EquipmentMethodPickerDrawer: React.FC<
             customMethods={customMethodsForEquipment}
             commonMethods={commonMethodsForEquipment}
             onMethodSelect={handleMethodSelect}
+            onSkipMethodSelect={handleSkipMethodSelect}
             onParamsChange={handleParamsChange}
             initialParams={initialParams}
           />

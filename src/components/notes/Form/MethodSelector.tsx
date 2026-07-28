@@ -16,9 +16,12 @@ interface MethodSelectorProps {
   customMethods: Method[];
   commonMethods: Method[];
   onMethodSelect: (methodId: string) => void;
+  onSkipMethodSelect?: () => void;
   onParamsChange: (method: Method) => void;
   /** 笔记保存的方案参数（编辑模式时优先使用） */
   initialParams?: Partial<Method['params']>;
+  /** 是否显示顶部的跳过方案选项，默认 true */
+  showSkipOption?: boolean;
 }
 
 interface EditingValues {
@@ -92,8 +95,10 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
   customMethods,
   commonMethods,
   onMethodSelect,
+  onSkipMethodSelect,
   onParamsChange,
   initialParams,
+  showSkipOption = true,
 }) => {
   const isEspresso =
     selectedEquipment.toLowerCase().includes('espresso') ||
@@ -358,6 +363,11 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
     [selectedMethod, onMethodSelect]
   );
 
+  const handleSkipMethodClick = useCallback(() => {
+    initializedMethodRef.current = null;
+    onSkipMethodSelect?.();
+  }, [onSkipMethodSelect]);
+
   // 还原方案参数
   const handleResetParams = useCallback(
     async (method: Method) => {
@@ -481,6 +491,29 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
       <span className="text-xs font-medium">{value || '-'}</span>
     </div>
   );
+
+  const renderSkipMethod = () => {
+    return (
+      <div className="group relative">
+        <div
+          className="group relative cursor-pointer border-l border-neutral-200/50 pl-6 dark:border-neutral-800/50"
+          onClick={handleSkipMethodClick}
+        >
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-center gap-1">
+              <h3 className="truncate text-xs font-medium tracking-wider text-neutral-800 dark:text-neutral-100">
+                不使用方案
+              </h3>
+            </div>
+          </div>
+
+          <div className="mt-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            跳过方案选择
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // 渲染方案
   const renderMethod = (method: Method) => {
@@ -646,6 +679,7 @@ const MethodSelector: React.FC<MethodSelectorProps> = ({
         </div>
       ) : (
         <div className="space-y-5">
+          {showSkipOption && renderSkipMethod()}
           {customMethods.map(renderMethod)}
           {showDivider && (
             <div className="flex items-center py-3">
