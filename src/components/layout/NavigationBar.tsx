@@ -465,11 +465,7 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
   // 判断是否正在同步
   const isSyncing =
     syncStatus === 'syncing' || isInitialSyncing || supabaseSyncProgress.active;
-  const syncMessage = supabaseSyncProgress.active
-    ? supabaseSyncProgress.message || '同步中'
-    : '同步中';
-  const showHeaderSyncSpinner =
-    syncProvider === 'supabase' && isSyncing && !isDesktopLayout;
+  const showHeaderSyncSpinner = syncProvider === 'supabase' && isSyncing;
 
   const isDesktopBackLayout = Boolean(canGoBack() && onBackClick);
   const showDesktopTopTabs = !isDesktopBackLayout;
@@ -1991,16 +1987,6 @@ const NavigationBar: React.FC<NavigationBarProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
-      )}
-
-      {/* 桌面端同步指示器 - 固定在导航栏底部 */}
-      {!isDesktopBackLayout && syncProvider === 'supabase' && isSyncing && (
-        <div className="mt-auto hidden px-6 pb-6 md:block">
-          <div className="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-            <AppleSpinner className="h-3 w-3" />
-            <span className="truncate">{syncMessage}</span>
-          </div>
-        </div>
       )}
     </motion.div>
   );
