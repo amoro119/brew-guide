@@ -103,6 +103,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
   const dropdownMiddleware = useMemo(
     () => createAutocompleteDropdownMiddleware(),
     []
@@ -133,6 +134,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   // 当外部value变化时更新内部state
   useEffect(() => {
+    if (isComposingRef.current) return;
     setInputValue(value);
   }, [value]);
 
@@ -211,12 +213,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     };
   }, []);
 
-  // 处理输入变化
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (readOnly) return;
-
-    let newValue = e.target.value;
-
+  const normalizeInputValue = (rawValue: string) => {
+    let newValue = rawValue;
     // 对数字类型输入进行处理
     if (inputType === 'tel' || inputType === 'number') {
       if (allowDecimal) {
@@ -277,15 +275,49 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       }
     }
 
-    setInputValue(newValue);
-    setJustSelected(false); // 用户输入时，重置选择状态
+    return newValue;
+  };
 
-    // 立即调用onChange以确保父组件及时获取新值
+  const commitInputValue = (newValue: string) => {
     onChange(newValue);
 
     if (newValue.trim()) {
       setOpen(true);
     }
+  };
+
+  // 处理输入变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
+
+    const newValue = normalizeInputValue(e.target.value);
+    setInputValue(newValue);
+    setJustSelected(false); // 用户输入时，重置选择状态
+
+    if (
+      isComposingRef.current ||
+      (e.nativeEvent as { isComposing?: boolean }).isComposing
+    ) {
+      return;
+    }
+
+    // 立即调用onChange以确保父组件及时获取新值
+    commitInputValue(newValue);
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = (
+    e: React.CompositionEvent<HTMLInputElement>
+  ) => {
+    isComposingRef.current = false;
+    const newValue = normalizeInputValue(e.currentTarget.value);
+
+    setInputValue(newValue);
+    setJustSelected(false);
+    commitInputValue(newValue);
   };
 
   // 处理选择建议
@@ -439,6 +471,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             }
             value={inputValue}
             onChange={handleInputChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}

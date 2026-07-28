@@ -101,7 +101,10 @@ const BlendComponents: React.FC<BlendComponentsProps> = ({
           return (
             <div key={index}>
               {components.length > 1 && (
-                <div className="mb-3 flex items-center justify-between">
+                <div
+                  key="component-heading"
+                  className="mb-3 flex items-center justify-between"
+                >
                   <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                     成分 #{index + 1}
                   </span>
@@ -116,7 +119,7 @@ const BlendComponents: React.FC<BlendComponentsProps> = ({
               )}
 
               {components.length > 1 && (
-                <div className="mb-3 space-y-1">
+                <div key="percentage" className="mb-3 space-y-1">
                   <label className="block text-xs text-neutral-500 dark:text-neutral-400">
                     比例 (可选)
                     {maxAllowed === 0 && (
@@ -144,6 +147,7 @@ const BlendComponents: React.FC<BlendComponentsProps> = ({
               )}
 
               <BlendComponentFieldRows
+                key="fields"
                 component={component}
                 index={index}
                 showEstateField={showEstateField}
