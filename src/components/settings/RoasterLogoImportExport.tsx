@@ -223,7 +223,22 @@ const RoasterLogoImportExport: React.FC<RoasterLogoImportExportProps> = ({
       e.target.value = '';
 
       try {
-        const text = await file.text();
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result;
+            if (typeof result === 'string') {
+              resolve(result);
+              return;
+            }
+
+            reject(new Error('读取文件失败'));
+          };
+          reader.onerror = () => {
+            reject(reader.error || new Error('读取文件失败'));
+          };
+          reader.readAsText(file);
+        });
         const data = JSON.parse(text);
 
         // 验证数据格式
