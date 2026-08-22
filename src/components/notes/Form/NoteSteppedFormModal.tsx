@@ -14,6 +14,7 @@ import { showToast } from '@/components/common/feedback/LightToast';
 import AdaptiveModal from '@/components/common/ui/AdaptiveModal';
 import { useInputFocus } from '@/lib/hooks/useInputFocus';
 import { COFFEE_BEAN_SEARCH_OR_CREATE_PLACEHOLDER } from '@/components/coffee-bean/ui/coffeeBeanSelectionText';
+import { useLongPress } from '@/lib/hooks/useLongPress';
 
 export interface Step {
   id: string;
@@ -174,6 +175,11 @@ const NoteSteppedFormModal = forwardRef<
       }
     };
 
+    const randomBeanPressHandlers = useLongPress({
+      onClick: () => handleRandomBean(false),
+      onLongPress: () => handleRandomBean(true),
+    });
+
     // 为咖啡豆选择器添加搜索参数
     const contentWithSearchProps =
       isCoffeeBeanStep && currentStepContent?.content
@@ -292,7 +298,7 @@ const NoteSteppedFormModal = forwardRef<
               {isValid && isCoffeeBeanStep && !isSearching && (
                 <button
                   type="button"
-                  onClick={() => handleRandomBean(false)}
+                  {...randomBeanPressHandlers}
                   className={`${buttonBaseClass} flex items-center justify-center p-4`}
                 >
                   <Shuffle className="h-4 w-4" strokeWidth="3" />

@@ -37,6 +37,7 @@ import { getCommonMethodsForEquipment } from '@/lib/brewing/methodAvailability';
 
 import { Search, X, Shuffle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useLongPress } from '@/lib/hooks/useLongPress';
 // 分享模态框已移除，改为直接复制到剪贴板
 
 const BREWING_UI_STATE_MODULE = 'brewing-ui';
@@ -522,6 +523,11 @@ const TabContent: React.FC<TabContentProps> = ({
     }
   };
 
+  const randomBeanPressHandlers = useLongPress({
+    onClick: () => handleRandomBean(false),
+    onLongPress: () => handleRandomBean(true),
+  });
+
   const handleCreateCoffeeBean = useCallback(
     async (name: string) => {
       const trimmedName = name.trim();
@@ -701,33 +707,7 @@ const TabContent: React.FC<TabContentProps> = ({
         <div className="pointer-events-none fixed right-0 bottom-[60px] left-0 z-10 mx-auto mb-(--safe-area-bottom) flex items-center justify-end p-6">
           <motion.button
             type="button"
-            onClick={() => handleRandomBean(false)}
-            onMouseDown={_e => {
-              // 长按逻辑
-              const timer = setTimeout(() => {
-                handleRandomBean(true);
-              }, 500); // 500ms 长按
-
-              const handleMouseUp = () => {
-                clearTimeout(timer);
-                document.removeEventListener('mouseup', handleMouseUp);
-              };
-              document.addEventListener('mouseup', handleMouseUp);
-            }}
-            onTouchStart={_e => {
-              // 触摸长按
-              const timer = setTimeout(() => {
-                handleRandomBean(true);
-              }, 500);
-
-              const handleTouchEnd = () => {
-                clearTimeout(timer);
-                document.removeEventListener('touchend', handleTouchEnd);
-              };
-              document.addEventListener('touchend', handleTouchEnd, {
-                passive: true,
-              });
-            }}
+            {...randomBeanPressHandlers}
             transition={springTransition}
             className={`${buttonBaseClass} pointer-events-auto flex items-center justify-center p-4`}
             whileHover={{ scale: 1.05 }}

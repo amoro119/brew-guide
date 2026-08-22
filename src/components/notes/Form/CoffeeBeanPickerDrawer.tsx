@@ -14,6 +14,7 @@ import {
 import { showToast } from '@/components/common/feedback/LightToast';
 import hapticsUtils from '@/lib/ui/haptics';
 import dynamic from 'next/dynamic';
+import { useLongPress } from '@/lib/hooks/useLongPress';
 
 // 动态导入随机选择器
 const CoffeeBeanRandomPicker = dynamic(
@@ -98,6 +99,11 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
     [allBeans, triggerHaptic]
   );
 
+  const randomBeanPressHandlers = useLongPress({
+    onClick: () => handleRandomBean(false),
+    onLongPress: () => handleRandomBean(true),
+  });
+
   // 处理随机选择结果
   const handleRandomSelect = useCallback(
     (bean: CoffeeBean) => {
@@ -168,25 +174,7 @@ const CoffeeBeanPickerDrawer: React.FC<CoffeeBeanPickerDrawerProps> = ({
             {/* 随机选择按钮 */}
             <button
               type="button"
-              onClick={() => handleRandomBean(false)}
-              onMouseDown={() => {
-                const timer = setTimeout(() => handleRandomBean(true), 500);
-                const handleMouseUp = () => {
-                  clearTimeout(timer);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-              onTouchStart={() => {
-                const timer = setTimeout(() => handleRandomBean(true), 500);
-                const handleTouchEnd = () => {
-                  clearTimeout(timer);
-                  document.removeEventListener('touchend', handleTouchEnd);
-                };
-                document.addEventListener('touchend', handleTouchEnd, {
-                  passive: true,
-                });
-              }}
+              {...randomBeanPressHandlers}
               className="flex shrink-0 items-center justify-center rounded-full bg-neutral-100 p-3 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500"
               style={{ height: '44px', width: '44px' }}
             >
