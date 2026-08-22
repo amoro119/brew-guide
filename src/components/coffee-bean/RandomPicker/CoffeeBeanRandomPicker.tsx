@@ -16,9 +16,10 @@ import {
   getRandomCoffeeBeanSettings,
 } from '@/lib/utils/randomCoffeeBeanUtils';
 import { useModalHistory } from '@/lib/hooks/useModalHistory';
-import { useSettingsStore } from '@/lib/stores/settingsStore';
+import { useRoasterLogo, useSettingsStore } from '@/lib/stores/settingsStore';
 import {
   formatBeanDisplayName,
+  getRoasterName,
   type RoasterSettings,
 } from '@/lib/utils/beanVarietyUtils';
 import { useCoffeeBeanImage } from '@/lib/hooks/useCoffeeBeanImage';
@@ -414,7 +415,11 @@ const RandomPickerSession: React.FC<RandomPickerSessionProps> = ({
                         : 'border-neutral-200/50 dark:border-neutral-700'
                     }`}
                   >
-                    <RandomPickerBeanImage bean={bean} priority={index < 10} />
+                    <RandomPickerBeanImage
+                      bean={bean}
+                      priority={index < 10}
+                      roasterSettings={roasterSettings}
+                    />
                     <div className="w-full text-center">
                       <h3 className="text-sm font-medium">
                         {formatBeanDisplayName(bean, roasterSettings)}
@@ -493,12 +498,25 @@ const RandomPickerSession: React.FC<RandomPickerSessionProps> = ({
 const RandomPickerBeanImage: React.FC<{
   bean: CoffeeBean;
   priority: boolean;
-}> = ({ bean, priority }) => {
-  const imageSource = useCoffeeBeanImage(bean.id, {
+  roasterSettings: RoasterSettings;
+}> = ({ bean, priority, roasterSettings }) => {
+  const [failedImageSource, setFailedImageSource] = useState<string | null>(
+    null
+  );
+  const beanImage = useCoffeeBeanImage(bean.id, {
     preferThumbnail: true,
   });
+  const roasterName = getRoasterName(bean, roasterSettings);
+  const roasterLogo = useRoasterLogo(
+    roasterName && roasterName !== '未知烘焙商' ? roasterName : null
+  );
+  const imageSource = beanImage || roasterLogo;
+  const imageError = failedImageSource === imageSource;
+  const handleImageError = useCallback(() => {
+    setFailedImageSource(imageSource);
+  }, [imageSource]);
 
-  if (!imageSource) {
+  if (!imageSource || imageError) {
     return (
       <div className="mb-2 flex h-16 w-full items-center justify-center">
         <span className="text-2xl">☕</span>
@@ -516,6 +534,7 @@ const RandomPickerBeanImage: React.FC<{
         sizes="(max-width: 768px) 100vw, 160px"
         loading="eager"
         priority={priority}
+        onError={handleImageError}
       />
     </div>
   );
