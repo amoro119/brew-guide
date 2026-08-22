@@ -175,7 +175,7 @@ const ChangeRecordNoteItem: React.FC<ChangeRecordNoteItemProps> = ({
 
           {/* 日期 - 固定宽度 */}
           <div
-            className="w-20 overflow-hidden text-right text-xs font-medium tracking-wide whitespace-nowrap text-neutral-600 dark:text-neutral-400"
+            className="ml-auto w-20 overflow-hidden text-right text-xs font-medium tracking-wide whitespace-nowrap text-neutral-600 dark:text-neutral-400"
             title={dateFormatted}
           >
             {dateFormatted}
