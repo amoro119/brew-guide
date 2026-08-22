@@ -22,6 +22,7 @@ import {
 } from './atomic';
 import BeanSummaryCapacityLimitSection from './BeanSummaryCapacityLimitSection';
 import { makeSettingRowSearchId } from './settingsSearch';
+import { handleExternalUrlClick } from '@/lib/utils/openExternalUrl';
 
 interface ExperimentalSettingsProps {
   settings: SettingsOptions;
@@ -239,6 +240,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
                 href="https://chu3.top/brewguide-help/custom-bean-recognition-api"
                 target="_blank"
                 rel="noreferrer"
+                onClick={handleExternalUrlClick}
               >
                 查看教程
               </a>

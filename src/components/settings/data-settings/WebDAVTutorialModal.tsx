@@ -7,6 +7,7 @@ import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import { showToast } from '@/components/common/feedback/LightToast';
 import { useModalHistory } from '@/lib/hooks/useModalHistory';
 import { WebDAVSyncManager } from '@/lib/webdav/syncManager';
+import { handleExternalUrlClick } from '@/lib/utils/openExternalUrl';
 
 // 图标导入
 import Download2Icon from '@public/images/icons/ui/download-2.svg';
@@ -179,6 +180,7 @@ const WebDAVTutorialModal: React.FC<WebDAVTutorialModalProps> = ({
             href="https://www.jianguoyun.com/s/downloads"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleExternalUrlClick}
             className="text-neutral-800 underline dark:text-neutral-200"
           >
             {' '}

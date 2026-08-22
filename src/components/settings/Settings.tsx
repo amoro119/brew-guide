@@ -43,6 +43,7 @@ import { deriveNavigationSettings } from '@/lib/navigation/navigationSettings';
 import { buildSettingsFeatureGroups } from './settingsFeatureRegistry';
 import { getNotificationSettingsVisibility } from './notificationSettingsVisibility';
 import { useSponsorsList } from '@/lib/sponsors/useSponsorsList';
+import { openExternalUrl } from '@/lib/utils/openExternalUrl';
 
 import { useTheme } from 'next-themes';
 import {
@@ -916,9 +917,8 @@ const Settings: React.FC<SettingsProps> = ({
                         icon: CircleHelp,
                         label: '帮助文档',
                         onClick: () => {
-                          window.open(
-                            'https://chu3.top/brewguide-help',
-                            '_blank'
+                          void openExternalUrl(
+                            'https://chu3.top/brewguide-help'
                           );
                           if (settings.hapticFeedback) {
                             hapticsUtils.light();

@@ -3,6 +3,7 @@
 import React from 'react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import ArrowUpIcon from '@public/images/icons/ui/arrow-up.svg';
+import { openExternalUrl } from '@/lib/utils/openExternalUrl';
 
 interface UpdateDrawerProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ const UpdateDrawer: React.FC<UpdateDrawerProps> = ({
       return;
     }
     if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
+      void openExternalUrl(downloadUrl);
     }
   };
 

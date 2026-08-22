@@ -10,6 +10,7 @@ import {
   useScrollToHighlightedSetting,
 } from './atomic';
 import { makeSettingRowSearchId } from './settingsSearch';
+import { handleExternalUrlClick } from '@/lib/utils/openExternalUrl';
 
 const CollapsibleSection: React.FC<{
   title: string;
@@ -128,6 +129,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://github.com/chuthree/brew-guide/commits/main"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="mx-0.5 text-neutral-800 underline dark:text-neutral-200"
               >
                 {commitCount}
@@ -158,6 +160,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://chu3.top/brewguide/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 查看完整隐私说明
@@ -171,6 +174,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://www.isocons.app/"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 Isometric Icons
@@ -180,6 +184,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://creativecommons.org/licenses/by/4.0/"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 CC BY 4.0
@@ -193,6 +198,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://chu3.top/brewguide"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 官网
@@ -201,6 +207,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://chu3.top/brewguide/changelog"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 更新日志
@@ -209,6 +216,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://chu3.top/brew2"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 brew2
@@ -217,6 +225,7 @@ const AboutSettings: React.FC<AboutSettingsProps> = ({ onClose }) => {
                 href="https://chu3.top/"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleExternalUrlClick}
                 className="text-neutral-800 underline dark:text-neutral-200"
               >
                 开发者
