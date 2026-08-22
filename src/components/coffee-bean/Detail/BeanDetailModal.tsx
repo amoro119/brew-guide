@@ -1,17 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import {
-  AnimatePresence,
-  LazyMotion,
-  domAnimation,
-  m,
-  useReducedMotion,
-} from 'framer-motion';
-
 import { CoffeeBean } from '@/types/app';
 import type { BrewingNote } from '@/lib/core/config';
 import { defaultSettings } from '@/components/settings/Settings';
@@ -87,17 +79,6 @@ const BeanRatingModal = dynamic(
   { ssr: false }
 );
 
-const contentFadeTransition = {
-  enter: {
-    duration: 0.2,
-    ease: [0.23, 1, 0.32, 1],
-  },
-  exit: {
-    duration: 0.12,
-    ease: [0.23, 1, 0.32, 1],
-  },
-} as const;
-
 type RelatedRecordsTab = 'primary' | 'change' | 'green';
 
 const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
@@ -127,7 +108,6 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   const isFormMode = isAddMode || isEditMode;
   const isRepurchaseMode = isAddMode && !!propBean;
   const storeSettings = useSettingsStore(state => state.settings);
-  const shouldReduceMotion = useReducedMotion();
 
   const createTempBean = React.useCallback(
     (sourceBean?: CoffeeBean | null): Partial<CoffeeBean> => {
@@ -221,7 +201,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
   const persistedBean = storeBean || propBean;
 
   // 重置临时 bean
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isFormMode || !isOpen) return;
 
     shouldAutoPersistDraftRef.current = true;
@@ -1101,7 +1081,6 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
 
   if (!shouldRender) return null;
 
-  const contentModeKey = isEditMode ? 'edit' : isAddMode ? 'add' : 'view';
   const activeRemainingEditorTarget = isOpen ? remainingEditorTarget : null;
 
   return (
@@ -1114,33 +1093,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
         style={getChildPageStyle(isVisible, undefined, true)}
       >
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <LazyMotion features={domAnimation}>
-            <AnimatePresence initial={false}>
-              <m.div
-                key={contentModeKey}
-                className="absolute inset-0 flex min-h-0 flex-col bg-neutral-50 dark:bg-neutral-900"
-                initial={{
-                  opacity: 0,
-                  filter: shouldReduceMotion ? 'blur(0px)' : 'blur(2px)',
-                  transform: shouldReduceMotion
-                    ? 'translate3d(0, 0, 0)'
-                    : 'translate3d(0, 8px, 0)',
-                }}
-                animate={{
-                  opacity: 1,
-                  filter: 'blur(0px)',
-                  transform: 'translate3d(0, 0, 0)',
-                  transition: contentFadeTransition.enter,
-                }}
-                exit={{
-                  opacity: 0,
-                  filter: shouldReduceMotion ? 'blur(0px)' : 'blur(2px)',
-                  transform: shouldReduceMotion
-                    ? 'translate3d(0, 0, 0)'
-                    : 'translate3d(0, -4px, 0)',
-                  transition: contentFadeTransition.exit,
-                }}
-              >
+          <div className="absolute inset-0 flex min-h-0 flex-col bg-neutral-50 dark:bg-neutral-900">
                 <HeaderBar
                   isAddMode={isFormMode}
                   isEditMode={isEditMode}
@@ -1278,9 +1231,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
                     </div>
                   ) : null}
                 </div>
-              </m.div>
-            </AnimatePresence>
-          </LazyMotion>
+          </div>
         </div>
       </div>
 
