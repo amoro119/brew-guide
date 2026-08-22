@@ -465,7 +465,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   const [roastingSourceBeanId, setRoastingSourceBeanId] = useState<
     string | null
   >(null);
-  const [beanListKey, setBeanListKey] = useState(0);
   const [showImportBeanForm, setShowImportBeanForm] = useState(false);
   const [importingBeanState, setImportingBeanState] = useState<
     'green' | 'roasted'
@@ -2714,7 +2713,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
 
   const handleBeanListChange = useCallback(() => {
     checkCoffeeBeans();
-    setBeanListKey(prevKey => prevKey + 1);
 
     setTimeout(() => {
       checkCoffeeBeans();
@@ -4271,7 +4269,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
               data-main-tab="coffee-beans"
             >
               <CoffeeBeans
-                key={beanListKey}
                 isOpen={isBeansMainTab}
                 showBeanForm={handleBeanForm}
                 onShowImport={beanState => {
