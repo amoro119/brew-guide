@@ -571,9 +571,7 @@ const BeanPickerDrawer: React.FC<BeanPickerDrawerProps> = ({
 
   const filteredBeans = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    const selectableBeans = beans.filter(
-      bean => bean.beanState !== 'green' && !bean.isInTransit
-    );
+    const selectableBeans = beans.filter(bean => bean.beanState !== 'green');
 
     const filtered = query
       ? selectableBeans.filter(bean => {
