@@ -318,7 +318,15 @@ export function getBeanNameWithoutRoaster(
   for (const candidateSeparator of [' ', '/'] as const) {
     const prefix = `${roaster}${candidateSeparator}`;
     if (name.startsWith(prefix)) {
-      return normalizeCoffeeBeanName(name.slice(prefix.length)) || name;
+      const nameWithoutPrefix = normalizeCoffeeBeanName(
+        name.slice(prefix.length)
+      );
+
+      if (explicitRoaster && /^#\d+$/.test(nameWithoutPrefix)) {
+        return name;
+      }
+
+      return nameWithoutPrefix || name;
     }
   }
 
