@@ -321,13 +321,17 @@ const CoffeeOriginMap: React.FC<CoffeeOriginMapProps> = memo(
       };
 
       const handleTouchMove = (e: TouchEvent) => {
-        // 阻止默认行为（页面滚动）
-        e.preventDefault();
-        e.stopPropagation();
-
         const currentScale = scaleRef.current.get();
         const currentX = xRef.current.get();
         const currentY = yRef.current.get();
+        const isPinching = e.touches.length === 2;
+        const canPan = e.touches.length === 1 && currentScale > MIN_SCALE;
+
+        // 未放大时让单指滑动继续触发页面滚动。
+        if (!isPinching && !canPan) return;
+
+        e.preventDefault();
+        e.stopPropagation();
 
         if (
           e.touches.length === 1 &&
@@ -479,7 +483,10 @@ const CoffeeOriginMap: React.FC<CoffeeOriginMapProps> = memo(
         <div
           ref={containerRef}
           className="relative overflow-hidden rounded-sm select-none"
-          style={{ height: `${MAP_HEIGHT}px`, touchAction: 'none' }}
+          style={{
+            height: `${MAP_HEIGHT}px`,
+            touchAction: isTransformed ? 'none' : 'pan-y',
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
