@@ -46,11 +46,11 @@ import {
 import { showToast } from '@/components/common/feedback/LightToast';
 import {
   mergeBeansWithStoredImages,
-  persistCoffeeBeanImagesFromBean,
+  saveCoffeeBeanWithImages,
 } from '@/lib/coffee-beans/imageRepository';
 import {
   mergeNotesWithStoredImages,
-  persistBrewingNoteImagesFromNote,
+  saveBrewingNoteWithImages,
 } from '@/lib/notes/imageRepository';
 import {
   getSyncStatusStore,
@@ -1087,43 +1087,30 @@ export class InitialSyncManager {
             `[InitialSync] ${table} 写入 ${validRecords.length} 条记录到本地 DB`
           );
           if (table === SYNC_TABLES.COFFEE_BEANS) {
-            const recordsForStore: CoffeeBean[] = [];
-
             for (let index = 0; index < validRecords.length; index++) {
               const record = validRecords[index] as CoffeeBean;
-              const beanForStore = await writeLocalRecordWithDiagnostics(
+              await writeLocalRecordWithDiagnostics(
                 table,
                 record,
                 index + 1,
                 validRecords.length,
                 () =>
-                  persistCoffeeBeanImagesFromBean(record, {
+                  saveCoffeeBeanWithImages(record, {
                     generateThumbnails: false,
                   })
               );
-              recordsForStore.push(beanForStore);
             }
-
-            await db.coffeeBeans.bulkPut(recordsForStore);
           } else if (table === SYNC_TABLES.BREWING_NOTES) {
-            const recordsForStore: BrewingNote[] = [];
-
             for (let index = 0; index < validRecords.length; index++) {
               const record = validRecords[index] as BrewingNote;
-              const noteForStore = await writeLocalRecordWithDiagnostics(
+              await writeLocalRecordWithDiagnostics(
                 table,
                 record,
                 index + 1,
                 validRecords.length,
-                () =>
-                  persistBrewingNoteImagesFromNote(record, {
-                    generateThumbnails: false,
-                  })
+                () => saveBrewingNoteWithImages(record)
               );
-              recordsForStore.push(noteForStore);
             }
-
-            await db.brewingNotes.bulkPut(recordsForStore);
           } else {
             const bulkPut = dbTable.bulkPut.bind(dbTable) as (
               items: unknown[]

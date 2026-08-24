@@ -27,8 +27,8 @@ import {
   removeRoasterFromName,
 } from '@/lib/utils/beanVarietyUtils';
 import { getSettingsStore } from '@/lib/stores/settingsStore';
-import { persistCoffeeBeanImagesFromBean } from '@/lib/coffee-beans/imageRepository';
-import { persistBrewingNoteImagesFromNote } from '@/lib/notes/imageRepository';
+import { saveCoffeeBeanWithImages } from '@/lib/coffee-beans/imageRepository';
+import { saveBrewingNoteWithImages } from '@/lib/notes/imageRepository';
 
 type PostgresPayload = RealtimePostgresChangesPayload<Record<string, unknown>>;
 
@@ -163,24 +163,17 @@ export class RemoteChangeHandler {
         const beanData = await this.migrateRoasterIfNeeded(
           remoteData as unknown as CoffeeBean
         );
-        const beanForStore = await persistCoffeeBeanImagesFromBean(beanData, {
+        const beanForStore = await saveCoffeeBeanWithImages(beanData, {
           generateThumbnails: false,
         });
-        await (dbTable as { put: (data: unknown) => Promise<unknown> }).put(
-          beanForStore
-        );
         await notifyStoreUpsert(
           table,
           recordId,
           beanForStore as unknown as Record<string, unknown>
         );
       } else if (table === SYNC_TABLES.BREWING_NOTES) {
-        const noteForStore = await persistBrewingNoteImagesFromNote(
+        const noteForStore = await saveBrewingNoteWithImages(
           remoteData as unknown as BrewingNote,
-          { generateThumbnails: false }
-        );
-        await (dbTable as { put: (data: unknown) => Promise<unknown> }).put(
-          noteForStore
         );
         await notifyStoreUpsert(
           table,

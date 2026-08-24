@@ -17,7 +17,7 @@ import {
 } from '@/lib/app/dataIntegrity';
 import {
   mergeBeanWithStoredImages,
-  persistCoffeeBeanImagesFromBean,
+  saveCoffeeBeanWithImages,
 } from '@/lib/coffee-beans/imageRepository';
 import { stripCoffeeBeanImages } from '@/lib/coffee-beans/imageRecords';
 
@@ -103,7 +103,8 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
         set({ beans, isLoading: false, initialized: true });
       } catch (error) {
         console.error('[CoffeeBeanStore] loadBeans failed:', error);
-        set({ error: 'Failed to load', isLoading: false, initialized: true });
+        set({ error: '加载咖啡豆失败', isLoading: false, initialized: false });
+        throw error;
       }
     },
 
@@ -118,8 +119,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
       );
 
       try {
-        const beanForStore = await persistCoffeeBeanImagesFromBean(newBean);
-        await db.coffeeBeans.put(beanForStore);
+        const beanForStore = await saveCoffeeBeanWithImages(newBean);
         await clearExpectedCoreDataDeletion();
         set(state => ({ beans: [...state.beans, beanForStore] }));
 
@@ -153,21 +153,20 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
       ) as CoffeeBean;
 
       try {
-        const beanForStore = await persistCoffeeBeanImagesFromBean(updatedBean);
-        const eventBean = await mergeBeanWithStoredImages(beanForStore);
-        await db.coffeeBeans.put(beanForStore);
+        const savedBean = await saveCoffeeBeanWithImages(updatedBean);
+        const savedEventBean = await mergeBeanWithStoredImages(savedBean);
         set(state => ({
-          beans: state.beans.map(b => (b.id === id ? beanForStore : b)),
+          beans: state.beans.map(b => (b.id === id ? savedBean : b)),
         }));
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('coffeeBeanDataChanged', {
-              detail: { action: 'update', beanId: id, bean: eventBean },
+              detail: { action: 'update', beanId: id, bean: savedEventBean },
             })
           );
         }
-        return eventBean;
+        return savedEventBean;
       } catch (error) {
         console.error('[CoffeeBeanStore] updateBean failed:', error);
         throw error;
@@ -215,10 +214,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
         const normalizedBean = normalizeCoffeeBean(bean, {
           ensureFlavorArray: true,
         }) as CoffeeBean;
-        const beanForStore =
-          await persistCoffeeBeanImagesFromBean(normalizedBean);
-
-        await db.coffeeBeans.put(beanForStore);
+        const beanForStore = await saveCoffeeBeanWithImages(normalizedBean);
         await clearExpectedCoreDataDeletion();
         set(state => {
           const exists = state.beans.some(b => b.id === beanForStore.id);

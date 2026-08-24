@@ -20,7 +20,7 @@ import {
 } from '@/lib/app/dataIntegrity';
 import {
   mergeNoteWithStoredImages,
-  persistBrewingNoteImagesFromNote,
+  saveBrewingNoteWithImages,
 } from '@/lib/notes/imageRepository';
 import { stripBrewingNoteImages } from '@/lib/notes/imageRecords';
 
@@ -71,8 +71,9 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
           isLoading: false,
           initialized: true,
         });
-      } catch {
-        set({ error: '加载笔记失败', isLoading: false, initialized: true });
+      } catch (error) {
+        set({ error: '加载笔记失败', isLoading: false, initialized: false });
+        throw error;
       }
     },
 
@@ -87,8 +88,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
         updatedAt: inputNote.updatedAt || timestamp, // 创建时也设置 updatedAt，与 timestamp 相同
       } as BrewingNote).note;
 
-      const noteForStore = await persistBrewingNoteImagesFromNote(newNote);
-      await db.brewingNotes.put(noteForStore);
+      const noteForStore = await saveBrewingNoteWithImages(newNote);
       await clearExpectedCoreDataDeletion();
       set(state => ({ notes: [noteForStore, ...state.notes] }));
 
@@ -133,21 +133,20 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
         delete (updatedNote as any).quickDecrementAmount;
       if (shouldRemoveChangeRecord) delete (updatedNote as any).changeRecord;
 
-      const noteForStore = await persistBrewingNoteImagesFromNote(updatedNote);
-      const eventNote = await mergeNoteWithStoredImages(noteForStore);
-      await db.brewingNotes.put(noteForStore);
+      const savedNote = await saveBrewingNoteWithImages(updatedNote);
+      const savedEventNote = await mergeNoteWithStoredImages(savedNote);
       set(state => ({
-        notes: state.notes.map(n => (n.id === id ? noteForStore : n)),
+        notes: state.notes.map(n => (n.id === id ? savedNote : n)),
       }));
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('brewingNoteDataChanged', {
-            detail: { action: 'update', noteId: id, note: eventNote },
+            detail: { action: 'update', noteId: id, note: savedEventNote },
           })
         );
       }
-      return eventNote;
+      return savedEventNote;
     },
 
     deleteNote: async id => {
@@ -189,8 +188,7 @@ export const useBrewingNoteStore = create<BrewingNoteStore>()(
 
     upsertNote: async note => {
       const cleanNote = normalizeBrewingNote(note).note;
-      const noteForStore = await persistBrewingNoteImagesFromNote(cleanNote);
-      await db.brewingNotes.put(noteForStore);
+      const noteForStore = await saveBrewingNoteWithImages(cleanNote);
       await clearExpectedCoreDataDeletion();
       set(state => {
         const exists = state.notes.some(n => n.id === noteForStore.id);
