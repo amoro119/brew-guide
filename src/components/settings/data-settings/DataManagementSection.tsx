@@ -77,8 +77,8 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
           type: 'info',
           message:
             exportResult.mode === 'activation-required'
-              ? '数据已准备好，请再次点击分享数据'
-              : '已取消分享，可再次点击分享数据',
+              ? '数据已准备好，请再次点击导出数据'
+              : '已取消导出，可再次点击导出数据',
         });
         return;
       }
@@ -87,7 +87,7 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
       if (exportResult.mode === 'native-share') {
         setStatus({
           type: 'success',
-          message: '已打开系统分享，请选择保存位置或发送给其他应用',
+          message: '数据导出完成',
         });
       } else if (exportResult.mode === 'android-document') {
         setStatus({ type: 'success', message: '数据导出成功，文件已保存' });
@@ -264,11 +264,7 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
             className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('导出数据')}`}
           >
             <span>
-              {isExporting
-                ? '导出中...'
-                : preparedExportData
-                  ? '分享数据'
-                  : '导出数据'}
+              {isExporting ? '导出中...' : '导出数据'}
             </span>
             <ChevronRight className="size-4 text-neutral-400" />
           </button>
