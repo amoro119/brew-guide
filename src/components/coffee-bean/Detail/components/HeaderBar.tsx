@@ -225,6 +225,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
         title: '保存失败，请重试',
         duration: 3000,
       });
+    } finally {
       setIsSaving(false);
     }
   };
