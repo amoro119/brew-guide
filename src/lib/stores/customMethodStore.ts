@@ -219,8 +219,9 @@ export const useCustomMethodStore = create<CustomMethodStore>()(
         set({
           error: '加载自定义方案失败',
           isLoading: false,
-          initialized: true,
+          initialized: false,
         });
+        throw error;
       }
     },
 

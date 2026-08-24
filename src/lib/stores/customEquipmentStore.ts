@@ -88,8 +88,9 @@ export const useCustomEquipmentStore = create<CustomEquipmentStore>()(
         set({
           error: '加载自定义器具失败',
           isLoading: false,
-          initialized: true,
+          initialized: false,
         });
+        throw error;
       }
     },
 

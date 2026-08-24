@@ -431,9 +431,9 @@ export const useSettingsStore = create<SettingsStore>()(
         set({
           error: '加载设置失败',
           isLoading: false,
-          initialized: true,
-          settings: defaultSettings,
+          initialized: false,
         });
+        throw error;
       }
     },
 

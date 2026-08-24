@@ -125,7 +125,8 @@ export const useGrinderStore = create<GrinderState>()(
         set({ grinders, initialized: true, isLoading: false });
       } catch (error) {
         console.error('加载磨豆机数据失败:', error);
-        set({ initialized: true, isLoading: false });
+        set({ initialized: false, isLoading: false });
+        throw error;
       }
     },
 

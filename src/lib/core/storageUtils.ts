@@ -147,10 +147,10 @@ export const StorageUtils = {
       if (key === 'brewingNotes') {
         try {
           const notes = await exportBrewingNotesWithImages();
-          return notes.length > 0 ? JSON.stringify(notes) : '[]';
+          return JSON.stringify(notes);
         } catch (error) {
           console.error('从IndexedDB获取数据失败:', error);
-          return '[]';
+          throw error;
         }
       } else if (key === 'coffeeBeans') {
         try {
@@ -160,10 +160,10 @@ export const StorageUtils = {
               ensureFlavorArray: true,
             }
           );
-          return beans.length > 0 ? JSON.stringify(beans) : '[]';
+          return JSON.stringify(beans);
         } catch (error) {
           console.error('从IndexedDB获取咖啡豆数据失败:', error);
-          return '[]';
+          throw error;
         }
       } else {
         // 其他使用IndexedDB的键

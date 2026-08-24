@@ -18,7 +18,7 @@ export const Storage = {
       return await StorageUtils.getData(key);
     } catch (_error) {
       console.error(`获取存储数据失败 [${key}]:`, _error);
-      return null;
+      throw _error;
     }
   },
 
@@ -47,7 +47,7 @@ export const Storage = {
       await StorageUtils.removeData(key);
     } catch (_error) {
       console.error(`删除数据失败 [${key}]:`, _error);
-      // 错误处理
+      throw _error;
     }
   },
 
@@ -60,7 +60,7 @@ export const Storage = {
       await StorageUtils.clearAllData();
     } catch (_error) {
       console.error('清除数据失败:', _error);
-      // 错误处理
+      throw _error;
     }
   },
 
@@ -134,6 +134,7 @@ export const Storage = {
       console.warn('存储系统初始化完成');
     } catch (error) {
       console.error('存储系统初始化失败:', error);
+      throw error;
     }
   },
 };
