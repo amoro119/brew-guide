@@ -183,6 +183,29 @@ export async function persistCoffeeBeanImagesFromBean(
   bean: CoffeeBean,
   options: { generateThumbnails?: boolean } = {}
 ): Promise<CoffeeBean> {
+  const prepared = await prepareCoffeeBeanImageWrite(bean, options);
+
+  if (!prepared.hasImageChange) {
+    return prepared.bean;
+  }
+
+  await writePreparedCoffeeBeanImages(prepared);
+  return prepared.bean;
+}
+
+type PreparedCoffeeBeanImageWrite = {
+  bean: CoffeeBean;
+  imageRecord?: CoffeeBeanImageRecord;
+  thumbnailRecord?: CoffeeBeanImageThumbnailRecord;
+  deleteImageRecord: boolean;
+  deleteThumbnailRecord: boolean;
+  hasImageChange: boolean;
+};
+
+async function prepareCoffeeBeanImageWrite(
+  bean: CoffeeBean,
+  options: { generateThumbnails?: boolean } = {}
+): Promise<PreparedCoffeeBeanImageWrite> {
   const { generateThumbnails = true } = options;
   const { bean: strippedBean, imageRecord } = splitCoffeeBeanImages(bean);
   const hasImageFieldUpdate =
@@ -190,7 +213,12 @@ export async function persistCoffeeBeanImagesFromBean(
     Object.prototype.hasOwnProperty.call(bean, 'backImage');
 
   if (!imageRecord && !hasImageFieldUpdate) {
-    return strippedBean;
+    return {
+      bean: strippedBean,
+      deleteImageRecord: false,
+      deleteThumbnailRecord: false,
+      hasImageChange: false,
+    };
   }
 
   const existingRecord = await db.coffeeBeanImages.get(bean.id);
@@ -236,14 +264,55 @@ export async function persistCoffeeBeanImagesFromBean(
     updatedAt: nextRecord.updatedAt,
   };
 
-  if (shouldDeleteImageRecord(nextRecord)) {
-    await db.coffeeBeanImages.delete(bean.id);
-  } else {
-    await db.coffeeBeanImages.put(nextRecord);
-  }
-  await putOrDeleteThumbnailRecord(nextThumbnailRecord);
+  return {
+    bean: strippedBean,
+    imageRecord: shouldDeleteImageRecord(nextRecord) ? undefined : nextRecord,
+    thumbnailRecord: shouldDeleteThumbnailRecord(nextThumbnailRecord)
+      ? undefined
+      : nextThumbnailRecord,
+    deleteImageRecord: shouldDeleteImageRecord(nextRecord),
+    deleteThumbnailRecord: shouldDeleteThumbnailRecord(nextThumbnailRecord),
+    hasImageChange: true,
+  };
+}
 
-  return strippedBean;
+async function writePreparedCoffeeBeanImages(
+  prepared: PreparedCoffeeBeanImageWrite
+): Promise<void> {
+  const beanId = prepared.bean.id;
+  if (prepared.deleteImageRecord) {
+    await db.coffeeBeanImages.delete(beanId);
+  } else if (prepared.imageRecord) {
+    await db.coffeeBeanImages.put(prepared.imageRecord);
+  }
+
+  if (prepared.deleteThumbnailRecord) {
+    await db.coffeeBeanImageThumbnails.delete(beanId);
+  } else if (prepared.thumbnailRecord) {
+    await db.coffeeBeanImageThumbnails.put(prepared.thumbnailRecord);
+  }
+}
+
+export async function saveCoffeeBeanWithImages(
+  bean: CoffeeBean,
+  options: { generateThumbnails?: boolean } = {}
+): Promise<CoffeeBean> {
+  const prepared = await prepareCoffeeBeanImageWrite(bean, options);
+
+  await db.transaction(
+    'rw',
+    db.coffeeBeans,
+    db.coffeeBeanImages,
+    db.coffeeBeanImageThumbnails,
+    async () => {
+      if (prepared.hasImageChange) {
+        await writePreparedCoffeeBeanImages(prepared);
+      }
+      await db.coffeeBeans.put(prepared.bean);
+    }
+  );
+
+  return prepared.bean;
 }
 
 export async function getCoffeeBeanImageRecord(
@@ -473,21 +542,28 @@ export async function replaceCoffeeBeansWithSplitImages(
     db.coffeeBeanImages,
     db.coffeeBeanImageThumbnails,
     async () => {
-      const existingImageIds = (
-        await db.coffeeBeanImages.toCollection().primaryKeys()
-      ).map(String);
+      const [existingBeanRecords, existingImageIds] = await Promise.all([
+        db.coffeeBeans.toArray(),
+        db.coffeeBeanImages.toCollection().primaryKeys(),
+      ]);
+      const existingBeanIds = existingBeanRecords.map(bean => bean.id);
       const incomingIdSet = new Set(incomingBeanIds);
-      const staleImageIds = existingImageIds.filter(
+      const staleBeanIds = existingBeanIds.filter(
         beanId => !incomingIdSet.has(beanId)
       );
+      const staleImageIds = existingImageIds
+        .map(String)
+        .filter(beanId => !incomingIdSet.has(beanId));
       const imageIdsToDelete = Array.from(
         new Set([...staleImageIds, ...explicitEmptyImageBeanIds])
       );
 
-      await db.coffeeBeans.clear();
-
       if (strippedBeans.length > 0) {
         await db.coffeeBeans.bulkPut(strippedBeans);
+      }
+
+      if (staleBeanIds.length > 0) {
+        await db.coffeeBeans.bulkDelete(staleBeanIds);
       }
 
       if (imageIdsToDelete.length > 0) {

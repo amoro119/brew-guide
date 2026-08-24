@@ -101,6 +101,31 @@ export async function persistBrewingNoteImagesFromNote(
   return strippedNote;
 }
 
+export async function saveBrewingNoteWithImages(
+  note: BrewingNote
+): Promise<BrewingNote> {
+  const { note: strippedNote, imageRecord } = splitBrewingNoteImages(note);
+
+  await db.transaction(
+    'rw',
+    db.brewingNotes,
+    db.brewingNoteImages,
+    db.brewingNoteImageThumbnails,
+    async () => {
+      if (imageRecord) {
+        await db.brewingNoteImages.put(imageRecord);
+        await db.brewingNoteImageThumbnails.delete(note.id);
+      } else if (hasImageFieldUpdate(note)) {
+        await db.brewingNoteImages.delete(note.id);
+        await db.brewingNoteImageThumbnails.delete(note.id);
+      }
+      await db.brewingNotes.put(strippedNote);
+    }
+  );
+
+  return strippedNote;
+}
+
 export async function getBrewingNoteImageRecord(
   noteId: string
 ): Promise<BrewingNoteImageRecord | undefined> {
@@ -220,21 +245,28 @@ export async function replaceBrewingNotesWithSplitImages(
     db.brewingNoteImages,
     db.brewingNoteImageThumbnails,
     async () => {
-      const existingImageIds = (
-        await db.brewingNoteImages.toCollection().primaryKeys()
-      ).map(String);
+      const [existingNoteRecords, existingImageIds] = await Promise.all([
+        db.brewingNotes.toArray(),
+        db.brewingNoteImages.toCollection().primaryKeys(),
+      ]);
+      const existingNoteIds = existingNoteRecords.map(note => note.id);
       const incomingIdSet = new Set(incomingNoteIds);
-      const staleImageIds = existingImageIds.filter(
+      const staleNoteIds = existingNoteIds.filter(
         noteId => !incomingIdSet.has(noteId)
       );
+      const staleImageIds = existingImageIds
+        .map(String)
+        .filter(noteId => !incomingIdSet.has(noteId));
       const imageIdsToDelete = Array.from(
         new Set([...staleImageIds, ...explicitEmptyImageNoteIds])
       );
 
-      await db.brewingNotes.clear();
-
       if (strippedNotes.length > 0) {
         await db.brewingNotes.bulkPut(strippedNotes);
+      }
+
+      if (staleNoteIds.length > 0) {
+        await db.brewingNotes.bulkDelete(staleNoteIds);
       }
 
       if (imageIdsToDelete.length > 0) {

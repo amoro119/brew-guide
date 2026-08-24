@@ -83,6 +83,7 @@ import {
   getCoffeeBeanImageSource,
   recompressOversizedCoffeeBeanImages,
   replaceCoffeeBeansWithSplitImages,
+  saveCoffeeBeanWithImages,
 } from './imageRepository';
 
 const baseBean: CoffeeBean = {
@@ -185,6 +186,23 @@ describe('coffee bean image repository records', () => {
 
     await replaceCoffeeBeansWithSplitImages([{ ...baseBean, timestamp: 2 }]);
 
+    expect(mocks.images.get('bean-1')?.image).toBe('original');
+  });
+
+  it('writes the bean and its image records in one transaction', async () => {
+    await saveCoffeeBeanWithImages({
+      ...baseBean,
+      image: 'original',
+    });
+
+    expect(mocks.db.transaction).toHaveBeenCalledWith(
+      'rw',
+      mocks.db.coffeeBeans,
+      mocks.db.coffeeBeanImages,
+      mocks.db.coffeeBeanImageThumbnails,
+      expect.any(Function)
+    );
+    expect(mocks.beans.get('bean-1')).toBeDefined();
     expect(mocks.images.get('bean-1')?.image).toBe('original');
   });
 

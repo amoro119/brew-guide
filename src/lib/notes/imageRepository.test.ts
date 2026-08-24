@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => {
       return Promise.resolve();
     }),
     count: vi.fn(() => Promise.resolve(records.size)),
+    toArray: vi.fn(() => Promise.resolve(Array.from(records.values()))),
     toCollection: vi.fn(() => ({
       primaryKeys: vi.fn(() => Promise.resolve(Array.from(records.keys()))),
     })),
@@ -83,6 +84,7 @@ import {
   getBrewingNoteImages,
   recompressOversizedBrewingNoteImages,
   replaceBrewingNotesWithSplitImages,
+  saveBrewingNoteWithImages,
 } from './imageRepository';
 
 const baseNote: BrewingNote = {
@@ -152,6 +154,24 @@ describe('brewing note image repository', () => {
 
     await replaceBrewingNotesWithSplitImages([{ ...baseNote, timestamp: 2 }]);
 
+    expect(mocks.images.get('note-1')?.image).toBe('original');
+  });
+
+  it('writes the note and its image record in one transaction', async () => {
+    await saveBrewingNoteWithImages({
+      ...baseNote,
+      image: 'original',
+      images: ['original'],
+    });
+
+    expect(mocks.db.transaction).toHaveBeenCalledWith(
+      'rw',
+      mocks.db.brewingNotes,
+      mocks.db.brewingNoteImages,
+      mocks.db.brewingNoteImageThumbnails,
+      expect.any(Function)
+    );
+    expect(mocks.notes.get('note-1')).toBeDefined();
     expect(mocks.images.get('note-1')?.image).toBe('original');
   });
 
