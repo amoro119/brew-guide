@@ -42,7 +42,10 @@ import {
   BEAN_COMPONENT_TEXT_FIELD_IDS,
   getComponentFieldValue,
 } from '@/lib/coffee-beans/beanFields';
-import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
+import {
+  getCapacityChangeUpdates,
+  updateBeanWithCapacityAdjustmentRecord,
+} from '@/lib/coffee-beans/capacityAdjustment';
 import { getRelatedNotesForBean } from '@/lib/notes/relatedNotes';
 import { prepareCoffeeBeanRoasterFieldsForFormDraft } from '@/lib/utils/coffeeBeanUtils';
 import {
@@ -744,9 +747,7 @@ const BeanDetailModal: React.FC<BeanDetailModalProps> = ({
     if (!bean?.id) return;
 
     try {
-      const { getCoffeeBeanStore } =
-        await import('@/lib/stores/coffeeBeanStore');
-      await getCoffeeBeanStore().updateBean(bean.id, updates);
+      await updateBeanWithCapacityAdjustmentRecord(bean.id, updates);
 
       window.dispatchEvent(
         new CustomEvent('coffeeBeanDataChanged', {

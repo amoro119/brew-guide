@@ -2,6 +2,7 @@ import type { CoffeeBean } from '@/types/app';
 import type { BrewingNote } from '@/lib/core/config';
 import { useBrewingNoteStore } from '@/lib/stores/brewingNoteStore';
 import {
+  getCoffeeBeanStore,
   increaseBeanRemaining,
   updateBeanRemaining,
 } from '@/lib/stores/coffeeBeanStore';
@@ -132,6 +133,41 @@ export async function createCapacityAdjustmentRecordIfNeeded(
   }
 
   return createCapacityAdjustmentRecord(bean, originalAmount, newAmount);
+}
+
+export async function addBeanWithInitialCapacityAdjustmentRecord(
+  beanData: Omit<CoffeeBean, 'id' | 'timestamp'>
+): Promise<CoffeeBean> {
+  const store = getCoffeeBeanStore();
+  const bean = await store.addBean(beanData);
+  await createCapacityAdjustmentRecordIfNeeded(
+    bean,
+    bean.capacity,
+    bean.remaining
+  );
+  return bean;
+}
+
+export async function updateBeanWithCapacityAdjustmentRecord(
+  beanId: string,
+  updates: Partial<CoffeeBean>
+): Promise<CoffeeBean | null> {
+  const store = getCoffeeBeanStore();
+  const bean = store.getBeanById(beanId);
+  if (!bean) return null;
+
+  const updatedBean = await store.updateBean(beanId, updates);
+  if (!updatedBean) return null;
+
+  if ('remaining' in updates) {
+    await createCapacityAdjustmentRecordIfNeeded(
+      bean,
+      bean.remaining,
+      updatedBean.remaining
+    );
+  }
+
+  return updatedBean;
 }
 
 export async function applyCapacityAdjustmentDelta(

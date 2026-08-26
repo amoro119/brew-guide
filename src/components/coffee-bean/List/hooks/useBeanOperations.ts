@@ -2,6 +2,10 @@ import {
   formatCoffeeBeanAmount,
   useCoffeeBeanStore,
 } from '@/lib/stores/coffeeBeanStore';
+import {
+  addBeanWithInitialCapacityAdjustmentRecord,
+  updateBeanWithCapacityAdjustmentRecord,
+} from '@/lib/coffee-beans/capacityAdjustment';
 import { ExtendedCoffeeBean } from '../types';
 
 export const useBeanOperations = () => {
@@ -13,13 +17,16 @@ export const useBeanOperations = () => {
   ) => {
     try {
       if (editingBean) {
-        const updatedBean = await store.updateBean(editingBean.id, bean);
+        const updatedBean = await updateBeanWithCapacityAdjustmentRecord(
+          editingBean.id,
+          bean
+        );
         if (!updatedBean) {
           return { success: false, error: new Error('Update failed') };
         }
         return { success: true, bean: updatedBean as ExtendedCoffeeBean };
       } else {
-        const newBean = await store.addBean(bean);
+        const newBean = await addBeanWithInitialCapacityAdjustmentRecord(bean);
         return { success: true, bean: newBean as ExtendedCoffeeBean };
       }
     } catch (error) {

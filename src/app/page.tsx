@@ -131,8 +131,9 @@ import { getCommonMethodsForEquipment } from '@/lib/brewing/methodAvailability';
 import { isPullToSyncEnabled } from '@/lib/sync/settings';
 import { syncService } from '@/lib/sync/UnifiedSyncService';
 import {
-  createCapacityAdjustmentRecordIfNeeded,
+  addBeanWithInitialCapacityAdjustmentRecord,
   revertCapacityAdjustmentRecord,
+  updateBeanWithCapacityAdjustmentRecord,
 } from '@/lib/coffee-beans/capacityAdjustment';
 
 // 为Window对象声明类型扩展
@@ -2426,11 +2427,6 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
       let lastImportedBean: ExtendedCoffeeBean | null = null;
       const pendingRecognitionImage = options?.recognitionImage || null;
 
-      // 动态导入 coffeeBeanStore
-      const { getCoffeeBeanStore } =
-        await import('@/lib/stores/coffeeBeanStore');
-      const store = getCoffeeBeanStore();
-
       try {
         for (const beanData of beansToImport) {
           const importedBeanState =
@@ -2587,7 +2583,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
             bean,
             settings
           );
-          const newBean = await store.addBean(normalizedBean);
+          const newBean =
+            await addBeanWithInitialCapacityAdjustmentRecord(normalizedBean);
           lastImportedBean = newBean;
           importCount++;
         }
@@ -2863,19 +2860,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
         setRoastingSourceBeanId(null);
       } else if (editingBean?.id) {
         // 普通编辑操作
-        await store.updateBean(editingBean.id, bean);
-        try {
-          await createCapacityAdjustmentRecordIfNeeded(
-            editingBean,
-            editingBean.remaining,
-            bean.remaining
-          );
-        } catch (recordError) {
-          console.error('创建容量变动记录失败:', recordError);
-        }
+        await updateBeanWithCapacityAdjustmentRecord(editingBean.id, bean);
       } else {
         // 普通新增操作
-        await store.addBean(bean);
+        await addBeanWithInitialCapacityAdjustmentRecord(bean);
       }
 
       setShowBeanForm(false);
@@ -4410,9 +4398,9 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                     initialBeanState={beanDetailAddBeanState}
                     onSaveNew={async newBean => {
                       try {
-                        const { getCoffeeBeanStore } =
-                          await import('@/lib/stores/coffeeBeanStore');
-                        await getCoffeeBeanStore().addBean(newBean);
+                        await addBeanWithInitialCapacityAdjustmentRecord(
+                          newBean
+                        );
                         handleBeanListChange();
                         setBeanDetailAddMode(false);
                       } catch (error) {
@@ -4422,18 +4410,10 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                     }}
                     onSaveEdit={async (bean, updates) => {
                       try {
-                        const { getCoffeeBeanStore } =
-                          await import('@/lib/stores/coffeeBeanStore');
-                        await getCoffeeBeanStore().updateBean(bean.id, updates);
-                        try {
-                          await createCapacityAdjustmentRecordIfNeeded(
-                            bean,
-                            bean.remaining,
-                            updates.remaining
-                          );
-                        } catch (recordError) {
-                          console.error('创建容量变动记录失败:', recordError);
-                        }
+                        await updateBeanWithCapacityAdjustmentRecord(
+                          bean.id,
+                          updates
+                        );
                         handleBeanListChange();
                         setBeanDetailEditMode(false);
                       } catch (error) {

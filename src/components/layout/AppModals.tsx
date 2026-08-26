@@ -50,8 +50,9 @@ import ConfirmDrawer from '@/components/common/ui/ConfirmDrawer';
 import ImageViewer from '@/components/common/ui/ImageViewer';
 import type { ImageViewerPayload } from '@/lib/ui/imageViewer';
 import {
-  createCapacityAdjustmentRecordIfNeeded,
+  addBeanWithInitialCapacityAdjustmentRecord,
   revertCapacityAdjustmentRecord,
+  updateBeanWithCapacityAdjustmentRecord,
 } from '@/lib/coffee-beans/capacityAdjustment';
 import RescueModeDrawer from '@/components/layout/RescueModeDrawer';
 
@@ -894,9 +895,7 @@ const AppModals: React.FC<AppModalsProps> = ({
           initialBeanState={beanDetailAddBeanState}
           onSaveNew={async newBean => {
             try {
-              const { getCoffeeBeanStore } =
-                await import('@/lib/stores/coffeeBeanStore');
-              await getCoffeeBeanStore().addBean(newBean);
+              await addBeanWithInitialCapacityAdjustmentRecord(newBean);
               handleBeanListChange();
               setBeanDetailAddMode(false);
             } catch (error) {
@@ -906,18 +905,7 @@ const AppModals: React.FC<AppModalsProps> = ({
           }}
           onSaveEdit={async (bean, updates) => {
             try {
-              const { getCoffeeBeanStore } =
-                await import('@/lib/stores/coffeeBeanStore');
-              await getCoffeeBeanStore().updateBean(bean.id, updates);
-              try {
-                await createCapacityAdjustmentRecordIfNeeded(
-                  bean,
-                  bean.remaining,
-                  updates.remaining
-                );
-              } catch (recordError) {
-                console.error('创建容量变动记录失败:', recordError);
-              }
+              await updateBeanWithCapacityAdjustmentRecord(bean.id, updates);
               handleBeanListChange();
               setBeanDetailEditMode(false);
             } catch (error) {
