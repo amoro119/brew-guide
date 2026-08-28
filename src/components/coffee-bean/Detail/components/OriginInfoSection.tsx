@@ -8,7 +8,6 @@ import BlendComponentTagRows from './BlendComponentTagRows';
 import { updateBlendComponentsDelimitedField } from '@/lib/utils/coffeeBeanUtils';
 import {
   getComponentFieldValue,
-  hasStructuredOriginFields,
 } from '@/lib/coffee-beans/beanFields';
 import { useRoastLevelSuggestions } from '@/components/coffee-bean/Form/hooks/useCoffeeBeanFieldSuggestions';
 import SuggestionDropdown, {
@@ -177,9 +176,7 @@ const OriginInfoSection: React.FC<OriginInfoSectionProps> = ({
   const firstComponent = currentBean?.blendComponents?.[0];
 
   // 获取当前值
-  const origin = firstComponent?.origin || '';
-  const hasStructuredOrigin = hasStructuredOriginFields(firstComponent);
-  const legacyOrigin = hasStructuredOrigin ? '' : origin;
+  const legacyOrigin = firstComponent?.origin || '';
   const country = firstComponent?.country || '';
   const region = firstComponent?.region || '';
   const estate = firstComponent?.estate || '';
