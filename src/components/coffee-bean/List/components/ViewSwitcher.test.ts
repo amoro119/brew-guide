@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { FlavorPeriodStatus } from '@/lib/utils/beanVarietyUtils';
-import { getInventoryAllClickAction } from './ViewSwitcher';
+import { getInventoryAllClickAction, getNextBeanType } from './ViewSwitcher';
+
+describe('getNextBeanType', () => {
+  const availableTypes = ['espresso', 'filter', 'omni'] as const;
+
+  it('cycles through available types and back to all', () => {
+    expect(getNextBeanType(availableTypes, 'all')).toBe('espresso');
+    expect(getNextBeanType(availableTypes, 'espresso')).toBe('filter');
+    expect(getNextBeanType(availableTypes, 'filter')).toBe('omni');
+    expect(getNextBeanType(availableTypes, 'omni')).toBe('all');
+  });
+
+  it('skips unavailable types', () => {
+    expect(getNextBeanType(['filter', 'omni'], 'all')).toBe('filter');
+    expect(getNextBeanType(['filter', 'omni'], 'filter')).toBe('omni');
+    expect(getNextBeanType([], 'all')).toBeNull();
+  });
+});
 
 describe('getInventoryAllClickAction', () => {
   it('clears the visible flavor period before widening bean type', () => {

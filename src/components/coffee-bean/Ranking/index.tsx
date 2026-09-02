@@ -12,6 +12,11 @@ import {
   hasBeanRating,
   type BeanRatingInfo,
 } from '@/lib/utils/beanRatingUtils';
+import {
+  matchesRankingFilter,
+  type RankingDateGroupingMode,
+  type RankingFilterMode,
+} from '../List/rankingFilters';
 
 // 下划线动画配置
 const UNDERLINE_TRANSITION = {
@@ -45,6 +50,10 @@ interface CoffeeBeanRankingProps {
   sortOption?: RankingSortOption;
   hideFilters?: boolean;
   beanType?: 'all' | 'espresso' | 'filter' | 'omni';
+  filterMode?: RankingFilterMode;
+  dateGroupingMode?: RankingDateGroupingMode;
+  selectedDate?: string | null;
+  selectedRoaster?: string | null;
   isOpen: boolean;
   isSearching?: boolean;
   searchQuery?: string;
@@ -57,6 +66,10 @@ const CoffeeBeanRanking: React.FC<CoffeeBeanRankingProps> = ({
   sortOption = SORT_OPTIONS.RATING_DESC,
   hideFilters = false,
   beanType: externalBeanType,
+  filterMode = 'type',
+  dateGroupingMode = 'month',
+  selectedDate = null,
+  selectedRoaster = null,
   isSearching = false,
   searchQuery = '',
   scrollParentRef,
@@ -78,18 +91,12 @@ const CoffeeBeanRanking: React.FC<CoffeeBeanRankingProps> = ({
 
   const [ratedBeans, setRatedBeans] = useState<RatedCoffeeBean[]>([]);
   const [unratedBeans, setUnratedBeans] = useState<CoffeeBean[]>([]);
-  const [beanType, setBeanType] = useState<
+  const [internalBeanType, setBeanType] = useState<
     'all' | 'espresso' | 'filter' | 'omni'
   >(externalBeanType || 'all');
+  const beanType = externalBeanType ?? internalBeanType;
   const [showUnrated, setShowUnrated] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // 监听外部传入的筛选类型变化
-  useEffect(() => {
-    if (externalBeanType !== undefined) {
-      setBeanType(externalBeanType);
-    }
-  }, [externalBeanType]);
 
   // 排序咖啡豆的函数（使用综合评分信息）
   const sortBeans = useCallback(
@@ -157,11 +164,15 @@ const CoffeeBeanRanking: React.FC<CoffeeBeanRankingProps> = ({
         await import('@/lib/stores/coffeeBeanStore');
       const allBeans = getCoffeeBeanStore().beans;
 
-      // 按类型筛选
-      let filteredBeans = allBeans;
-      if (beanType !== 'all') {
-        filteredBeans = allBeans.filter(bean => bean.beanType === beanType);
-      }
+      const filteredBeans = allBeans.filter(bean =>
+        matchesRankingFilter(bean, {
+          filterMode,
+          beanType,
+          dateGroupingMode,
+          selectedDate,
+          selectedRoaster,
+        })
+      );
 
       // 计算每个豆子的评分信息，区分有评分和无评分
       const ratedBeansData: RatedCoffeeBean[] = [];
@@ -189,7 +200,17 @@ const CoffeeBeanRanking: React.FC<CoffeeBeanRankingProps> = ({
       setRatedBeans([]);
       setUnratedBeans([]);
     }
-  }, [isOpen, beanType, sortOption, sortBeans, notes]);
+  }, [
+    isOpen,
+    beanType,
+    filterMode,
+    dateGroupingMode,
+    selectedDate,
+    selectedRoaster,
+    sortOption,
+    sortBeans,
+    notes,
+  ]);
 
   // 在组件挂载、isOpen变化、beanType变化、sortOption变化或refreshTrigger变化时重新加载数据
   useEffect(() => {

@@ -16,6 +16,10 @@ import {
 import { SortOption } from './SortSelector';
 import { FlavorPeriodStatus } from '@/lib/utils/beanVarietyUtils';
 import { DateGroupingMode } from './components/StatsView/types';
+import type {
+  RankingDateGroupingMode,
+  RankingFilterMode,
+} from './rankingFilters';
 
 const MODULE_NAME = 'coffee-beans';
 const MAX_SEARCH_HISTORY = 15;
@@ -61,6 +65,10 @@ export const globalCache: {
   inventorySortOptions: { green: SortOption; roasted: SortOption };
   rankingSortOption: SortOption;
   rankingBeanType: BeanType;
+  rankingFilterMode: RankingFilterMode;
+  rankingDateGroupingMode: RankingDateGroupingMode;
+  rankingSelectedDate: string | null;
+  rankingSelectedRoaster: string | null;
 
   // 统计视图
   dateGroupingMode: DateGroupingMode;
@@ -116,6 +124,10 @@ export const globalCache: {
   },
   rankingSortOption: 'rating_desc',
   rankingBeanType: 'all',
+  rankingFilterMode: 'type',
+  rankingDateGroupingMode: 'month',
+  rankingSelectedDate: null,
+  rankingSelectedRoaster: null,
   dateGroupingMode: 'month',
   selectedDate: null,
   selectedDates: { year: null, month: null, day: null },
@@ -191,7 +203,9 @@ export const isGreenBeanInventoryEnabled = (): boolean => {
         useSettingsStore.getState().settings.enableGreenBeanInventory === true
       );
     }
-  } catch {}
+  } catch {
+    // 设置存储不可用时沿用熟豆库。
+  }
   return false;
 };
 
@@ -244,6 +258,32 @@ export const getRankingBeanTypePreference = () =>
   getStringState(MODULE_NAME, 'rankingBeanType', 'all') as BeanType;
 export const saveRankingBeanTypePreference = (v: BeanType) =>
   saveStringState(MODULE_NAME, 'rankingBeanType', v);
+export const getRankingFilterModePreference = (): RankingFilterMode => {
+  const value = getStringState(MODULE_NAME, 'rankingFilterMode', 'type');
+  return value === 'date' || value === 'roaster' ? value : 'type';
+};
+export const saveRankingFilterModePreference = (v: RankingFilterMode) =>
+  saveStringState(MODULE_NAME, 'rankingFilterMode', v);
+export const getRankingDateGroupingModePreference =
+  (): RankingDateGroupingMode => {
+    const value = getStringState(
+      MODULE_NAME,
+      'rankingDateGroupingMode',
+      'month'
+    );
+    return value === 'year' || value === 'day' ? value : 'month';
+  };
+export const saveRankingDateGroupingModePreference = (
+  v: RankingDateGroupingMode
+) => saveStringState(MODULE_NAME, 'rankingDateGroupingMode', v);
+export const getRankingSelectedDatePreference = () =>
+  getStringState(MODULE_NAME, 'rankingSelectedDate', '') || null;
+export const saveRankingSelectedDatePreference = (v: string | null) =>
+  saveStringState(MODULE_NAME, 'rankingSelectedDate', v || '');
+export const getRankingSelectedRoasterPreference = () =>
+  getStringState(MODULE_NAME, 'rankingSelectedRoaster', '') || null;
+export const saveRankingSelectedRoasterPreference = (v: string | null) =>
+  saveStringState(MODULE_NAME, 'rankingSelectedRoaster', v || '');
 
 // 筛选模式
 export const getFilterModePreference = () =>
@@ -543,6 +583,10 @@ const initGlobalCache = () => {
   };
   globalCache.rankingSortOption = getRankingSortOptionPreference();
   globalCache.rankingBeanType = getRankingBeanTypePreference();
+  globalCache.rankingFilterMode = getRankingFilterModePreference();
+  globalCache.rankingDateGroupingMode = getRankingDateGroupingModePreference();
+  globalCache.rankingSelectedDate = getRankingSelectedDatePreference();
+  globalCache.rankingSelectedRoaster = getRankingSelectedRoasterPreference();
   globalCache.filterMode = getFilterModePreference();
   globalCache.filterModes = {
     green: getFilterModeByStatePreference('green'),

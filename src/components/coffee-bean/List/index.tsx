@@ -50,6 +50,10 @@ import {
   getInventorySortOptionByStatePreference,
   saveRankingSortOptionPreference,
   saveRankingBeanTypePreference,
+  saveRankingFilterModePreference,
+  saveRankingDateGroupingModePreference,
+  saveRankingSelectedDatePreference,
+  saveRankingSelectedRoasterPreference,
   saveFilterModePreference,
   saveFilterModeByStatePreference,
   getFilterModeByStatePreference,
@@ -119,6 +123,13 @@ import {
   searchBeanRecords,
   summarizeBeanTypeStats,
 } from './beanListPipeline';
+import {
+  getRankingDates,
+  getRankingRoasters,
+  matchesRankingFilter,
+  type RankingDateGroupingMode,
+  type RankingFilterMode,
+} from './rankingFilters';
 import {
   useCoffeeBeanImageIds,
   useCoffeeBeanImageIdsState,
@@ -245,6 +256,17 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   const [rankingBeanType, setRankingBeanType] = useState<BeanType>(
     globalCache.rankingBeanType
   );
+  const [rankingFilterMode, setRankingFilterMode] = useState<RankingFilterMode>(
+    globalCache.rankingFilterMode
+  );
+  const [rankingDateGroupingMode, setRankingDateGroupingMode] =
+    useState<RankingDateGroupingMode>(globalCache.rankingDateGroupingMode);
+  const [rankingSelectedDate, setRankingSelectedDate] = useState<string | null>(
+    globalCache.rankingSelectedDate
+  );
+  const [rankingSelectedRoaster, setRankingSelectedRoaster] = useState<
+    string | null
+  >(globalCache.rankingSelectedRoaster);
 
   const unmountTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadingRef = useRef<boolean>(false);
@@ -437,6 +459,12 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   const [rankingEspressoCount, setRankingEspressoCount] = useState<number>(0);
   const [rankingFilterCount, setRankingFilterCount] = useState<number>(0);
   const [rankingOmniCount, setRankingOmniCount] = useState<number>(0);
+  const [rankingAvailableDates, setRankingAvailableDates] = useState<string[]>(
+    []
+  );
+  const [rankingAvailableRoasters, setRankingAvailableRoasters] = useState<
+    string[]
+  >([]);
 
   // 显示模式状态（持久化记忆 - 参考笔记模块的实现方式）
   // 支持 list（列表）、imageFlow（图片流）、table（表格）三种模式
@@ -606,43 +634,94 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
       hasBeanRating(bean, notes as BrewingNoteData[])
     );
 
-    let filteredRatedBeans = ratedBeansData;
-    if (rankingBeanType !== 'all') {
-      filteredRatedBeans = ratedBeansData.filter(
-        bean => bean.beanType === rankingBeanType
-      );
+    const availableDates = getRankingDates(
+      ratedBeansData,
+      rankingDateGroupingMode
+    );
+    const availableRoasters = getRankingRoasters(ratedBeansData);
+    setRankingAvailableDates(availableDates);
+    setRankingAvailableRoasters(availableRoasters);
+
+    let effectiveBeanType = rankingBeanType;
+    let effectiveDate = rankingSelectedDate;
+    let effectiveRoaster = rankingSelectedRoaster;
+
+    if (effectiveDate && !availableDates.includes(effectiveDate)) {
+      effectiveDate = null;
+      setRankingSelectedDate(null);
+      globalCache.rankingSelectedDate = null;
+      saveRankingSelectedDatePreference(null);
     }
 
-    setRatedBeans(filteredRatedBeans);
-    setRankingBeansCount(filteredRatedBeans.length);
+    if (effectiveRoaster && !availableRoasters.includes(effectiveRoaster)) {
+      effectiveRoaster = null;
+      setRankingSelectedRoaster(null);
+      globalCache.rankingSelectedRoaster = null;
+      saveRankingSelectedRoasterPreference(null);
+    }
 
-    const espresso = ratedBeansData.filter(
+    const categoryFilteredBeans = ratedBeansData.filter(bean =>
+      matchesRankingFilter(bean, {
+        filterMode: rankingFilterMode,
+        beanType: 'all',
+        dateGroupingMode: rankingDateGroupingMode,
+        selectedDate: effectiveDate,
+        selectedRoaster: effectiveRoaster,
+      })
+    );
+    const espresso = categoryFilteredBeans.filter(
       bean => bean.beanType === 'espresso'
     ).length;
-    const filter = ratedBeansData.filter(
+    const filter = categoryFilteredBeans.filter(
       bean => bean.beanType === 'filter'
     ).length;
-    const omni = ratedBeansData.filter(bean => bean.beanType === 'omni').length;
+    const omni = categoryFilteredBeans.filter(
+      bean => bean.beanType === 'omni'
+    ).length;
 
     setRankingEspressoCount(espresso);
     setRankingFilterCount(filter);
     setRankingOmniCount(omni);
 
-    if (rankingBeanType !== 'all') {
-      if (
-        (rankingBeanType === 'espresso' && espresso === 0) ||
-        (rankingBeanType === 'filter' && filter === 0) ||
-        (rankingBeanType === 'omni' && omni === 0)
-      ) {
-        setRankingBeanType('all');
-        globalCache.rankingBeanType = 'all';
-        saveRankingBeanTypePreference('all');
-        return;
-      }
+    const selectedTypeCount =
+      effectiveBeanType === 'espresso'
+        ? espresso
+        : effectiveBeanType === 'filter'
+          ? filter
+          : effectiveBeanType === 'omni'
+            ? omni
+            : categoryFilteredBeans.length;
+    if (effectiveBeanType !== 'all' && selectedTypeCount === 0) {
+      effectiveBeanType = 'all';
+      setRankingBeanType('all');
+      globalCache.rankingBeanType = 'all';
+      saveRankingBeanTypePreference('all');
     }
 
+    const filteredRatedBeans = ratedBeansData.filter(bean =>
+      matchesRankingFilter(bean, {
+        filterMode: rankingFilterMode,
+        beanType: effectiveBeanType,
+        dateGroupingMode: rankingDateGroupingMode,
+        selectedDate: effectiveDate,
+        selectedRoaster: effectiveRoaster,
+      })
+    );
+
+    setRatedBeans(filteredRatedBeans);
+    setRankingBeansCount(filteredRatedBeans.length);
+
     globalCache.ratedBeans = filteredRatedBeans;
-  }, [viewMode, rankingBeanType, beans, notes]);
+  }, [
+    viewMode,
+    beans,
+    notes,
+    rankingBeanType,
+    rankingFilterMode,
+    rankingDateGroupingMode,
+    rankingSelectedDate,
+    rankingSelectedRoaster,
+  ]);
 
   // 组件打开时加载榜单数据
   useEffect(() => {
@@ -1804,7 +1883,11 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
   };
 
   const handleShareText = async () => {
-    if (selectedBeans.length === 0 || isSavingShareImage || isSharingBeanPackage)
+    if (
+      selectedBeans.length === 0 ||
+      isSavingShareImage ||
+      isSharingBeanPackage
+    )
       return;
 
     try {
@@ -1993,6 +2076,35 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
         rankingEspressoCount={rankingEspressoCount}
         rankingFilterCount={rankingFilterCount}
         rankingOmniCount={rankingOmniCount}
+        rankingFilterMode={rankingFilterMode}
+        onRankingFilterModeChange={mode => {
+          setRankingFilterMode(mode);
+          globalCache.rankingFilterMode = mode;
+          saveRankingFilterModePreference(mode);
+        }}
+        rankingDateGroupingMode={rankingDateGroupingMode}
+        onRankingDateGroupingModeChange={mode => {
+          setRankingDateGroupingMode(mode);
+          setRankingSelectedDate(null);
+          globalCache.rankingDateGroupingMode = mode;
+          globalCache.rankingSelectedDate = null;
+          saveRankingDateGroupingModePreference(mode);
+          saveRankingSelectedDatePreference(null);
+        }}
+        rankingSelectedDate={rankingSelectedDate}
+        onRankingDateClick={date => {
+          setRankingSelectedDate(date);
+          globalCache.rankingSelectedDate = date;
+          saveRankingSelectedDatePreference(date);
+        }}
+        rankingSelectedRoaster={rankingSelectedRoaster}
+        onRankingRoasterClick={roaster => {
+          setRankingSelectedRoaster(roaster);
+          globalCache.rankingSelectedRoaster = roaster;
+          saveRankingSelectedRoasterPreference(roaster);
+        }}
+        rankingAvailableDates={rankingAvailableDates}
+        rankingAvailableRoasters={rankingAvailableRoasters}
         isImageFlowMode={isImageFlowMode}
         hasImageBeans={hasImageBeans}
         // 新增显示模式属性
@@ -2127,6 +2239,10 @@ const CoffeeBeans: React.FC<CoffeeBeansProps> = ({
               sortOption={convertToRankingSortOption(sortOption, viewMode)}
               hideFilters={true}
               beanType={rankingBeanType}
+              filterMode={rankingFilterMode}
+              dateGroupingMode={rankingDateGroupingMode}
+              selectedDate={rankingSelectedDate}
+              selectedRoaster={rankingSelectedRoaster}
               isSearching={isSearching}
               searchQuery={searchQuery}
               scrollParentRef={rankingScrollEl ?? undefined}

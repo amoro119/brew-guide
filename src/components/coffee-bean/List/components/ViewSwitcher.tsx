@@ -53,6 +53,11 @@ import {
 import type { CoffeeBeanGroup } from '@/lib/core/db';
 import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
 import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
+import {
+  formatRankingDateLabel,
+  type RankingDateGroupingMode,
+  type RankingFilterMode,
+} from '../rankingFilters';
 // Apple风格动画配置
 const FILTER_ANIMATION = {
   initial: {
@@ -118,6 +123,22 @@ const BEAN_TYPE_LABELS: Record<SelectableBeanType, string> = {
 };
 
 const BEAN_TYPE_ORDER: SelectableBeanType[] = ['espresso', 'filter', 'omni'];
+
+export const getNextBeanType = (
+  availableBeanTypes: readonly SelectableBeanType[],
+  selectedBeanType?: BeanType
+): BeanType | null => {
+  if (availableBeanTypes.length === 0) return null;
+  if (!selectedBeanType || selectedBeanType === 'all') {
+    return availableBeanTypes[0];
+  }
+
+  const currentIndex = availableBeanTypes.indexOf(selectedBeanType);
+  return currentIndex === -1 || currentIndex === availableBeanTypes.length - 1
+    ? 'all'
+    : availableBeanTypes[currentIndex + 1];
+};
+
 type InventoryAllClickAction =
   | 'clear-variety'
   | 'clear-origin'
@@ -481,6 +502,59 @@ const FilterModeSection: React.FC<FilterModeSectionProps> = ({
   );
 };
 
+const RankingFilterModeSection: React.FC<{
+  filterMode: RankingFilterMode;
+  onFilterModeChange: (mode: RankingFilterMode) => void;
+}> = ({ filterMode, onFilterModeChange }) => (
+  <div>
+    <div className="mb-2 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+      分类
+    </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <FilterButton
+        isActive={filterMode === 'type'}
+        onClick={() => onFilterModeChange('type')}
+      >
+        按类型
+      </FilterButton>
+      <FilterButton
+        isActive={filterMode === 'date'}
+        onClick={() => onFilterModeChange('date')}
+      >
+        按时间
+      </FilterButton>
+      <FilterButton
+        isActive={filterMode === 'roaster'}
+        onClick={() => onFilterModeChange('roaster')}
+      >
+        按烘焙商
+      </FilterButton>
+    </div>
+  </div>
+);
+
+const RankingDateGroupingSection: React.FC<{
+  dateGroupingMode: RankingDateGroupingMode;
+  onDateGroupingModeChange: (mode: RankingDateGroupingMode) => void;
+}> = ({ dateGroupingMode, onDateGroupingModeChange }) => (
+  <div>
+    <div className="mb-2 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+      时间分组
+    </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {(['year', 'month', 'day'] as const).map(mode => (
+        <FilterButton
+          key={mode}
+          isActive={dateGroupingMode === mode}
+          onClick={() => onDateGroupingModeChange(mode)}
+        >
+          {mode === 'year' ? '按年' : mode === 'month' ? '按月' : '按日'}
+        </FilterButton>
+      ))}
+    </div>
+  </div>
+);
+
 interface ViewSwitcherProps {
   viewMode: ViewOption;
   sortOption: SortOption;
@@ -512,6 +586,16 @@ interface ViewSwitcherProps {
   rankingEspressoCount?: number;
   rankingFilterCount?: number;
   rankingOmniCount?: number;
+  rankingFilterMode?: RankingFilterMode;
+  onRankingFilterModeChange?: (mode: RankingFilterMode) => void;
+  rankingDateGroupingMode?: RankingDateGroupingMode;
+  onRankingDateGroupingModeChange?: (mode: RankingDateGroupingMode) => void;
+  rankingSelectedDate?: string | null;
+  onRankingDateClick?: (date: string | null) => void;
+  rankingSelectedRoaster?: string | null;
+  onRankingRoasterClick?: (roaster: string | null) => void;
+  rankingAvailableDates?: string[];
+  rankingAvailableRoasters?: string[];
   // 新增图片流模式相关props
   isImageFlowMode?: boolean;
   hasImageBeans?: boolean;
@@ -601,6 +685,16 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   rankingEspressoCount = 0,
   rankingFilterCount = 0,
   rankingOmniCount = 0,
+  rankingFilterMode = 'type',
+  onRankingFilterModeChange,
+  rankingDateGroupingMode = 'month',
+  onRankingDateGroupingModeChange,
+  rankingSelectedDate,
+  onRankingDateClick,
+  rankingSelectedRoaster,
+  onRankingRoasterClick,
+  rankingAvailableDates = [],
+  rankingAvailableRoasters = [],
   isImageFlowMode = false,
   hasImageBeans = true,
   // 新增显示模式参数
@@ -686,6 +780,63 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       }),
     [totalEspressoCount, totalFilterCount, totalOmniCount]
   );
+  const rankingAvailableBeanTypes = useMemo(
+    () =>
+      BEAN_TYPE_ORDER.filter(type => {
+        if (type === 'espresso') return rankingEspressoCount > 0;
+        if (type === 'filter') return rankingFilterCount > 0;
+        return rankingOmniCount > 0;
+      }),
+    [rankingEspressoCount, rankingFilterCount, rankingOmniCount]
+  );
+  const rankingSelectedCategory =
+    rankingFilterMode === 'type'
+      ? rankingBeanType === 'all'
+        ? null
+        : rankingBeanType
+      : rankingFilterMode === 'date'
+        ? rankingSelectedDate
+        : rankingSelectedRoaster;
+  const rankingCategoryTabs = useMemo(() => {
+    if (rankingFilterMode === 'date') {
+      return rankingAvailableDates.map(value => ({
+        value,
+        label: formatRankingDateLabel(value, rankingDateGroupingMode),
+      }));
+    }
+
+    if (rankingFilterMode === 'roaster') {
+      return rankingAvailableRoasters.map(value => ({ value, label: value }));
+    }
+
+    return rankingAvailableBeanTypes.map(type => ({
+      value: type,
+      label: `${BEAN_TYPE_LABELS[type]}豆`,
+    }));
+  }, [
+    rankingAvailableDates,
+    rankingAvailableBeanTypes,
+    rankingAvailableRoasters,
+    rankingDateGroupingMode,
+    rankingFilterMode,
+  ]);
+  const handleRankingCategoryClick = useCallback(
+    (value: string | null) => {
+      if (rankingFilterMode === 'type') {
+        onRankingBeanTypeChange?.((value || 'all') as BeanType);
+      } else if (rankingFilterMode === 'date') {
+        onRankingDateClick?.(value);
+      } else {
+        onRankingRoasterClick?.(value);
+      }
+    },
+    [
+      onRankingBeanTypeChange,
+      onRankingDateClick,
+      onRankingRoasterClick,
+      rankingFilterMode,
+    ]
+  );
   const selectedBeanTypeLabel =
     selectedBeanType && selectedBeanType !== 'all'
       ? BEAN_TYPE_LABELS[selectedBeanType]
@@ -695,23 +846,16 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       ? `${selectedBeanTypeLabel}豆`
       : `${selectedBeanTypeLabel}${BEAN_STATE_LABELS[selectedBeanState]}`;
   const handleBeanTypeDoubleClick = useCallback(() => {
-    if (availableBeanTypes.length === 0) {
-      return;
-    }
-
-    if (!selectedBeanType || selectedBeanType === 'all') {
-      onBeanTypeChange?.(availableBeanTypes[0]);
-      return;
-    }
-
-    const currentIndex = availableBeanTypes.indexOf(selectedBeanType);
-    if (currentIndex === -1 || currentIndex === availableBeanTypes.length - 1) {
-      onBeanTypeChange?.('all');
-      return;
-    }
-
-    onBeanTypeChange?.(availableBeanTypes[currentIndex + 1]);
+    const nextType = getNextBeanType(availableBeanTypes, selectedBeanType);
+    if (nextType) onBeanTypeChange?.(nextType);
   }, [availableBeanTypes, onBeanTypeChange, selectedBeanType]);
+  const handleRankingBeanTypeDoubleClick = useCallback(() => {
+    const nextType = getNextBeanType(
+      rankingAvailableBeanTypes,
+      rankingBeanType
+    );
+    if (nextType) onRankingBeanTypeChange?.(nextType);
+  }, [onRankingBeanTypeChange, rankingAvailableBeanTypes, rankingBeanType]);
   const handleInventoryAllClick = useCallback(() => {
     const action = getInventoryAllClickAction({
       selectedBeanType,
@@ -952,11 +1096,13 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
 
   // 滚动到选中项的函数 - 用于榜单豆子类型筛选
   const scrollToRankingSelected = useCallback(() => {
-    if (!rankingScrollContainerRef.current || !rankingBeanType) return;
+    if (!rankingScrollContainerRef.current || !rankingSelectedCategory) return;
 
-    const selectedElement = rankingScrollContainerRef.current.querySelector(
-      `[data-tab="${rankingBeanType}"]`
-    );
+    const selectedElement = Array.from(
+      rankingScrollContainerRef.current.querySelectorAll<HTMLElement>(
+        '[data-tab]'
+      )
+    ).find(element => element.dataset.tab === rankingSelectedCategory);
     if (!selectedElement) return;
 
     const container = rankingScrollContainerRef.current;
@@ -977,7 +1123,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       left: Math.max(0, targetScrollLeft),
       behavior: 'smooth',
     });
-  }, [rankingBeanType]);
+  }, [rankingSelectedCategory]);
 
   // 当选中项变化时滚动到选中项
   useEffect(() => {
@@ -991,7 +1137,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     // 延迟执行以确保DOM已更新
     const timer = setTimeout(scrollToRankingSelected, 100);
     return () => clearTimeout(timer);
-  }, [rankingBeanType, scrollToRankingSelected]);
+  }, [rankingSelectedCategory, scrollToRankingSelected]);
 
   // 注：isMinimalistMode 和 hideTotalWeight 功能已移除，始终为 false
 
@@ -1175,8 +1321,10 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
               )
             ) : rankingBeansCount === 0 ? (
               '' // 当没有评分咖啡豆时不显示任何统计信息
-            ) : (
+            ) : rankingBeanType === 'all' ? (
               `${rankingBeansCount} 款已评分咖啡豆`
+            ) : (
+              `${rankingBeansCount} 款已评分${BEAN_TYPE_LABELS[rankingBeanType]}豆`
             )}
           </div>
         </div>
@@ -1198,11 +1346,12 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     {/* 固定在左侧的"全部"和筛选按钮 */}
                     <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                       <TabButton
-                        isActive={rankingBeanType === 'all'}
-                        onClick={() => onRankingBeanTypeChange?.('all')}
+                        isActive={rankingSelectedCategory === null}
+                        onClick={() => handleRankingCategoryClick(null)}
+                        onDoubleClick={handleRankingBeanTypeDoubleClick}
                         className="mr-1"
                         dataTab="all"
-                        layoutId="ranking-tab-underline"
+                        layoutId={`ranking-${rankingFilterMode}-underline`}
                       >
                         全部
                       </TabButton>
@@ -1245,48 +1394,20 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                           }
                         `}</style>
 
-                        {/* 意式豆 - 仅在有数据时显示 */}
-                        {rankingEspressoCount > 0 && (
+                        {rankingCategoryTabs.map(tab => (
                           <TabButton
-                            isActive={rankingBeanType === 'espresso'}
+                            key={tab.value}
+                            isActive={rankingSelectedCategory === tab.value}
                             onClick={() =>
-                              onRankingBeanTypeChange?.('espresso')
+                              handleRankingCategoryClick(tab.value)
                             }
                             className="mr-3"
-                            dataTab="espresso"
-                            layoutId="ranking-tab-underline"
+                            dataTab={tab.value}
+                            layoutId={`ranking-${rankingFilterMode}-underline`}
                           >
-                            意式豆
+                            {tab.label}
                           </TabButton>
-                        )}
-
-                        {/* 手冲豆 - 仅在有数据时显示 */}
-                        {rankingFilterCount > 0 && (
-                          <TabButton
-                            isActive={rankingBeanType === 'filter'}
-                            onClick={() => {
-                              onRankingBeanTypeChange?.('filter');
-                            }}
-                            className="mr-3"
-                            dataTab="filter"
-                            layoutId="ranking-tab-underline"
-                          >
-                            手冲豆
-                          </TabButton>
-                        )}
-
-                        {/* 全能豆 - 仅在有数据时显示 */}
-                        {rankingOmniCount > 0 && (
-                          <TabButton
-                            isActive={rankingBeanType === 'omni'}
-                            onClick={() => onRankingBeanTypeChange?.('omni')}
-                            className="mr-3"
-                            dataTab="omni"
-                            layoutId="ranking-tab-underline"
-                          >
-                            全能豆
-                          </TabButton>
-                        )}
+                        ))}
                       </div>
 
                       {/* 右侧渐变阴影 - 覆盖在滚动内容上 */}
@@ -1383,6 +1504,33 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     >
                       <div className="px-6 py-4">
                         <div className="space-y-4">
+                          {onRankingFilterModeChange && (
+                            <RankingFilterModeSection
+                              filterMode={rankingFilterMode}
+                              onFilterModeChange={onRankingFilterModeChange}
+                            />
+                          )}
+
+                          {rankingFilterMode === 'date' &&
+                            onRankingDateGroupingModeChange && (
+                              <RankingDateGroupingSection
+                                dateGroupingMode={rankingDateGroupingMode}
+                                onDateGroupingModeChange={
+                                  onRankingDateGroupingModeChange
+                                }
+                              />
+                            )}
+
+                          {rankingFilterMode !== 'type' && (
+                            <BeanTypeFilter
+                              selectedBeanType={rankingBeanType}
+                              onBeanTypeChange={onRankingBeanTypeChange}
+                              totalEspressoCount={rankingEspressoCount}
+                              totalFilterCount={rankingFilterCount}
+                              totalOmniCount={rankingOmniCount}
+                            />
+                          )}
+
                           {/* 表格视图下隐藏排序，因为表格有列头排序 */}
                           {externalDisplayMode !== 'table' && (
                             <SortSection
