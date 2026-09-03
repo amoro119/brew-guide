@@ -262,7 +262,7 @@ const RelatedRecordsSection: React.FC<RelatedRecordsSectionProps> = React.memo(
     }
 
     return (
-      <div className="border-t border-neutral-200/40 pt-3 dark:border-neutral-800/40">
+      <div className="border-t border-dashed border-neutral-200/70 pt-3 dark:border-neutral-800/70">
         {/* Tab切换按钮 */}
         {showTabs && (
           <div
