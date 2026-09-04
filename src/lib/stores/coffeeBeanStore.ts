@@ -63,6 +63,9 @@ const collectBeanPayloadMetrics = (beans: CoffeeBean[]) => {
   };
 };
 
+let beanMutationVersion = 0;
+let reloadRequestedWhileLoading = false;
+
 export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
   subscribeWithSelector((set, get) => ({
     beans: [],
@@ -71,7 +74,19 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
     initialized: false,
 
     loadBeans: async () => {
-      if (get().isLoading) return;
+      if (get().isLoading) {
+        reloadRequestedWhileLoading = true;
+        return;
+      }
+
+      const loadVersion = beanMutationVersion;
+      const finishLoading = () => {
+        set({ isLoading: false });
+        if (reloadRequestedWhileLoading) {
+          reloadRequestedWhileLoading = false;
+          void get().loadBeans();
+        }
+      };
 
       set({ isLoading: true, error: null });
       try {
@@ -95,12 +110,20 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
           await db.coffeeBeans.bulkPut(repairedBeans);
         }
 
+        // A local write may finish while this read is in flight. Never let
+        // that older snapshot overwrite the newer Zustand state.
+        if (loadVersion !== beanMutationVersion) {
+          finishLoading();
+          return;
+        }
+
         recordCrashCheckpoint('coffee-beans:normalized', {
           beanCount: beans.length,
           repairedBeanCount: repairedBeans.length,
           imageRecordCount: await db.coffeeBeanImages.count(),
         });
-        set({ beans, isLoading: false, initialized: true });
+        set({ beans, initialized: true });
+        finishLoading();
       } catch (error) {
         console.error('[CoffeeBeanStore] loadBeans failed:', error);
         set({ error: '加载咖啡豆失败', isLoading: false, initialized: false });
@@ -121,6 +144,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
       try {
         const beanForStore = await saveCoffeeBeanWithImages(newBean);
         await clearExpectedCoreDataDeletion();
+        beanMutationVersion += 1;
         set(state => ({ beans: [...state.beans, beanForStore] }));
 
         if (typeof window !== 'undefined') {
@@ -155,6 +179,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
       try {
         const savedBean = await saveCoffeeBeanWithImages(updatedBean);
         const savedEventBean = await mergeBeanWithStoredImages(savedBean);
+        beanMutationVersion += 1;
         set(state => ({
           beans: state.beans.map(b => (b.id === id ? savedBean : b)),
         }));
@@ -187,6 +212,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
           }
         );
         await markExpectedCoreDataDeletionIfEmpty();
+        beanMutationVersion += 1;
         set(state => ({
           beans: state.beans.filter(b => b.id !== id),
         }));
@@ -206,6 +232,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
     },
 
     setBeans: beans => {
+      beanMutationVersion += 1;
       set({ beans, initialized: true });
     },
 
@@ -216,6 +243,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
         }) as CoffeeBean;
         const beanForStore = await saveCoffeeBeanWithImages(normalizedBean);
         await clearExpectedCoreDataDeletion();
+        beanMutationVersion += 1;
         set(state => {
           const exists = state.beans.some(b => b.id === beanForStore.id);
           if (exists) {
@@ -247,6 +275,7 @@ export const useCoffeeBeanStore = create<CoffeeBeanStore>()(
           }
         );
         await markExpectedCoreDataDeletionIfEmpty();
+        beanMutationVersion += 1;
         set(state => ({ beans: state.beans.filter(b => b.id !== id) }));
       } catch (error) {
         console.error('[CoffeeBeanStore] removeBean failed:', error);
@@ -380,6 +409,10 @@ export async function updateBeanRemaining(
       };
       const beanForStore = stripCoffeeBeanImages(updatedBean);
       await db.coffeeBeans.put(beanForStore);
+      store.setBeans([
+        ...store.beans.filter(currentBean => currentBean.id !== id),
+        beanForStore,
+      ]);
       return beanForStore;
     }
 
