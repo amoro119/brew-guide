@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { calcInputWidth } from '../utils';
 import SuggestionDropdown, {
   SUGGESTION_DROPDOWN_Z_INDEX,
 } from '@/components/common/forms/SuggestionDropdown';
@@ -35,9 +34,17 @@ interface TagAutocompleteInputProps {
 }
 
 const COMMIT_KEYS = new Set(['Enter', ',', '，', '、', ';', '；']);
+const VALUE_SEPARATOR_REGEX = /[,，、;；]+/;
+
+const normalizeCommitValue = (value: string) =>
+  value
+    .split(VALUE_SEPARATOR_REGEX)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .join(',');
 
 const getActiveSuggestionQuery = (value: string) => {
-  const segments = value.split(/[,，、;；]/);
+  const segments = value.split(VALUE_SEPARATOR_REGEX);
   return (segments[segments.length - 1] || '').trim();
 };
 
@@ -108,12 +115,12 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
   }, []);
 
   const commitValue = (value: string) => {
-    const nextValue = value.trim();
+    const nextValue = normalizeCommitValue(value);
+    setInputValue('');
+    setIsOpen(false);
     if (!nextValue) return;
 
     onCommit(nextValue);
-    setInputValue('');
-    setIsOpen(false);
   };
 
   const handleFocus = () => {
@@ -134,16 +141,37 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
   };
 
   return (
-    <span className="relative inline-flex max-w-full">
+    <span className="relative inline-grid max-w-full grid-cols-[minmax(0,max-content)]">
+      <span
+        aria-hidden="true"
+        className={cn(
+          'invisible col-start-1 row-start-1 w-max max-w-full px-1.5 py-0.5 text-xs font-medium whitespace-pre select-none',
+          className
+        )}
+      >
+        {inputValue || placeholder}
+      </span>
       <input
         ref={setInputElement}
         type="text"
+        size={1}
         value={inputValue}
         placeholder={placeholder}
         onChange={event => {
           const nextValue = event.currentTarget.value;
+          const isComposing = (event.nativeEvent as InputEvent).isComposing;
+          if (!isComposing && VALUE_SEPARATOR_REGEX.test(nextValue)) {
+            commitValue(nextValue);
+            return;
+          }
+
           setInputValue(nextValue);
           setIsOpen(filteredSuggestions.length > 0 || nextValue.trim() !== '');
+        }}
+        onCompositionEnd={event => {
+          if (VALUE_SEPARATOR_REGEX.test(event.currentTarget.value)) {
+            commitValue(event.currentTarget.value);
+          }
         }}
         onFocus={handleFocus}
         onBlur={handleBlur}
@@ -151,10 +179,11 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
           if (event.nativeEvent.isComposing) return;
 
           if (COMMIT_KEYS.has(event.key)) {
+            event.preventDefault();
             if (inputValue.trim()) {
-              event.preventDefault();
               commitValue(inputValue);
             }
+            return;
           }
 
           if (
@@ -175,10 +204,9 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
           }
         }}
         className={cn(
-          'max-w-full bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 placeholder:text-neutral-400 focus:outline-none dark:bg-neutral-800/40 dark:text-neutral-300 dark:placeholder:text-neutral-500',
+          'col-start-1 row-start-1 w-full max-w-full min-w-[1ch] bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 placeholder:text-neutral-400 focus:outline-none dark:bg-neutral-800/40 dark:text-neutral-300 dark:placeholder:text-neutral-500',
           className
         )}
-        style={{ width: calcInputWidth(inputValue, placeholder) }}
       />
 
       {isOpen && filteredSuggestions.length > 0 && (

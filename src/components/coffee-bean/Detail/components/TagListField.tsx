@@ -52,7 +52,7 @@ const TagListField: React.FC<TagListFieldProps> = ({
     (items.length === 0
       ? `输入${label}，逗号分隔`
       : isSettings
-        ? `继续添加${label}`
+        ? '继续添加'
         : '+ ');
 
   return (

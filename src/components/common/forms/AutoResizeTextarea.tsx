@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { cn } from '@/lib/utils/classNameUtils';
 
 interface AutoResizeTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -11,7 +11,7 @@ interface AutoResizeTextareaProps extends React.TextareaHTMLAttributes<HTMLTextA
   readOnly?: boolean;
   style?: React.CSSProperties;
   minRows?: number;
-  maxRows?: number;
+  onMultilineChange?: (isMultiline: boolean) => void;
 }
 
 const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
@@ -22,26 +22,40 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
   readOnly,
   style,
   minRows = 1,
-  maxRows = 10,
+  onMultilineChange,
   ...props
 }) => {
-  // 根据内容行数计算实际行数，但不超过 maxRows
-  const contentRows = value
-    ? Math.min(value.split('\n').length, maxRows)
-    : minRows;
-  const rows = Math.max(contentRows, minRows);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+    textarea.style.overflowY = 'hidden';
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const parsedLineHeight = Number.parseFloat(computedStyle.lineHeight);
+    const fontSize = Number.parseFloat(computedStyle.fontSize);
+    const lineHeight = Number.isFinite(parsedLineHeight)
+      ? parsedLineHeight
+      : fontSize * 1.5;
+    onMultilineChange?.(textarea.scrollHeight > lineHeight + 1);
+  }, [onMultilineChange, value]);
 
   return (
     <textarea
+      ref={textareaRef}
       value={value}
       onChange={onChange}
       className={cn(
-        'w-full resize-none rounded-none bg-transparent outline-hidden transition-colors',
+        'w-full resize-none overflow-hidden rounded-none bg-transparent outline-hidden transition-colors',
         className
       )}
       placeholder={placeholder}
       readOnly={readOnly}
-      rows={rows}
+      rows={minRows}
       autoComplete="off"
       autoCorrect="off"
       autoCapitalize="off"

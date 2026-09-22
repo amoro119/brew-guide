@@ -51,7 +51,8 @@ const SettingSection: React.FC<SettingSectionProps> = ({
   const [isCapsuleWrapped, setIsCapsuleWrapped] = React.useState(false);
 
   React.useLayoutEffect(() => {
-    if (!isCapsule) return;
+    // 显式指定的形状由调用方控制，自动形状才根据内容高度判断。
+    if (contentShape !== 'auto' || !isCapsule) return;
 
     const contentElement = contentRef.current;
     if (!contentElement) return;
@@ -79,7 +80,7 @@ const SettingSection: React.FC<SettingSectionProps> = ({
       observer.disconnect();
       window.cancelAnimationFrame(frame);
     };
-  }, [isCapsule]);
+  }, [contentShape, isCapsule]);
 
   // 处理子元素，自动注入 isLast 属性
   const renderChildren = () => {

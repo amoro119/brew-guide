@@ -32,7 +32,7 @@ const FlavorInfo: React.FC<FlavorInfoProps> = ({
         <TagListField
           items={flavors.map((value, index) => ({ id: index, value }))}
           label="风味描述"
-          placeholder={flavors.length === 0 ? '例如：茉莉花、柑橘' : '添加更多'}
+          placeholder={flavors.length === 0 ? '输入风味，逗号分隔' : '继续添加'}
           suggestions={flavorSuggestions.suggestions}
           onAdd={onAddFlavor}
           onUpdate={(id, value) => onUpdateFlavor(Number(id), value)}

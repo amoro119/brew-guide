@@ -394,7 +394,9 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
               value={bean.name || ''}
               onChange={onBeanChange('name')}
               placeholder={
-                roasterFieldEnabled ? '例如：花魁 8.0' : '例如：前街 花魁 8.0'
+                roasterFieldEnabled
+                  ? '例如：花魁 8.0'
+                  : '例如：某某咖啡 花魁 8.0'
               }
               suggestions={[]}
               required
