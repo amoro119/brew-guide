@@ -48,6 +48,10 @@ import {
 } from '@/lib/utils/coffeeBeanUtils';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
+import {
+  getEnabledBeanFieldIds,
+  resolveBeanFieldConfig,
+} from '@/lib/coffee-beans/beanFields';
 import { captureImage } from '@/lib/utils/imageCapture';
 
 type ImageSourceTarget = 'front' | 'back';
@@ -267,6 +271,9 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
 
     // 获取设置和所有咖啡豆用于烘焙商建议
     const settings = useSettingsStore(state => state.settings);
+    const enabledBlendComponentFields = getEnabledBeanFieldIds(
+      resolveBeanFieldConfig(settings)
+    );
     const allBeans = useCoffeeBeanStore(state => state.beans);
 
     const roasterSuggestions = React.useMemo(() => {
@@ -478,7 +485,8 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
               prev,
               safeValue,
               blendComponentSuggestions,
-              blendComponentNameAutofillRef.current
+              blendComponentNameAutofillRef.current,
+              enabledBlendComponentFields
             );
 
             blendComponentNameAutofillRef.current =
