@@ -268,6 +268,20 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
 
       return draft;
     });
+    const initialImage = initialBean?.image;
+    const initialBackImage = initialBean?.backImage;
+
+    useEffect(() => {
+      if (!initialImage && !initialBackImage) return;
+
+      setBean(prev => ({
+        ...prev,
+        ...(initialImage && !prev.image ? { image: initialImage } : {}),
+        ...(initialBackImage && !prev.backImage
+          ? { backImage: initialBackImage }
+          : {}),
+      }));
+    }, [initialImage, initialBackImage]);
 
     // 获取设置和所有咖啡豆用于烘焙商建议
     const settings = useSettingsStore(state => state.settings);
