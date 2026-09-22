@@ -142,7 +142,7 @@ const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
         <div
           className={
             isSettings
-              ? 'mr-4 min-w-0 flex-1 text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200'
+              ? 'mr-4 shrink-0 text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200'
               : 'w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400'
           }
         >

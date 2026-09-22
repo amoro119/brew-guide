@@ -59,7 +59,7 @@ const TagListField: React.FC<TagListFieldProps> = ({
     <div
       className={
         isSettings
-          ? 'flex w-48 max-w-[52vw] flex-wrap items-center justify-end gap-x-1.5 gap-y-2'
+          ? 'flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-1.5 gap-y-2'
           : '-mt-0.5 flex min-w-0 flex-1 flex-wrap items-center gap-1'
       }
     >

@@ -463,7 +463,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           ref={setReferenceElement}
           className={cn(
             'relative w-full',
-            variant === 'setting' && 'flex items-center'
+            variant === 'setting' &&
+              'flex w-fit max-w-full min-w-0 items-center'
           )}
         >
           <input
@@ -493,10 +494,10 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
               }
             }}
             className={cn(
-              'w-full bg-transparent outline-hidden',
+              'bg-transparent outline-hidden',
               variant === 'setting'
-                ? 'h-3.5 text-right text-sm leading-none font-medium text-neutral-800 placeholder:text-neutral-400 dark:text-neutral-200 dark:placeholder:text-neutral-500'
-                : 'border-b border-neutral-300 py-2 focus:border-neutral-800/50 dark:border-neutral-700 dark:focus:border-neutral-400',
+                ? 'field-sizing-content h-3.5 w-auto max-w-full min-w-[1ch] text-right text-sm leading-none font-medium text-neutral-800 placeholder:text-neutral-400 dark:text-neutral-200 dark:placeholder:text-neutral-500'
+                : 'w-full border-b border-neutral-300 py-2 focus:border-neutral-800/50 dark:border-neutral-700 dark:focus:border-neutral-400',
               disabled && 'cursor-not-allowed opacity-60',
               readOnly && 'cursor-pointer',
               className

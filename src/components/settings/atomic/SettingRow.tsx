@@ -110,7 +110,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
         } ${!isLast ? 'border-b border-black/5 dark:border-white/5' : ''}`}
       >
         {label && (
-          <div className="mr-4 flex min-w-0 flex-1 flex-col">
+          <div className="mr-4 flex shrink-0 flex-col">
             <span className="truncate text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
               {isSubSetting && (
                 <span className="mr-1.5 inline-block text-neutral-500 opacity-50 dark:text-neutral-400">
@@ -128,7 +128,9 @@ const SettingRow: React.FC<SettingRowProps> = ({
           </div>
         )}
         {hasContent && (
-          <div className="flex shrink-0 items-center">{children}</div>
+          <div className="flex min-w-0 flex-1 items-center justify-end">
+            {children}
+          </div>
         )}
       </RowContent>
     </div>

@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { useSettingPageLayoutMode } from './SettingPageLayoutContext';
 
@@ -43,6 +45,39 @@ const SettingSection: React.FC<SettingSectionProps> = ({
   };
 
   const isCapsule = getIsCapsule();
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const [isCapsuleWrapped, setIsCapsuleWrapped] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    if (!isCapsule) return;
+
+    const contentElement = contentRef.current;
+    if (!contentElement) return;
+
+    let frame = 0;
+    const updateShape = () => {
+      frame = 0;
+      // 胶囊只适合单行内容，内容换行撑高后改用卡片圆角。
+      setIsCapsuleWrapped(contentElement.getBoundingClientRect().height > 48);
+    };
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateShape);
+    };
+
+    scheduleUpdate();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(contentElement);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isCapsule]);
 
   // 处理子元素，自动注入 isLast 属性
   const renderChildren = () => {
@@ -92,8 +127,9 @@ const SettingSection: React.FC<SettingSectionProps> = ({
         children
       ) : (
         <div
+          ref={contentRef}
           className={`overflow-hidden bg-neutral-100 dark:bg-neutral-800/40 ${
-            isCapsule ? 'rounded-full' : 'rounded-xl'
+            isCapsule && !isCapsuleWrapped ? 'rounded-full' : 'rounded-xl'
           }`}
         >
           {content}

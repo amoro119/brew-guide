@@ -18,7 +18,7 @@ const SettingValue: React.FC<SettingValueProps> = ({
 }) => (
   <div
     className={cn(
-      'flex h-3.5 w-48 max-w-[52vw] min-w-0 items-center justify-end gap-x-1.5',
+      'flex h-3.5 w-fit max-w-full min-w-0 items-center justify-end gap-x-1.5',
       className
     )}
   >
