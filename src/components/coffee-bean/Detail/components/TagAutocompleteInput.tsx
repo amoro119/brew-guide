@@ -60,7 +60,7 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    placement: 'bottom-start',
+    placement: 'bottom-end',
     strategy: 'fixed',
     middleware: autocompleteDropdownMiddleware,
     whileElementsMounted: autoUpdateAutocompleteDropdown,

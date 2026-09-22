@@ -110,10 +110,15 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     () => createAutocompleteDropdownMiddleware(),
     []
   );
+  const resolvedDropdownPlacement = (
+    variant === 'setting'
+      ? dropdownPlacement.replace('-start', '-end')
+      : dropdownPlacement
+  ) as Placement;
   const { refs, floatingStyles } = useFloating({
     open,
     onOpenChange: setOpen,
-    placement: dropdownPlacement,
+    placement: resolvedDropdownPlacement,
     strategy: 'fixed',
     middleware: dropdownMiddleware,
     whileElementsMounted: autoUpdateAutocompleteDropdown,
@@ -551,8 +556,14 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 ...floatingStyles,
                 zIndex: SUGGESTION_DROPDOWN_Z_INDEX,
                 width:
-                  refs.reference.current?.getBoundingClientRect().width ??
-                  undefined,
+                  variant === 'setting'
+                    ? Math.max(
+                        refs.reference.current?.getBoundingClientRect().width ??
+                          0,
+                        128
+                      )
+                    : (refs.reference.current?.getBoundingClientRect().width ??
+                      undefined),
               }}
             />
           </FloatingPortal>
