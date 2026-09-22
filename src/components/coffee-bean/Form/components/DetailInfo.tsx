@@ -1,10 +1,12 @@
 import React from 'react';
+import { CalendarCheck, Settings2, Snowflake, TimerReset } from 'lucide-react';
 import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
 import SettingSection from '@/components/settings/atomic/SettingSection';
 import SettingRow from '@/components/settings/atomic/SettingRow';
 import SettingValue from '@/components/settings/atomic/SettingValue';
 import BlendComponents from './BlendComponents';
 import { ExtendedCoffeeBean, BlendComponent } from '../types';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 
 type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
@@ -37,6 +39,9 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
   autoSetFlavorPeriod,
   toggleFrozenState,
 }) => {
+  const showBeanFormIcons = useSettingsStore(
+    state => state.settings.showBeanFormIcons === true
+  );
   const startDay = Number(bean.startDay || 0);
   const endDay = Number(bean.endDay || 0);
   const flavorPeriodFooter =
@@ -68,7 +73,10 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
 
       {!bean.isInTransit && !bean.isFrozen && (
         <SettingSection title="赏味期" footer={flavorPeriodFooter}>
-          <SettingRow label="养豆期结束">
+          <SettingRow
+            label="养豆期结束"
+            icon={showBeanFormIcons ? TimerReset : undefined}
+          >
             <SettingValue trailing="天">
               <AutocompleteInput
                 value={bean.startDay ? String(bean.startDay) : ''}
@@ -81,7 +89,10 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
               />
             </SettingValue>
           </SettingRow>
-          <SettingRow label="赏味期结束">
+          <SettingRow
+            label="赏味期结束"
+            icon={showBeanFormIcons ? CalendarCheck : undefined}
+          >
             <SettingValue trailing="天">
               <AutocompleteInput
                 value={bean.endDay ? String(bean.endDay) : ''}
@@ -94,7 +105,10 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
               />
             </SettingValue>
           </SettingRow>
-          <SettingRow label="操作">
+          <SettingRow
+            label="操作"
+            icon={showBeanFormIcons ? Settings2 : undefined}
+          >
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -122,7 +136,22 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
             onClick={toggleFrozenState}
             className="flex w-full cursor-pointer items-center justify-between px-3.5 py-3.5 text-sm font-medium text-neutral-800 transition active:opacity-70 dark:text-neutral-200"
           >
-            <span>当前状态</span>
+            <span
+              className={`flex items-center gap-2 ${
+                showBeanFormIcons
+                  ? 'text-neutral-500 dark:text-neutral-400'
+                  : ''
+              }`}
+            >
+              {showBeanFormIcons && (
+                <Snowflake
+                  className="size-4 shrink-0"
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              )}
+              当前状态
+            </span>
             <span className="text-neutral-500 dark:text-neutral-400">
               取消冷冻
             </span>

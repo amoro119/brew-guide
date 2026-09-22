@@ -1,8 +1,10 @@
 import React from 'react';
+import { Tags } from 'lucide-react';
 import SettingSection from '@/components/settings/atomic/SettingSection';
 import SettingRow from '@/components/settings/atomic/SettingRow';
 import { ExtendedCoffeeBean } from '../types';
 import { useFlavorSuggestions } from '../hooks/useCoffeeBeanFieldSuggestions';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
 import TagListField from '@/components/coffee-bean/Detail/components/TagListField';
 
 interface FlavorInfoProps {
@@ -19,11 +21,14 @@ const FlavorInfo: React.FC<FlavorInfoProps> = ({
   onUpdateFlavor,
 }) => {
   const flavorSuggestions = useFlavorSuggestions();
+  const showBeanFormIcons = useSettingsStore(
+    state => state.settings.showBeanFormIcons === true
+  );
   const flavors = bean.flavor || [];
 
   return (
     <SettingSection title="风味">
-      <SettingRow label="风味描述">
+      <SettingRow label="风味描述" icon={showBeanFormIcons ? Tags : undefined}>
         <TagListField
           items={flavors.map((value, index) => ({ id: index, value }))}
           label="风味描述"

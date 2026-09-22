@@ -1,9 +1,11 @@
 import React from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { makeSettingRowSearchId } from '../settingsSearch';
 import { useSettingSearchHighlight } from './SettingSearchHighlightContext';
 
 interface SettingRowProps {
   label?: string; // 改为可选
+  icon?: LucideIcon;
   description?: string;
   required?: boolean;
   children?: React.ReactNode;
@@ -22,6 +24,7 @@ interface SettingRowProps {
  */
 const SettingRow: React.FC<SettingRowProps> = ({
   label,
+  icon: Icon,
   description,
   required = false,
   children,
@@ -47,6 +50,29 @@ const SettingRow: React.FC<SettingRowProps> = ({
   ) : null;
   const hasContent = React.Children.count(children) > 0;
   const rowRef = React.useRef<HTMLDivElement | null>(null);
+  const labelColorClass = Icon
+    ? 'text-neutral-500 dark:text-neutral-400'
+    : 'text-neutral-800 dark:text-neutral-200';
+  const labelContent = (
+    <>
+      {isSubSetting && (
+        <span className="inline-block text-neutral-500 opacity-50 dark:text-neutral-400">
+          —
+        </span>
+      )}
+      {Icon && (
+        <Icon
+          className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
+          strokeWidth={1.8}
+          aria-hidden="true"
+        />
+      )}
+      <span className="truncate">
+        {label}
+        {requiredMarker}
+      </span>
+    </>
+  );
 
   React.useEffect(() => {
     if (!isHighlighted) return;
@@ -75,9 +101,10 @@ const SettingRow: React.FC<SettingRowProps> = ({
         >
           {label && (
             <div className="mb-3">
-              <span className="text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
-                {label}
-                {requiredMarker}
+              <span
+                className={`flex items-center gap-2 text-sm leading-none font-medium ${labelColorClass}`}
+              >
+                {labelContent}
               </span>
               {description && (
                 <span className="mt-1.5 block text-xs font-normal text-neutral-500 dark:text-neutral-400">
@@ -111,14 +138,10 @@ const SettingRow: React.FC<SettingRowProps> = ({
       >
         {label && (
           <div className="mr-4 flex shrink-0 flex-col">
-            <span className="truncate text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
-              {isSubSetting && (
-                <span className="mr-1.5 inline-block text-neutral-500 opacity-50 dark:text-neutral-400">
-                  —
-                </span>
-              )}
-              {label}
-              {requiredMarker}
+            <span
+              className={`flex items-center gap-2 text-sm leading-none font-medium ${labelColorClass}`}
+            >
+              {labelContent}
             </span>
             {description && (
               <span className="mt-1.5 text-xs font-normal text-neutral-500 dark:text-neutral-400">

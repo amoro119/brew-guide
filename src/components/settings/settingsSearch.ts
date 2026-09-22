@@ -405,6 +405,7 @@ export const buildSettingsSearchItems = ({
         '标签打印',
         '评分',
         '十分位制',
+        ...(settings.immersiveAdd ? [] : ['表单图标']),
         '沉浸式表单',
         '自动填充图片',
         '烘焙商',

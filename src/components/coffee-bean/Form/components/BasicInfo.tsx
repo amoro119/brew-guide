@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { ChevronRight, ImagePlus, Plus, X } from 'lucide-react';
+import {
+  BadgeJapaneseYen,
+  Bean,
+  CalendarDays,
+  ChevronRight,
+  Droplets,
+  Flame,
+  ImagePlus,
+  Plus,
+  ShoppingCart,
+  Store,
+  Truck,
+  Weight,
+  X,
+} from 'lucide-react';
 import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
 import { DatePicker } from '@/components/common/ui/DatePicker';
 import SettingSection from '@/components/settings/atomic/SettingSection';
@@ -14,6 +28,7 @@ import {
 import { ExtendedCoffeeBean } from '../types';
 import { usePresetSuggestions } from '../hooks/usePresetSuggestions';
 import { useRoastLevelSuggestions } from '../hooks/useCoffeeBeanFieldSuggestions';
+import { useSettingsStore } from '@/lib/stores/settingsStore';
 
 interface BasicInfoProps {
   bean: Omit<ExtendedCoffeeBean, 'id' | 'timestamp'>;
@@ -89,6 +104,9 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
     roasterSuggestions
   );
   const roastLevelSuggestions = useRoastLevelSuggestions();
+  const showBeanFormIcons = useSettingsStore(
+    state => state.settings.showBeanFormIcons === true
+  );
 
   const updateRoastLevel = (value: string) => {
     if (bean.roastLevel !== value) {
@@ -347,7 +365,10 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
 
       <SettingSection>
         {roasterFieldEnabled && (
-          <SettingRow label={isGreenBean(bean) ? '生豆商' : '烘焙商'}>
+          <SettingRow
+            label={isGreenBean(bean) ? '生豆商' : '烘焙商'}
+            icon={showBeanFormIcons ? Store : undefined}
+          >
             <SettingValue>
               <AutocompleteInput
                 value={bean.roaster || ''}
@@ -363,7 +384,11 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             </SettingValue>
           </SettingRow>
         )}
-        <SettingRow label="咖啡豆名称" required>
+        <SettingRow
+          label="咖啡豆名称"
+          icon={showBeanFormIcons ? Bean : undefined}
+          required
+        >
           <SettingValue>
             <AutocompleteInput
               value={bean.name || ''}
@@ -387,7 +412,10 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
       </SettingSection>
 
       <SettingSection title={isInRoastingMode ? '烘焙' : '库存'}>
-        <SettingRow label={isInRoastingMode ? '烘焙量' : '库存量'}>
+        <SettingRow
+          label={isInRoastingMode ? '烘焙量' : '库存量'}
+          icon={showBeanFormIcons ? Weight : undefined}
+        >
           <SettingValue trailing="g">
             <SettingValueInput
               type="number"
@@ -423,7 +451,16 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
           </SettingValue>
         </SettingRow>
 
-        <SettingRow label={isInRoastingMode ? '脱水率' : '价格'}>
+        <SettingRow
+          label={isInRoastingMode ? '脱水率' : '价格'}
+          icon={
+            showBeanFormIcons
+              ? isInRoastingMode
+                ? Droplets
+                : BadgeJapaneseYen
+              : undefined
+          }
+        >
           {isInRoastingMode ? (
             <SettingValue trailing="%">
               <SettingValueInput
@@ -456,7 +493,11 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
         </SettingRow>
 
         {isEdit && onRepurchase && !isRepurchasing && !isInRoastingMode && (
-          <SettingRow label="操作" onClick={onRepurchase}>
+          <SettingRow
+            label="操作"
+            icon={showBeanFormIcons ? ShoppingCart : undefined}
+            onClick={onRepurchase}
+          >
             <span className="text-sm leading-none font-medium text-neutral-500 dark:text-neutral-400">
               续购
             </span>
@@ -465,7 +506,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
       </SettingSection>
 
       <SettingSection title="烘焙信息">
-        <SettingRow label="烘焙度">
+        <SettingRow label="烘焙度" icon={showBeanFormIcons ? Flame : undefined}>
           <SettingValue
             trailing={<ChevronRight className="size-3.5" aria-hidden="true" />}
           >
@@ -481,7 +522,10 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             />
           </SettingValue>
         </SettingRow>
-        <SettingRow label={dateLabel}>
+        <SettingRow
+          label={dateLabel}
+          icon={showBeanFormIcons ? CalendarDays : undefined}
+        >
           {bean.isInTransit && !isGreenBean(bean) ? (
             <span className="text-sm leading-none font-medium text-neutral-500 dark:text-neutral-400">
               在途中
@@ -508,7 +552,22 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             onClick={toggleInTransitState}
             className="flex w-full cursor-pointer items-center justify-between px-3.5 py-3.5 text-sm font-medium text-neutral-800 transition active:opacity-70 dark:text-neutral-200"
           >
-            <span>状态</span>
+            <span
+              className={`flex items-center gap-2 ${
+                showBeanFormIcons
+                  ? 'text-neutral-500 dark:text-neutral-400'
+                  : ''
+              }`}
+            >
+              {showBeanFormIcons && (
+                <Truck
+                  className="size-4 shrink-0"
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              )}
+              状态
+            </span>
             <span className="text-neutral-500 dark:text-neutral-400">
               {bean.isInTransit ? '取消在途' : '设为在途'}
             </span>

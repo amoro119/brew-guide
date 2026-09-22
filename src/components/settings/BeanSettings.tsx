@@ -259,6 +259,14 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
       </SettingSection>
 
       <SettingSection title="添加">
+        {!settings.immersiveAdd && (
+          <SettingRow label="表单图标">
+            <SettingToggle
+              checked={settings.showBeanFormIcons || false}
+              onChange={checked => handleChange('showBeanFormIcons', checked)}
+            />
+          </SettingRow>
+        )}
         <SettingRow label="沉浸式表单">
           <SettingToggle
             checked={settings.immersiveAdd || false}

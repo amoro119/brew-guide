@@ -1,6 +1,18 @@
 'use client';
 
 import React from 'react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Factory,
+  Globe2,
+  Hash,
+  House,
+  Map,
+  MapPin,
+  Mountain,
+  Sprout,
+  Waves,
+} from 'lucide-react';
 import { BlendComponent } from '@/types/app';
 import { useBlendComponentSuggestions } from '@/components/coffee-bean/Form/hooks/useBlendComponentSuggestions';
 import { usePresetSuggestions } from '@/components/coffee-bean/Form/hooks/usePresetSuggestions';
@@ -26,60 +38,70 @@ interface BlendComponentTagRowsProps {
 const fieldConfigs: Array<{
   field: TextBlendField;
   label: string;
+  icon: LucideIcon;
   placeholder: string;
   suggestionKey?: BlendPresetKey;
 }> = [
   {
     field: 'origin',
     label: '产地',
+    icon: MapPin,
     placeholder: '例如：埃塞俄比亚',
     suggestionKey: 'origins',
   },
   {
     field: 'country',
     label: '产国',
+    icon: Globe2,
     placeholder: '例如：埃塞俄比亚',
     suggestionKey: 'countries',
   },
   {
     field: 'region',
     label: '产区',
+    icon: Map,
     placeholder: '例如：耶加雪菲',
     suggestionKey: 'regions',
   },
   {
     field: 'estate',
     label: '庄园',
+    icon: House,
     placeholder: '例如：翡翠庄园',
     suggestionKey: 'estates',
   },
   {
     field: 'processingStation',
     label: '处理站',
+    icon: Factory,
     placeholder: '例如：孔加',
     suggestionKey: 'processingStations',
   },
   {
     field: 'altitude',
     label: '海拔',
+    icon: Mountain,
     placeholder: '例如：2000',
     suggestionKey: 'altitudes',
   },
   {
     field: 'process',
     label: '处理法',
+    icon: Waves,
     placeholder: '例如：水洗',
     suggestionKey: 'processes',
   },
   {
     field: 'batch',
     label: '批次',
+    icon: Hash,
     placeholder: '例如：A-01',
     suggestionKey: 'batches',
   },
   {
     field: 'variety',
     label: '品种',
+    icon: Sprout,
     placeholder: '例如：瑰夏',
     suggestionKey: 'varieties',
   },
@@ -111,6 +133,7 @@ interface BlendComponentTagFieldProps {
   onChange: (index: number, field: TextBlendField, value: string) => void;
   variant: 'immersive' | 'settings';
   isLast: boolean;
+  showIcon: boolean;
 }
 
 const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
@@ -120,9 +143,11 @@ const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
   onChange,
   variant,
   isLast,
+  showIcon,
 }) => {
   const entries = getFieldEntries(components, config.field);
   const isSettings = variant === 'settings';
+  const Icon = config.icon;
   const presetSuggestions = usePresetSuggestions(
     config.suggestionKey || 'origins',
     config.suggestionKey ? suggestions[config.suggestionKey] : []
@@ -142,10 +167,21 @@ const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
         <div
           className={
             isSettings
-              ? 'mr-4 shrink-0 text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200'
+              ? `mr-4 flex shrink-0 items-center text-sm leading-none font-medium ${
+                  showIcon
+                    ? 'gap-2 text-neutral-500 dark:text-neutral-400'
+                    : 'text-neutral-800 dark:text-neutral-200'
+                }`
               : 'w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400'
           }
         >
+          {isSettings && showIcon && (
+            <Icon
+              className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+          )}
           {config.label}
         </div>
         <TagListField
@@ -182,6 +218,7 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
 }) => {
   const suggestions = useBlendComponentSuggestions();
   const settings = useSettingsStore(state => state.settings);
+  const showBeanFormIcons = settings.showBeanFormIcons === true;
   const enabledFieldIds = getEnabledBeanFieldIds(
     resolveBeanFieldConfig(settings)
   );
@@ -216,6 +253,7 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
           onChange={onChange}
           variant={variant}
           isLast={index === visibleFields.length - 1}
+          showIcon={showBeanFormIcons}
         />
       ))}
     </div>

@@ -131,6 +131,7 @@ export interface AppSettings {
   enableAllGreenBeanRoastOption: boolean;
   enableCustomGreenBeanRoastInput: boolean;
   simplifiedViewLabels: boolean;
+  showBeanFormIcons?: boolean; // 是否显示咖啡豆表单字段图标，默认 false
   dateDisplayMode: 'date' | 'flavorPeriod' | 'agingDays';
   showFlavorInfo: boolean;
   showBeanNotes: boolean;
