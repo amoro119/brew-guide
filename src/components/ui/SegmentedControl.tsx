@@ -78,7 +78,7 @@ function SegmentedControl<T extends string | number | null = string>({
       {/* 滑动背景 */}
       {selectedIndex >= 0 && selectedWidth > 0 && (
         <motion.div
-          className={`absolute ${innerHeightClass} rounded-full bg-white shadow-sm dark:bg-neutral-700`}
+          className={`absolute ${innerHeightClass} rounded-full bg-white dark:bg-neutral-700`}
           initial={false}
           animate={{
             width: selectedWidth,
@@ -95,7 +95,7 @@ function SegmentedControl<T extends string | number | null = string>({
           <button
             type="button"
             key={String(option.value)}
-            className={`relative z-10 flex ${innerHeightClass} ${
+            className={`relative flex ${innerHeightClass} ${
               equalWidth ? 'flex-1' : 'min-w-14 shrink-0'
             } items-center justify-center rounded-full px-3 ${textClass} font-medium transition-colors ${
               isSelected

@@ -4,7 +4,7 @@ import React, { useRef, useEffect } from 'react';
 import { CoffeeBean } from '@/types/app';
 import HighlightText from '@/components/common/ui/HighlightText';
 import { normalizeDelimitedTextList } from '@/lib/utils/coffeeBeanUtils';
-import TagAutocompleteInput from './TagAutocompleteInput';
+import TagListField from './TagListField';
 import { useFlavorSuggestions } from '@/components/coffee-bean/Form/hooks/useCoffeeBeanFieldSuggestions';
 
 interface FlavorNotesSectionProps {
@@ -64,8 +64,6 @@ const FlavorNotesSection: React.FC<FlavorNotesSectionProps> = ({
     handleUpdateField({ flavor: nextFlavors });
   };
 
-  const placeholder = currentFlavors.length === 0 ? '输入风味，逗号分隔' : '+ ';
-
   return (
     <>
       {/* 风味 */}
@@ -74,45 +72,23 @@ const FlavorNotesSection: React.FC<FlavorNotesSectionProps> = ({
           <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
             风味
           </div>
-          <div className="-mt-0.5 flex flex-1 flex-wrap items-center gap-1">
-            {/* 已有的风味标签 */}
-            {currentFlavors.map((flavor: string, index: number) => (
-              <span
-                key={flavor}
-                contentEditable
-                suppressContentEditableWarning
-                onBlur={e => {
-                  const newValue = e.currentTarget.textContent?.trim() || '';
-                  if (newValue !== flavor) {
-                    replaceFlavor(index, newValue);
-                  }
-                }}
-                className="cursor-text bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 outline-none dark:bg-neutral-800/40 dark:text-neutral-300"
-              >
-                {flavor}
-              </span>
-            ))}
-            {/* 添加模式：输入框 */}
-            {isAddMode && (
-              <TagAutocompleteInput
-                placeholder={placeholder}
-                suggestions={flavorSuggestions.suggestions.filter(
-                  flavor => !currentFlavors.includes(flavor)
-                )}
-                isCustomPreset={flavorSuggestions.isRemovableSuggestion}
-                onRemovePreset={flavorSuggestions.removeSuggestion}
-                onCommit={appendFlavors}
-                onBackspaceEmpty={() => {
-                  if (currentFlavors.length === 0) return undefined;
-
-                  const lastFlavor = currentFlavors[currentFlavors.length - 1];
-                  const newFlavors = currentFlavors.slice(0, -1);
-                  handleUpdateField({ flavor: newFlavors });
-                  return lastFlavor;
-                }}
-              />
-            )}
-          </div>
+          <TagListField
+            items={currentFlavors.map((value, index) => ({ id: index, value }))}
+            label="风味"
+            suggestions={flavorSuggestions.suggestions}
+            onAdd={appendFlavors}
+            onUpdate={(id, value) => replaceFlavor(Number(id), value)}
+            onRemove={id => {
+              handleUpdateField({
+                flavor: currentFlavors.filter(
+                  (_, index) => index !== Number(id)
+                ),
+              });
+            }}
+            isCustomPreset={flavorSuggestions.isRemovableSuggestion}
+            onRemovePreset={flavorSuggestions.removeSuggestion}
+            showInput={isAddMode}
+          />
         </div>
       )}
 

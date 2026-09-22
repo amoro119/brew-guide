@@ -39,10 +39,10 @@ const SettingPillInput: React.FC<SettingPillInputProps> = ({
           onBlur={onBlur}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
-          className="w-auto min-w-[2ch] bg-transparent text-right text-sm text-neutral-800 placeholder:text-neutral-500 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-400"
+          className="w-auto min-w-[2ch] bg-transparent text-right text-sm text-neutral-800 placeholder:text-neutral-500 focus:outline-none dark:text-neutral-200 dark:placeholder:text-neutral-400"
         />
         {suffix && (
-          <span className="ml-1 shrink-0 text-sm text-neutral-500 dark:text-neutral-300">
+          <span className="ml-1.5 shrink-0 text-sm text-neutral-500 dark:text-neutral-300">
             {suffix}
           </span>
         )}

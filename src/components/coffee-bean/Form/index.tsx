@@ -8,12 +8,12 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import { ExtendedCoffeeBean, BlendComponent, Step, StepConfig } from './types';
+import { Camera, Images } from 'lucide-react';
+import { ExtendedCoffeeBean, BlendComponent } from './types';
 import BasicInfo from './components/BasicInfo';
 import DetailInfo from './components/DetailInfo';
 import FlavorInfo from './components/FlavorInfo';
+import NotesInfo from './components/NotesInfo';
 import {
   autofillBlendComponentsFromName,
   useBlendComponentSuggestions,
@@ -48,34 +48,33 @@ import {
 } from '@/lib/utils/coffeeBeanUtils';
 import { useCoffeeBeanStore } from '@/lib/stores/coffeeBeanStore';
 import { getCapacityChangeUpdates } from '@/lib/coffee-beans/capacityAdjustment';
+import { captureImage } from '@/lib/utils/imageCapture';
+
+type ImageSourceTarget = 'front' | 'back';
+export type CoffeeBeanDrawerPage = 'form' | 'image-source';
 
 interface CoffeeBeanFormProps {
   onSave: (bean: Omit<ExtendedCoffeeBean, 'id' | 'timestamp'>) => void;
-  onCancel: () => void;
+  onValidityChange?: (canSave: boolean) => void;
   initialBean?: ExtendedCoffeeBean;
+  isRepurchasing?: boolean;
   onRepurchase?: () => void;
-  /** 步骤变化回调，用于同步历史栈 */
-  onStepChange?: (step: number) => void;
   /** 初始豆子状态（生豆/熟豆），用于新建时自动设置 */
   initialBeanState?: 'green' | 'roasted';
   /** 当前是否处于“生豆转熟豆”烘焙流程（来源生豆ID） */
   roastingSourceBeanId?: string | null;
   /** 识别时使用的原始图片 base64（用于在表单中显示） */
   recognitionImage?: string | null;
+  activeDrawerPage?: CoffeeBeanDrawerPage;
+  imageSourceTarget?: ImageSourceTarget;
+  onOpenImageSourcePage?: (target: ImageSourceTarget) => void;
+  onCloseImageSourcePage?: () => void;
 }
 
 // 暴露给父组件的方法
 export interface CoffeeBeanFormHandle {
-  handleBackStep: () => boolean;
-  goToStep: (step: number) => void;
-  getCurrentStep: () => number;
+  done: () => void;
 }
-
-const steps: StepConfig[] = [
-  { id: 'basic', label: '基本信息' },
-  { id: 'detail', label: '详细信息' },
-  { id: 'flavor', label: '风味描述' },
-];
 
 const getTodayLocalDateString = () => {
   const today = new Date();
@@ -193,20 +192,20 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
   (
     {
       onSave,
-      onCancel: _onCancel,
+      onValidityChange,
       initialBean,
+      isRepurchasing = false,
       onRepurchase,
-      onStepChange,
       initialBeanState,
       roastingSourceBeanId,
       recognitionImage,
+      activeDrawerPage = 'form',
+      imageSourceTarget = 'front',
+      onOpenImageSourcePage,
+      onCloseImageSourcePage,
     },
     ref
   ) => {
-    // 当前步骤状态
-    const [currentStep, setCurrentStep] = useState<Step>('basic');
-    const inputRef = useRef<HTMLInputElement>(null);
-
     // 添加一个状态来跟踪正在编辑的剩余容量输入
     const [editingRemaining, setEditingRemaining] = useState<string | null>(
       null
@@ -266,9 +265,6 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       return draft;
     });
 
-    // 定义额外的状态来跟踪风味标签输入
-    const [flavorInput, setFlavorInput] = useState('');
-
     // 获取设置和所有咖啡豆用于烘焙商建议
     const settings = useSettingsStore(state => state.settings);
     const allBeans = useCoffeeBeanStore(state => state.beans);
@@ -290,13 +286,6 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
 
     // 烘焙商图标仅用于显示，不存储到咖啡豆数据
     const roasterLogo = useRoasterLogo(roasterLogoName);
-
-    // 自动聚焦输入框
-    useEffect(() => {
-      if (currentStep === 'basic' && inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, [currentStep]);
 
     // 验证剩余容量，确保不超过总容量（失焦时再次验证）
     const validateRemaining = useCallback(() => {
@@ -342,67 +331,15 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       [initialBean, bean.beanType]
     );
 
-    // 获取当前步骤索引
-    const getCurrentStepIndex = () => {
-      return steps.findIndex(step => step.id === currentStep);
-    };
-
-    // 暴露给父组件的方法
-    useImperativeHandle(ref, () => ({
-      // 返回 true 表示处理了返回（返回上一步），false 表示已在第一步
-      handleBackStep: () => {
-        const currentIndex = getCurrentStepIndex();
-        if (currentIndex > 0) {
-          setCurrentStep(steps[currentIndex - 1].id);
-          return true; // 处理了返回
-        }
-        return false; // 已经在第一步，无法再返回
-      },
-      // 直接跳转到指定步骤
-      goToStep: (step: number) => {
-        if (step >= 1 && step <= steps.length) {
-          setCurrentStep(steps[step - 1].id);
-        }
-      },
-      // 获取当前步骤号（1-based）
-      getCurrentStep: () => {
-        return getCurrentStepIndex() + 1;
-      },
-    }));
-
-    // 下一步
-    const handleNextStep = () => {
-      validateRemaining();
-
-      const currentIndex = getCurrentStepIndex();
-      if (currentIndex < steps.length - 1) {
-        const nextStep = currentIndex + 2; // 步骤号从 1 开始
-        setCurrentStep(steps[currentIndex + 1].id);
-        // 通知父组件步骤变化，让它推入新历史
-        onStepChange?.(nextStep);
-      } else {
-        handleSubmit();
-      }
-    };
-
-    // 上一步/返回 - 通过历史栈管理
-    const handleBack = () => {
-      validateRemaining();
-      // 使用历史栈的 back()，这会触发 onStepChange 或 onClose
-      modalHistory.back();
-    };
-
     // 添加风味标签
-    const handleAddFlavor = (flavorValue?: string) => {
-      const value = flavorValue || flavorInput;
-      const nextFlavors = normalizeDelimitedTextList(value);
+    const handleAddFlavor = (flavorValue: string) => {
+      const nextFlavors = normalizeDelimitedTextList(flavorValue);
       if (nextFlavors.length === 0) return;
 
       setBean(prev => ({
         ...prev,
         flavor: Array.from(new Set([...(prev.flavor || []), ...nextFlavors])),
       }));
-      if (!flavorValue) setFlavorInput('');
     };
 
     // 移除风味标签
@@ -411,6 +348,16 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
         ...prev,
         flavor: prev.flavor?.filter((f: string) => f !== flavor) || [],
       }));
+    };
+
+    const handleUpdateFlavor = (index: number, flavorValue: string) => {
+      const nextFlavors = normalizeDelimitedTextList(flavorValue);
+
+      setBean(prev => {
+        const flavors = [...(prev.flavor || [])];
+        flavors.splice(index, 1, ...nextFlavors);
+        return { ...prev, flavor: Array.from(new Set(flavors)) };
+      });
     };
 
     // 根据烘焙度自动设置赏味期参数
@@ -547,71 +494,14 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
         }
       };
 
-    // 添加拼配成分处理函数
-    const handleAddBlendComponent = () => {
-      setBlendComponents(prev => {
-        const totalPercentage = prev.reduce(
-          (sum, comp) => (comp.percentage ? sum + comp.percentage : sum),
-          0
-        );
-
-        if (prev.length > 1 && totalPercentage >= 100) {
-          return prev;
-        }
-
-        return [
-          ...prev,
-          {
-            origin: '',
-            country: '',
-            region: '',
-            estate: '',
-            processingStation: '',
-            altitude: '',
-            process: '',
-            batch: '',
-            variety: '',
-          },
-        ];
-      });
-    };
-
-    const handleRemoveBlendComponent = (index: number) => {
-      setBlendComponents(prev =>
-        prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
-      );
-    };
-
     const handleBlendComponentChange = (
       index: number,
-      field: keyof BlendComponent,
-      value: string | number
+      field: Exclude<keyof BlendComponent, 'percentage'>,
+      value: string
     ) => {
-      setBlendComponents(prev => {
-        const newComponents = [...prev];
-
-        if (field === 'percentage') {
-          if (value === '' || value === null || value === undefined) {
-            delete newComponents[index].percentage;
-          } else {
-            // 将输入值转换为数字
-            const numValue =
-              typeof value === 'string' ? parseInt(value) || 0 : value;
-
-            // 直接设置值，AutocompleteInput组件的maxValue属性会负责限制最大值
-            newComponents[index].percentage = numValue;
-          }
-        } else {
-          return updateBlendComponentsDelimitedField(
-            newComponents,
-            index,
-            field,
-            value as string
-          );
-        }
-
-        return newComponents;
-      });
+      setBlendComponents(prev =>
+        updateBlendComponentsDelimitedField(prev, index, field, value)
+      );
     };
 
     // 提交表单
@@ -671,6 +561,18 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       // 调用保存回调
       onSave(finalBean);
     };
+
+    useImperativeHandle(ref, () => ({
+      done: () => {
+        void handleSubmit();
+      },
+    }));
+
+    const canSave = isBeanReadyToSave(bean);
+
+    useEffect(() => {
+      onValidityChange?.(canSave);
+    }, [canSave, onValidityChange]);
 
     // 切换冷冻状态
     const toggleFrozenState = () => {
@@ -751,164 +653,103 @@ const CoffeeBeanForm = forwardRef<CoffeeBeanFormHandle, CoffeeBeanFormProps>(
       }
     };
 
-    // 渲染进度条
-    const renderProgressBar = () => {
-      const currentIndex = getCurrentStepIndex();
-      const progress = ((currentIndex + 1) / steps.length) * 100;
+    const handleImageSourceSelect = async (source: 'camera' | 'gallery') => {
+      try {
+        const result = await captureImage({ source });
+        const response = await fetch(result.dataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `image.${result.format}`, {
+          type: `image/${result.format}`,
+        });
 
-      return (
-        <div className="h-1 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-          <div
-            className="h-full bg-neutral-800 transition-all duration-300 ease-in-out dark:bg-neutral-200"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      );
-    };
-
-    // 渲染步骤内容
-    const renderStepContent = () => {
-      switch (currentStep) {
-        case 'basic':
-          return (
-            <BasicInfo
-              bean={bean}
-              onBeanChange={handleInputChange}
-              onImageUpload={handleImageUpload}
-              onBackImageUpload={handleBackImageUpload}
-              editingRemaining={editingRemaining}
-              validateRemaining={validateRemaining}
-              handleCapacityBlur={handleCapacityBlur}
-              toggleInTransitState={toggleInTransitState}
-              isEdit={!!initialBean}
-              onRepurchase={onRepurchase}
-              recognitionImage={recognitionImage}
-              onCapacityChange={handleCapacityChangeForTypeInference}
-              roasterLogo={roasterLogo}
-              roasterFieldEnabled={settings.roasterFieldEnabled}
-              roasterSuggestions={roasterSuggestions}
-              roastingSourceBeanId={roastingSourceBeanId}
-            />
-          );
-
-        case 'detail':
-          return (
-            <DetailInfo
-              bean={bean}
-              onBeanChange={handleInputChange}
-              blendComponents={blendComponents}
-              onBlendComponentsChange={{
-                add: handleAddBlendComponent,
-                remove: handleRemoveBlendComponent,
-                change: handleBlendComponentChange,
-              }}
-              autoSetFlavorPeriod={autoSetFlavorPeriod}
-              toggleFrozenState={toggleFrozenState}
-            />
-          );
-
-        case 'flavor':
-          return (
-            <FlavorInfo
-              bean={bean}
-              flavorInput={flavorInput}
-              onFlavorInputChange={setFlavorInput}
-              onAddFlavor={handleAddFlavor}
-              onRemoveFlavor={handleRemoveFlavor}
-            />
-          );
-
-        default:
-          return null;
+        if (imageSourceTarget === 'back') {
+          await handleBackImageUpload(file);
+        } else {
+          await handleImageUpload(file);
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('打开相机/相册失败:', error);
+        }
+      } finally {
+        onCloseImageSourcePage?.();
       }
     };
 
-    const renderNextButton = () => {
-      const isLastStep = getCurrentStepIndex() === steps.length - 1;
-      const canComplete = isBeanReadyToSave(bean);
-      const showSaveButton = !isLastStep;
-      const nextButtonDisabled = isLastStep && !canComplete;
-
-      const springTransition = { stiffness: 500, damping: 25 };
-      const buttonBaseClass =
-        'rounded-full bg-neutral-100 text-neutral-800 transition-opacity disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-800 dark:text-neutral-100';
-
+    if (activeDrawerPage === 'image-source') {
       return (
-        <div className="pb-safe-bottom flex items-center justify-center pt-4">
-          <div className="flex items-center justify-center gap-2">
-            <AnimatePresence mode="popLayout">
-              {showSaveButton && (
-                <motion.button
-                  key="save-button"
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canComplete}
-                  className={`${buttonBaseClass} flex shrink-0 items-center gap-2 px-4 py-3`}
-                  title="快速保存"
-                  initial={{ scale: 0.8, opacity: 0, x: 15 }}
-                  animate={{ scale: 1, opacity: canComplete ? 1 : 0.5, x: 0 }}
-                  exit={{ scale: 0.8, opacity: 0, x: 15 }}
-                  whileHover={canComplete ? { scale: 1.05 } : undefined}
-                  whileTap={canComplete ? { scale: 0.96 } : undefined}
-                  transition={springTransition}
-                >
-                  <Check className="h-4 w-4" strokeWidth="3" />
-                  <span className="font-medium">完成</span>
-                </motion.button>
-              )}
-            </AnimatePresence>
-
-            <motion.button
-              layout
+        <div className="px-6 pb-5">
+          <div className="overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-800">
+            <button
               type="button"
-              onClick={handleNextStep}
-              disabled={nextButtonDisabled}
-              transition={springTransition}
-              whileHover={!nextButtonDisabled ? { scale: 1.05 } : undefined}
-              whileTap={!nextButtonDisabled ? { scale: 0.96 } : undefined}
-              className={`${buttonBaseClass} flex items-center justify-center ${isLastStep ? 'px-6 py-3' : 'p-4'}`}
+              onClick={() => void handleImageSourceSelect('camera')}
+              className="flex w-full items-center gap-3 px-4 py-4 text-left text-sm font-medium text-neutral-800 transition active:bg-black/5 dark:text-neutral-100 dark:active:bg-white/5"
             >
-              {isLastStep ? (
-                <span className="font-medium">完成</span>
-              ) : (
-                <ArrowRight className="h-4 w-4" strokeWidth="3" />
-              )}
-            </motion.button>
+              <Camera
+                className="size-5 text-neutral-500 dark:text-neutral-400"
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+              拍照
+            </button>
+            <div className="ml-12 h-px bg-neutral-200 dark:bg-neutral-700" />
+            <button
+              type="button"
+              onClick={() => void handleImageSourceSelect('gallery')}
+              className="flex w-full items-center gap-3 px-4 py-4 text-left text-sm font-medium text-neutral-800 transition active:bg-black/5 dark:text-neutral-100 dark:active:bg-white/5"
+            >
+              <Images
+                className="size-5 text-neutral-500 dark:text-neutral-400"
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+              相册
+            </button>
           </div>
         </div>
       );
-    };
-
-    // 钩子函数确保任何步骤切换时都验证剩余容量
-    useEffect(() => {
-      validateRemaining();
-    }, [currentStep, validateRemaining]);
+    }
 
     return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="shrink-0 py-6">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="-m-3 cursor-pointer rounded-full p-3"
-            >
-              <ArrowLeft className="h-5 w-5 text-neutral-800 dark:text-neutral-200" />
-            </button>
+      <div className="pt-1">
+        <BasicInfo
+          bean={bean}
+          onBeanChange={handleInputChange}
+          editingRemaining={editingRemaining}
+          validateRemaining={validateRemaining}
+          handleCapacityBlur={handleCapacityBlur}
+          toggleInTransitState={toggleInTransitState}
+          isEdit={!!initialBean}
+          isRepurchasing={isRepurchasing}
+          onRepurchase={onRepurchase}
+          recognitionImage={recognitionImage}
+          onCapacityChange={handleCapacityChangeForTypeInference}
+          roasterLogo={roasterLogo}
+          roasterFieldEnabled={settings.roasterFieldEnabled}
+          roasterSuggestions={roasterSuggestions}
+          roastingSourceBeanId={roastingSourceBeanId}
+          onOpenImageSourcePage={onOpenImageSourcePage}
+        />
 
-            <div className="flex-1 px-4">{renderProgressBar()}</div>
+        <DetailInfo
+          bean={bean}
+          onBeanChange={handleInputChange}
+          blendComponents={blendComponents}
+          onBlendComponentsChange={{
+            change: handleBlendComponentChange,
+          }}
+          autoSetFlavorPeriod={autoSetFlavorPeriod}
+          toggleFrozenState={toggleFrozenState}
+        />
 
-            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-              {getCurrentStepIndex() + 1}/{steps.length}
-            </div>
-          </div>
-        </div>
+        <FlavorInfo
+          bean={bean}
+          onAddFlavor={handleAddFlavor}
+          onRemoveFlavor={handleRemoveFlavor}
+          onUpdateFlavor={handleUpdateFlavor}
+        />
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-          <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
-        </div>
-
-        <div className="shrink-0">{renderNextButton()}</div>
+        <NotesInfo bean={bean} onBeanChange={handleInputChange} />
       </div>
     );
   }

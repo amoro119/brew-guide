@@ -4,7 +4,7 @@ import React from 'react';
 import { BlendComponent } from '@/types/app';
 import { useBlendComponentSuggestions } from '@/components/coffee-bean/Form/hooks/useBlendComponentSuggestions';
 import { usePresetSuggestions } from '@/components/coffee-bean/Form/hooks/usePresetSuggestions';
-import TagAutocompleteInput from './TagAutocompleteInput';
+import TagListField from './TagListField';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import {
   getComponentFieldValue,
@@ -20,6 +20,7 @@ interface BlendComponentTagRowsProps {
   components: BlendComponent[];
   showEstateField: boolean;
   onChange: (index: number, field: TextBlendField, value: string) => void;
+  variant?: 'immersive' | 'settings';
 }
 
 const fieldConfigs: Array<{
@@ -31,55 +32,55 @@ const fieldConfigs: Array<{
   {
     field: 'origin',
     label: '产地',
-    placeholder: '输入产地，逗号分隔',
+    placeholder: '例如：埃塞俄比亚',
     suggestionKey: 'origins',
   },
   {
     field: 'country',
     label: '产国',
-    placeholder: '输入产国，逗号分隔',
+    placeholder: '例如：埃塞俄比亚',
     suggestionKey: 'countries',
   },
   {
     field: 'region',
     label: '产区',
-    placeholder: '输入产区，逗号分隔',
+    placeholder: '例如：耶加雪菲',
     suggestionKey: 'regions',
   },
   {
     field: 'estate',
     label: '庄园',
-    placeholder: '输入庄园，逗号分隔',
+    placeholder: '例如：翡翠庄园',
     suggestionKey: 'estates',
   },
   {
     field: 'processingStation',
     label: '处理站',
-    placeholder: '输入处理站，逗号分隔',
+    placeholder: '例如：孔加',
     suggestionKey: 'processingStations',
   },
   {
     field: 'altitude',
     label: '海拔',
-    placeholder: '输入海拔，逗号分隔',
+    placeholder: '例如：2000',
     suggestionKey: 'altitudes',
   },
   {
     field: 'process',
     label: '处理法',
-    placeholder: '输入处理法，逗号分隔',
+    placeholder: '例如：水洗',
     suggestionKey: 'processes',
   },
   {
     field: 'batch',
     label: '批次',
-    placeholder: '输入批次，逗号分隔',
+    placeholder: '例如：A-01',
     suggestionKey: 'batches',
   },
   {
     field: 'variety',
     label: '品种',
-    placeholder: '输入品种，逗号分隔',
+    placeholder: '例如：瑰夏',
     suggestionKey: 'varieties',
   },
 ];
@@ -108,6 +109,8 @@ interface BlendComponentTagFieldProps {
   components: BlendComponent[];
   suggestions: ReturnType<typeof useBlendComponentSuggestions>;
   onChange: (index: number, field: TextBlendField, value: string) => void;
+  variant: 'immersive' | 'settings';
+  isLast: boolean;
 }
 
 const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
@@ -115,59 +118,56 @@ const BlendComponentTagField: React.FC<BlendComponentTagFieldProps> = ({
   components,
   suggestions,
   onChange,
+  variant,
+  isLast,
 }) => {
   const entries = getFieldEntries(components, config.field);
-  const placeholder = entries.length === 0 ? config.placeholder : '+ ';
+  const isSettings = variant === 'settings';
   const presetSuggestions = usePresetSuggestions(
     config.suggestionKey || 'origins',
     config.suggestionKey ? suggestions[config.suggestionKey] : []
   );
 
   return (
-    <div className="flex items-start">
-      <div className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-        {config.label}
-      </div>
-      <div className="-mt-0.5 flex min-w-0 flex-1 flex-wrap items-center gap-1">
-        {entries.map(entry => (
-          <span
-            key={`${config.field}-${entry.index}`}
-            contentEditable
-            suppressContentEditableWarning
-            onBlur={event => {
-              const nextValue = event.currentTarget.textContent?.trim() || '';
-
-              if (nextValue !== entry.value) {
-                onChange(entry.index, config.field, nextValue);
-              }
-            }}
-            className="cursor-text bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 outline-none dark:bg-neutral-800/40 dark:text-neutral-300"
-          >
-            {entry.value}
-          </span>
-        ))}
-
-        <TagAutocompleteInput
-          placeholder={placeholder}
-          suggestions={presetSuggestions.suggestions.filter(
-            suggestion => !entries.some(entry => entry.value === suggestion)
-          )}
-          isCustomPreset={presetSuggestions.isRemovableSuggestion}
-          onRemovePreset={presetSuggestions.removeSuggestion}
-          onCommit={value =>
+    <div className={isSettings ? 'px-3.5' : undefined}>
+      <div
+        className={
+          isSettings
+            ? `flex items-center justify-between py-3.5 ${
+                isLast ? '' : 'border-b border-black/5 dark:border-white/5'
+              }`
+            : 'flex items-start'
+        }
+      >
+        <div
+          className={
+            isSettings
+              ? 'mr-4 min-w-0 flex-1 text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200'
+              : 'w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400'
+          }
+        >
+          {config.label}
+        </div>
+        <TagListField
+          items={entries.map(entry => ({
+            id: entry.index,
+            value: entry.value,
+          }))}
+          label={config.label}
+          placeholder={entries.length === 0 ? config.placeholder : '继续添加'}
+          suggestions={presetSuggestions.suggestions}
+          onAdd={value =>
             onChange(
               getAppendIndex(components, config.field),
               config.field,
               value
             )
           }
-          onBackspaceEmpty={() => {
-            if (!entries.length) return undefined;
-
-            const lastEntry = entries[entries.length - 1];
-            onChange(lastEntry.index, config.field, '');
-            return lastEntry.value;
-          }}
+          onUpdate={(id, value) => onChange(Number(id), config.field, value)}
+          onRemove={id => onChange(Number(id), config.field, '')}
+          isCustomPreset={presetSuggestions.isRemovableSuggestion}
+          onRemovePreset={presetSuggestions.removeSuggestion}
+          variant={variant}
         />
       </div>
     </div>
@@ -178,6 +178,7 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
   components,
   showEstateField,
   onChange,
+  variant = 'immersive',
 }) => {
   const suggestions = useBlendComponentSuggestions();
   const settings = useSettingsStore(state => state.settings);
@@ -205,14 +206,16 @@ const BlendComponentTagRows: React.FC<BlendComponentTagRowsProps> = ({
   );
 
   return (
-    <div className="space-y-3">
-      {visibleFields.map(config => (
+    <div className={variant === 'settings' ? '' : 'space-y-3'}>
+      {visibleFields.map((config, index) => (
         <BlendComponentTagField
           key={config.field}
           config={config}
           components={components}
           suggestions={suggestions}
           onChange={onChange}
+          variant={variant}
+          isLast={index === visibleFields.length - 1}
         />
       ))}
     </div>

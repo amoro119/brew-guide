@@ -98,10 +98,17 @@ export const parseDateString = (
 // 计算输入框宽度的函数
 export const calcInputWidth = (text: string, fallback: string): string => {
   const displayText = text || fallback;
-  // 每个中文字符约 2ch，英文约 1ch，额外加 1ch 余量
-  let len = 0;
-  for (let i = 0; i < displayText.length; i++) {
-    len += displayText.charCodeAt(i) > 127 ? 2 : 1;
+  // 中文按字宽计算，英文按 ch 计算，额外留 2px 光标空间
+  let fullWidthLength = 0;
+  let halfWidthLength = 0;
+
+  for (const char of displayText) {
+    if (char.charCodeAt(0) > 127) {
+      fullWidthLength += 1;
+    } else {
+      halfWidthLength += 1;
+    }
   }
-  return `${len + 1}ch`;
+
+  return `calc(${fullWidthLength}em + ${halfWidthLength}ch + 2px)`;
 };

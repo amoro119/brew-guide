@@ -11,6 +11,7 @@ export { default as SettingPage } from './SettingPage';
 // 布局组件
 export { default as SettingSection } from './SettingSection';
 export { default as SettingRow } from './SettingRow';
+export { default as SettingValue } from './SettingValue';
 export { default as SettingReorderableRow } from './SettingReorderableRow';
 export {
   SettingSearchHighlightProvider,
@@ -25,6 +26,7 @@ export { default as SettingVerticalSelector } from './SettingVerticalSelector';
 export { default as SettingCardSelector } from './SettingCardSelector';
 export { default as SettingSlider } from './SettingSlider';
 export { default as SettingPillInput } from './SettingPillInput';
+export { default as SettingValueInput } from './SettingValueInput';
 
 // 辅助组件
 export { default as SettingDescription } from './SettingDescription';

@@ -6,12 +6,3 @@ export type { CoffeeBean, BlendComponent };
 
 // ExtendedCoffeeBean 已移除，直接使用 CoffeeBean
 export type ExtendedCoffeeBean = CoffeeBean;
-
-// 定义步骤类型
-export type Step = 'basic' | 'detail' | 'flavor';
-
-// 步骤配置接口
-export interface StepConfig {
-  id: Step;
-  label: string;
-}

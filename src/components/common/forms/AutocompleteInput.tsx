@@ -52,6 +52,7 @@ interface AutocompleteInputProps {
   onSuggestionSelect?: (value: string) => void;
   suggestionSelectMode?: 'fill' | 'commit';
   dropdownPlacement?: Extract<Placement, 'bottom-start' | 'top-start'>;
+  variant?: 'default' | 'setting';
   // 新增：回车键回调
   onEnter?: () => void;
 }
@@ -90,6 +91,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   onSuggestionSelect,
   suggestionSelectMode = 'fill',
   dropdownPlacement = 'bottom-start',
+  variant = 'default',
   // 新增：回车键回调
   onEnter,
 }) => {
@@ -457,7 +459,13 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       )}
 
       <div className="relative">
-        <div ref={setReferenceElement} className="relative w-full">
+        <div
+          ref={setReferenceElement}
+          className={cn(
+            'relative w-full',
+            variant === 'setting' && 'flex items-center'
+          )}
+        >
           <input
             ref={inputRef}
             type={inputType}
@@ -485,7 +493,10 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
               }
             }}
             className={cn(
-              'w-full border-b border-neutral-300 bg-transparent py-2 outline-hidden focus:border-neutral-800/50 dark:border-neutral-700 dark:focus:border-neutral-400',
+              'w-full bg-transparent outline-hidden',
+              variant === 'setting'
+                ? 'h-3.5 text-right text-sm leading-none font-medium text-neutral-800 placeholder:text-neutral-400 dark:text-neutral-200 dark:placeholder:text-neutral-500'
+                : 'border-b border-neutral-300 py-2 focus:border-neutral-800/50 dark:border-neutral-700 dark:focus:border-neutral-400',
               disabled && 'cursor-not-allowed opacity-60',
               readOnly && 'cursor-pointer',
               className

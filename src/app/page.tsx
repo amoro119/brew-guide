@@ -462,6 +462,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
   const [editingBean, setEditingBean] = useState<ExtendedCoffeeBean | null>(
     null
   );
+  const [isRepurchasingBean, setIsRepurchasingBean] = useState(false);
   // 烘焙来源生豆ID（当从生豆详情页点击"去烘焙"时设置）
   const [roastingSourceBeanId, setRoastingSourceBeanId] = useState<
     string | null
@@ -2617,6 +2618,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
           pendingRecognitionImage ? lastImportedBean.id : null
         );
         setTimeout(() => {
+          setIsRepurchasingBean(false);
           setEditingBean(lastImportedBean);
           setShowBeanForm(true);
         }, 300);
@@ -2637,6 +2639,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
     bean: ExtendedCoffeeBean | null = null,
     beanState?: 'green' | 'roasted'
   ) => {
+    setIsRepurchasingBean(false);
+
     if (settings.immersiveAdd) {
       setShowBeanForm(false);
       setEditingBean(null);
@@ -2868,6 +2872,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
 
       setShowBeanForm(false);
       setEditingBean(null);
+      setIsRepurchasingBean(false);
       setRecognitionImage(null);
       setRecognitionImageBeanId(null);
 
@@ -4430,6 +4435,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                         return;
                       }
 
+                      setIsRepurchasingBean(false);
                       setEditingBean(bean);
                       setShowBeanForm(true);
                     }}
@@ -4488,6 +4494,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                         const newBeanData = await createRepurchaseBean(bean);
 
                         if (settings.immersiveAdd) {
+                          setIsRepurchasingBean(false);
                           setShowBeanForm(false);
                           setEditingBean(null);
                           setBeanDetailData(newBeanData as ExtendedCoffeeBean);
@@ -4498,6 +4505,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                         }
 
                         setBeanDetailOpen(false);
+                        setIsRepurchasingBean(true);
                         setEditingBean(newBeanData as ExtendedCoffeeBean);
                         setShowBeanForm(true);
                       } catch (error) {
@@ -4505,6 +4513,7 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
                       }
                     }}
                     onRoast={(greenBean, roastedBeanTemplate) => {
+                      setIsRepurchasingBean(false);
                       setRoastingSourceBeanId(greenBean.id);
                       setEditingBean(roastedBeanTemplate as ExtendedCoffeeBean);
                       setShowBeanForm(true);
@@ -4929,6 +4938,8 @@ const PourOverRecipes = ({ initialHasBeans }: { initialHasBeans: boolean }) => {
         setShowBeanForm={setShowBeanForm}
         editingBean={editingBean}
         setEditingBean={setEditingBean}
+        isRepurchasingBean={isRepurchasingBean}
+        setIsRepurchasingBean={setIsRepurchasingBean}
         editingBeanState={editingBeanState}
         setEditingBeanState={setEditingBeanState}
         roastingSourceBeanId={roastingSourceBeanId}

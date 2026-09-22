@@ -14,6 +14,7 @@ export interface DatePickerProps {
   locale?: string;
   className?: string;
   triggerClassName?: string;
+  variant?: 'default' | 'setting';
   disabled?: boolean;
   displayFormat?: string;
 }
@@ -25,6 +26,7 @@ export function DatePicker({
   locale = 'zh-CN',
   className = '',
   triggerClassName,
+  variant = 'default',
   disabled = false,
   displayFormat = 'yyyy/MM/dd',
 }: DatePickerProps) {
@@ -55,7 +57,10 @@ export function DatePicker({
         <Popover.Trigger asChild>
           <button
             className={cn(
-              'flex w-full cursor-pointer items-center justify-between border-b border-neutral-300 bg-transparent py-2 outline-hidden focus-within:border-neutral-800/50 dark:border-neutral-700 dark:focus-within:border-neutral-400',
+              'flex w-full cursor-pointer items-center bg-transparent outline-hidden',
+              variant === 'setting'
+                ? 'h-3.5 justify-end text-right text-sm leading-none font-medium'
+                : 'justify-between border-b border-neutral-300 py-2 focus-within:border-neutral-800/50 dark:border-neutral-700 dark:focus-within:border-neutral-400',
               triggerClassName
             )}
             onClick={handleTriggerClick}
@@ -63,7 +68,13 @@ export function DatePicker({
             type="button"
           >
             <span
-              className={`${!date ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-800 dark:text-white'}`}
+              className={
+                !date
+                  ? 'text-neutral-400 dark:text-neutral-500'
+                  : variant === 'setting'
+                    ? 'text-neutral-800 dark:text-neutral-200'
+                    : 'text-neutral-800 dark:text-white'
+              }
             >
               {date
                 ? format(date, displayFormat, { locale: localeObj })
@@ -74,7 +85,7 @@ export function DatePicker({
         <Popover.Portal>
           <Popover.Content
             className={cn(
-              'z-50 rounded-md border border-neutral-200/50 bg-white shadow-md dark:border-neutral-800/50 dark:bg-neutral-900',
+              'z-80 rounded-md border border-neutral-200/50 bg-white shadow-md dark:border-neutral-800/50 dark:bg-neutral-900',
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
               'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
               'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',

@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { ExtendedCoffeeBean } from './types';
-import CoffeeBeanForm from './index';
-import { useThemeColor } from '@/lib/hooks/useThemeColor';
-import {
-  useMultiStepModalHistory,
-  modalHistory,
-} from '@/lib/hooks/useModalHistory';
+import CoffeeBeanForm, {
+  type CoffeeBeanDrawerPage,
+  type CoffeeBeanFormHandle,
+} from './index';
+import PageStackDrawer, {
+  useDrawerPageStack,
+} from '@/components/common/ui/PageStackDrawer';
+import { modalHistory } from '@/lib/hooks/useModalHistory';
 import { mergeBeanWithStoredImages } from '@/lib/coffee-beans/imageRepository';
 
 interface CoffeeBeanFormModalProps {
@@ -16,6 +18,7 @@ interface CoffeeBeanFormModalProps {
   initialBean?: ExtendedCoffeeBean | null;
   onSave: (bean: Omit<ExtendedCoffeeBean, 'id' | 'timestamp'>) => void;
   onClose: () => void;
+  isRepurchasing?: boolean;
   onRepurchase?: () => void;
   initialBeanState?: 'green' | 'roasted';
   /** 当前是否处于“生豆转熟豆”烘焙流程（来源生豆ID） */
@@ -29,68 +32,52 @@ const CoffeeBeanFormModal: React.FC<CoffeeBeanFormModalProps> = ({
   initialBean,
   onSave,
   onClose,
+  isRepurchasing = false,
   onRepurchase,
   initialBeanState,
   roastingSourceBeanId,
   recognitionImage,
 }) => {
-  // 动画状态管理
-  const [shouldRender, setShouldRender] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
-
-  // 添加平台检测
-  const [isIOS, setIsIOS] = useState(false);
-  const [hydratedInitialBean, setHydratedInitialBean] =
-    useState<ExtendedCoffeeBean | null>(initialBean || null);
-
-  // 同步顶部安全区颜色
-  useThemeColor({ useOverlay: true, enabled: showForm });
-
-  // 添加对模态框的引用
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // 表单引用，用于调用表单的返回方法
-  const formRef = useRef<{
-    handleBackStep: () => boolean;
-    goToStep: (step: number) => void;
-    getCurrentStep: () => number;
+  const formRef = useRef<CoffeeBeanFormHandle>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isIOS] = useState(
+    () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
+  );
+  const [hydratedBeanState, setHydratedBeanState] = useState<{
+    source: ExtendedCoffeeBean;
+    bean: ExtendedCoffeeBean;
   } | null>(null);
+  const hydratedInitialBean =
+    hydratedBeanState && hydratedBeanState.source === initialBean
+      ? hydratedBeanState.bean
+      : initialBean || null;
+  const formContextKey = `${hydratedInitialBean?.id || 'new'}-${
+    hydratedInitialBean?.name || ''
+  }-${initialBeanState || 'roasted'}`;
+  const [validityState, setValidityState] = useState({
+    key: '',
+    canSave: false,
+  });
+  const canSave = validityState.key === formContextKey && validityState.canSave;
+  const [imageSourceTarget, setImageSourceTarget] = useState<'front' | 'back'>(
+    'front'
+  );
 
-  // 当前步骤状态 - 用于历史栈管理
-  const [currentStep, setCurrentStep] = useState(1);
-
-  // 处理显示/隐藏动画
-  useEffect(() => {
-    if (showForm) {
-      setShouldRender(showForm);
-      setCurrentStep(previousStep => (showForm ? 1 : previousStep)); // 重置步骤
-      const timer = setTimeout(() => setIsVisible(showForm), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setIsVisible(showForm);
-      // 不立即卸载 shouldRender，等动画完成后再卸载
-      const timer = setTimeout(() => setShouldRender(showForm), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [showForm]);
+  const pageStack = useDrawerPageStack<CoffeeBeanDrawerPage>(
+    'form',
+    showForm,
+    'bean-form',
+    onClose
+  );
 
   useEffect(() => {
     let cancelled = false;
-    const hasPersistedInitialBean = Boolean(initialBean?.id);
 
-    if (!showForm || !initialBean) {
-      setHydratedInitialBean(initialBean || null);
-      return;
-    }
-
-    if (!hasPersistedInitialBean) {
-      setHydratedInitialBean(initialBean || null);
-      return;
-    }
+    if (!showForm || !initialBean?.id) return;
 
     mergeBeanWithStoredImages(initialBean).then(bean => {
       if (!cancelled) {
-        setHydratedInitialBean(bean);
+        setHydratedBeanState({ source: initialBean, bean });
       }
     });
 
@@ -99,95 +86,110 @@ const CoffeeBeanFormModal: React.FC<CoffeeBeanFormModalProps> = ({
     };
   }, [showForm, initialBean]);
 
-  // 使用多步骤历史栈管理
-  useMultiStepModalHistory({
-    id: 'bean-form',
-    isOpen: showForm,
-    step: currentStep,
-    onStepChange: step => {
-      setCurrentStep(step);
-      // 同步表单内部步骤
-      formRef.current?.goToStep(step);
-    },
-    onClose,
-  });
-
-  // 检测平台
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const platform = Capacitor.getPlatform();
-      setIsIOS(platform === 'ios');
-    }
+    if (!showForm) return;
+
+    const content = contentRef.current;
+    if (!content) return;
+
+    const handleInputFocus = (event: Event) => {
+      const target = event.target as HTMLElement;
+      if (
+        !isIOS ||
+        !target ||
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      ) {
+        return;
+      }
+
+      window.setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    };
+
+    content.addEventListener('focusin', handleInputFocus);
+    return () => content.removeEventListener('focusin', handleInputFocus);
+  }, [isIOS, showForm]);
+
+  const handleClose = useCallback(() => {
+    modalHistory.back();
   }, []);
 
-  // 监听输入框聚焦，确保在iOS上输入框可见
-  useEffect(() => {
-    if (!shouldRender) return;
+  const handleDone = useCallback(() => {
+    if (pageStack.currentPage === 'image-source') {
+      pageStack.back();
+      return;
+    }
 
-    const modalElement = modalRef.current;
-    if (!modalElement) return;
+    formRef.current?.done();
+  }, [pageStack]);
 
-    const handleInputFocus = (e: Event) => {
-      const target = e.target as HTMLElement;
+  const handleBack = useCallback(() => {
+    if (pageStack.currentPage === 'image-source') {
+      pageStack.back();
+      return;
+    }
 
-      // 确定是否为输入元素
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT')
-      ) {
-        // 对于iOS，需要特殊处理
-        if (isIOS) {
-          // 延迟一点以确保键盘完全弹出
-          setTimeout(() => {
-            target.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center',
-            });
-          }, 300);
-        }
-      }
-    };
+    handleClose();
+  }, [handleClose, pageStack]);
 
-    // 只在模态框内监听聚焦事件
-    modalElement.addEventListener('focusin', handleInputFocus);
+  const handleOpenImageSourcePage = useCallback(
+    (target: 'front' | 'back') => {
+      setImageSourceTarget(target);
+      pageStack.push('image-source');
+    },
+    [pageStack]
+  );
 
-    return () => {
-      modalElement.removeEventListener('focusin', handleInputFocus);
-    };
-  }, [shouldRender, isIOS]);
+  const handleValidityChange = useCallback(
+    (nextCanSave: boolean) => {
+      setValidityState({ key: formContextKey, canSave: nextCanSave });
+    },
+    [formContextKey]
+  );
 
-  if (!shouldRender) return null;
+  const title = isRepurchasing
+    ? '续购咖啡豆'
+    : roastingSourceBeanId
+      ? '烘焙咖啡豆'
+      : initialBean
+        ? '编辑咖啡豆'
+        : '添加咖啡豆';
+  const isImageSourcePage = pageStack.currentPage === 'image-source';
 
   return (
-    <>
-      {/* 背景遮罩 */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-400 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
-      />
-
-      {/* 抽屉内容 */}
-      <div
-        ref={modalRef}
-        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85vh] max-w-md flex-col overflow-hidden rounded-t-2xl bg-neutral-50 shadow-xl transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)] dark:bg-neutral-900 ${isVisible ? 'translate-y-0' : 'translate-y-full'}`}
-      >
-        <div className="modal-form-container flex min-h-0 flex-1 flex-col px-6">
+    <PageStackDrawer
+      isOpen={showForm}
+      title={isImageSourcePage ? '选择图片' : title}
+      activeKey={`${pageStack.currentPage}-bean-form-${hydratedInitialBean?.id || 'new'}`}
+      canGoBack={isImageSourcePage}
+      doneDisabled={!isImageSourcePage && !canSave}
+      onCancel={handleClose}
+      onBack={handleBack}
+      onDone={handleDone}
+      historyId="bean-form"
+    >
+      {showForm && (
+        <div ref={contentRef} data-modal="coffee-bean-form">
           <CoffeeBeanForm
-            key={`bean-form-${hydratedInitialBean?.id || 'new'}-${hydratedInitialBean?.name || ''}-${initialBeanState || 'roasted'}`}
+            key={`bean-form-${formContextKey}`}
             ref={formRef}
             onSave={onSave}
-            onCancel={onClose}
+            onValidityChange={handleValidityChange}
             initialBean={hydratedInitialBean || undefined}
+            isRepurchasing={isRepurchasing}
             onRepurchase={onRepurchase}
-            onStepChange={setCurrentStep}
             initialBeanState={initialBeanState}
             roastingSourceBeanId={roastingSourceBeanId}
             recognitionImage={recognitionImage}
+            activeDrawerPage={pageStack.currentPage}
+            imageSourceTarget={imageSourceTarget}
+            onOpenImageSourcePage={handleOpenImageSourcePage}
+            onCloseImageSourcePage={pageStack.back}
           />
         </div>
-      </div>
-    </>
+      )}
+    </PageStackDrawer>
   );
 };
 

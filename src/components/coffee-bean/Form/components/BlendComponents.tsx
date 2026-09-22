@@ -1,24 +1,18 @@
 import React, { useMemo } from 'react';
-import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
 import { BlendComponent } from '@/types/app';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
-import BlendComponentFieldRows from './BlendComponentFieldRows';
+import SettingSection from '@/components/settings/atomic/SettingSection';
+import BlendComponentTagRows from '@/components/coffee-bean/Detail/components/BlendComponentTagRows';
+
+type TextBlendField = Exclude<keyof BlendComponent, 'percentage'>;
 
 interface BlendComponentsProps {
   components: BlendComponent[];
-  onAdd: () => void;
-  onRemove: (index: number) => void;
-  onChange: (
-    index: number,
-    field: keyof BlendComponent,
-    value: string | number
-  ) => void;
+  onChange: (index: number, field: TextBlendField, value: string) => void;
 }
 
 const BlendComponents: React.FC<BlendComponentsProps> = ({
   components,
-  onAdd,
-  onRemove,
   onChange,
 }) => {
   // 庄园字段显示设置 - 从 settingsStore 获取
@@ -44,135 +38,15 @@ const BlendComponents: React.FC<BlendComponentsProps> = ({
   // 最终是否显示庄园字段：设置开启 或 数据触发（并在会话内保持）
   const showEstateField = showEstateFieldSetting || estateFieldStickyByData;
 
-  // 计算总百分比
-  const totalPercentage = components.reduce(
-    (sum, component) =>
-      component.percentage ? sum + component.percentage : sum,
-    0
-  );
-
-  // 计算百分比状态
-  const percentageStatus =
-    totalPercentage === 100
-      ? 'text-green-600 dark:text-green-400'
-      : totalPercentage > 100
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-neutral-500 dark:text-neutral-400';
-
-  // 计算特定成分可用的最大百分比
-  const calculateMaxAllowed = (index: number): number => {
-    const totalOtherPercentage = components.reduce(
-      (sum, comp, i) =>
-        i !== index && comp.percentage ? sum + comp.percentage : sum,
-      0
-    );
-    return 100 - totalOtherPercentage;
-  };
-
-  // 检查是否可以添加更多成分
-  // 只有当组件数量大于1（拼配咖啡）时才考虑百分比限制
-  const canAddMoreComponents = components.length === 1 || totalPercentage < 100;
-
   return (
-    <div className="w-full space-y-5">
-      <div className="flex items-center justify-between">
-        <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400">
-          咖啡豆成分
-        </label>
-        <button
-          type="button"
-          onClick={onAdd}
-          disabled={!canAddMoreComponents}
-          className={`rounded-full px-3 py-1 text-xs transition-colors ${
-            !canAddMoreComponents
-              ? 'cursor-not-allowed bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-600'
-              : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600'
-          }`}
-        >
-          添加成分
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {components.map((component, index) => {
-          // 计算当前成分的最大允许百分比
-          const maxAllowed = calculateMaxAllowed(index);
-
-          return (
-            <div key={index}>
-              {components.length > 1 && (
-                <div
-                  key="component-heading"
-                  className="mb-3 flex items-center justify-between"
-                >
-                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                    成分 #{index + 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(index)}
-                    className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  >
-                    移除
-                  </button>
-                </div>
-              )}
-
-              {components.length > 1 && (
-                <div key="percentage" className="mb-3 space-y-1">
-                  <label className="block text-xs text-neutral-500 dark:text-neutral-400">
-                    比例 (可选)
-                    {maxAllowed === 0 && (
-                      <span className="ml-1 text-amber-600 dark:text-amber-400">
-                        (已达100%)
-                      </span>
-                    )}
-                  </label>
-                  <AutocompleteInput
-                    value={
-                      component.percentage !== undefined
-                        ? component.percentage.toString()
-                        : ''
-                    }
-                    onChange={value => onChange(index, 'percentage', value)}
-                    placeholder={maxAllowed > 0 ? `0-${maxAllowed}` : '0'}
-                    unit="%"
-                    inputType="tel"
-                    clearable={true}
-                    suggestions={[]}
-                    maxValue={maxAllowed}
-                    disabled={maxAllowed === 0 && !component.percentage}
-                  />
-                </div>
-              )}
-
-              <BlendComponentFieldRows
-                key="fields"
-                component={component}
-                index={index}
-                showEstateField={showEstateField}
-                onChange={onChange}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      {components.length > 1 && (
-        <div
-          className={`text-xs ${percentageStatus} mt-1 flex items-center justify-between`}
-        >
-          <span>当前总比例：{totalPercentage}%</span>
-          {totalPercentage !== 100 && (
-            <span>
-              {totalPercentage < 100
-                ? `还差 ${100 - totalPercentage}%`
-                : `超出 ${totalPercentage - 100}%`}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+    <SettingSection title="成分" contentShape="card">
+      <BlendComponentTagRows
+        components={components}
+        showEstateField={showEstateField}
+        onChange={onChange}
+        variant="settings"
+      />
+    </SettingSection>
   );
 };
 

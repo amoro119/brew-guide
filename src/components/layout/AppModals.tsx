@@ -126,6 +126,8 @@ export interface AppModalsProps {
   setShowBeanForm: (show: boolean) => void;
   editingBean: ExtendedCoffeeBean | null;
   setEditingBean: (bean: ExtendedCoffeeBean | null) => void;
+  isRepurchasingBean: boolean;
+  setIsRepurchasingBean: (isRepurchasing: boolean) => void;
   editingBeanState: 'green' | 'roasted';
   setEditingBeanState: (state: 'green' | 'roasted') => void;
   roastingSourceBeanId: string | null;
@@ -320,6 +322,8 @@ const AppModals: React.FC<AppModalsProps> = ({
   setShowBeanForm,
   editingBean,
   setEditingBean,
+  isRepurchasingBean,
+  setIsRepurchasingBean,
   editingBeanState,
   setEditingBeanState,
   roastingSourceBeanId,
@@ -838,9 +842,11 @@ const AppModals: React.FC<AppModalsProps> = ({
         showForm={showBeanForm}
         initialBean={editingBean}
         onSave={handleSaveBean}
+        isRepurchasing={isRepurchasingBean}
         onClose={() => {
           setShowBeanForm(false);
           setEditingBean(null);
+          setIsRepurchasingBean(false);
           setEditingBeanState('roasted');
           setRoastingSourceBeanId(null);
           setRecognitionImage(null);
@@ -864,6 +870,7 @@ const AppModals: React.FC<AppModalsProps> = ({
                   setEditingBean(null);
                   setBeanDetailOpen(false);
                   setTimeout(() => {
+                    setIsRepurchasingBean(true);
                     setEditingBean(newBeanData as ExtendedCoffeeBean);
                     setShowBeanForm(true);
                   }, 300);
@@ -922,6 +929,7 @@ const AppModals: React.FC<AppModalsProps> = ({
               return;
             }
 
+            setIsRepurchasingBean(false);
             setEditingBean(bean);
             setShowBeanForm(true);
           }}
@@ -981,6 +989,7 @@ const AppModals: React.FC<AppModalsProps> = ({
               const newBeanData = await createRepurchaseBean(bean);
 
               if (settings.immersiveAdd) {
+                setIsRepurchasingBean(false);
                 setShowBeanForm(false);
                 setEditingBean(null);
                 setBeanDetailData(newBeanData as ExtendedCoffeeBean);
@@ -991,6 +1000,7 @@ const AppModals: React.FC<AppModalsProps> = ({
               }
 
               setBeanDetailOpen(false);
+              setIsRepurchasingBean(true);
               setEditingBean(newBeanData as ExtendedCoffeeBean);
               setShowBeanForm(true);
             } catch (error) {
@@ -998,6 +1008,7 @@ const AppModals: React.FC<AppModalsProps> = ({
             }
           }}
           onRoast={(greenBean, roastedBeanTemplate) => {
+            setIsRepurchasingBean(false);
             setRoastingSourceBeanId(greenBean.id);
             setEditingBean(roastedBeanTemplate as ExtendedCoffeeBean);
             setShowBeanForm(true);

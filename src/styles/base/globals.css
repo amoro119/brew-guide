@@ -422,6 +422,19 @@ select:focus,
   box-shadow: none !important;
 }
 
+/* 移除数字输入框在桌面端占据额外空间的步进控件 */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
 html {
   /* 动态字体大小：基础大小 × 缩放比例 */
   font-size: calc(var(--base-font-size) * var(--font-scale));

@@ -22,6 +22,7 @@ import {
   useInteractions,
   useRole,
 } from '@floating-ui/react';
+import { cn } from '@/lib/utils/classNameUtils';
 
 interface TagAutocompleteInputProps {
   placeholder: string;
@@ -30,6 +31,7 @@ interface TagAutocompleteInputProps {
   onBackspaceEmpty?: () => string | undefined;
   isCustomPreset?: (value: string) => boolean;
   onRemovePreset?: (value: string) => void;
+  className?: string;
 }
 
 const COMMIT_KEYS = new Set(['Enter', ',', '，', '、', ';', '；']);
@@ -46,6 +48,7 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
   onBackspaceEmpty,
   isCustomPreset = () => false,
   onRemovePreset,
+  className,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -171,7 +174,10 @@ const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
             setIsOpen(false);
           }
         }}
-        className="max-w-full bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 placeholder:text-neutral-400 focus:outline-none dark:bg-neutral-800/40 dark:text-neutral-300 dark:placeholder:text-neutral-500"
+        className={cn(
+          'max-w-full bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700 placeholder:text-neutral-400 focus:outline-none dark:bg-neutral-800/40 dark:text-neutral-300 dark:placeholder:text-neutral-500',
+          className
+        )}
         style={{ width: calcInputWidth(inputValue, placeholder) }}
       />
 

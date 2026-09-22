@@ -5,7 +5,8 @@ import { useSettingSearchHighlight } from './SettingSearchHighlightContext';
 interface SettingRowProps {
   label?: string; // 改为可选
   description?: string;
-  children: React.ReactNode;
+  required?: boolean;
+  children?: React.ReactNode;
   isLast?: boolean;
   className?: string;
   vertical?: boolean; // 是否垂直布局（用于复杂控件）
@@ -22,6 +23,7 @@ interface SettingRowProps {
 const SettingRow: React.FC<SettingRowProps> = ({
   label,
   description,
+  required = false,
   children,
   isLast = false,
   className = '',
@@ -35,6 +37,15 @@ const SettingRow: React.FC<SettingRowProps> = ({
     settingId || (label ? makeSettingRowSearchId(label) : null);
   const isHighlighted =
     !!resolvedSettingId && highlightedSettingId === resolvedSettingId;
+  const requiredMarker = required ? (
+    <span
+      aria-hidden="true"
+      className="ml-0.5 align-super text-[10px] leading-none text-red-500"
+    >
+      *
+    </span>
+  ) : null;
+  const hasContent = React.Children.count(children) > 0;
   const rowRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -66,6 +77,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
             <div className="mb-3">
               <span className="text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
                 {label}
+                {requiredMarker}
               </span>
               {description && (
                 <span className="mt-1.5 block text-xs font-normal text-neutral-500 dark:text-neutral-400">
@@ -95,9 +107,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
         onClick={onClick}
         className={`flex min-w-0 flex-1 items-center justify-between py-3.5 text-left ${
           onClick ? 'cursor-pointer transition-opacity active:opacity-70' : ''
-        } ${
-          !isLast ? 'border-b border-black/5 dark:border-white/5' : ''
-        }`}
+        } ${!isLast ? 'border-b border-black/5 dark:border-white/5' : ''}`}
       >
         {label && (
           <div className="mr-4 flex min-w-0 flex-1 flex-col">
@@ -108,6 +118,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
                 </span>
               )}
               {label}
+              {requiredMarker}
             </span>
             {description && (
               <span className="mt-1.5 text-xs font-normal text-neutral-500 dark:text-neutral-400">
@@ -116,7 +127,9 @@ const SettingRow: React.FC<SettingRowProps> = ({
             )}
           </div>
         )}
-        <div className="flex shrink-0 items-center">{children}</div>
+        {hasContent && (
+          <div className="flex shrink-0 items-center">{children}</div>
+        )}
       </RowContent>
     </div>
   );
