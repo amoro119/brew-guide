@@ -9,13 +9,12 @@ import {
   Flame,
   ImagePlus,
   Plus,
-  ShoppingCart,
   Store,
-  Truck,
   Weight,
   X,
 } from 'lucide-react';
 import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
+import FormActionButton, { FormActionRow } from './FormActionButton';
 import { DatePicker } from '@/components/common/ui/DatePicker';
 import SettingSection from '@/components/settings/atomic/SettingSection';
 import SettingRow from '@/components/settings/atomic/SettingRow';
@@ -493,19 +492,13 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             </SettingValue>
           )}
         </SettingRow>
-
-        {isEdit && onRepurchase && !isRepurchasing && !isInRoastingMode && (
-          <SettingRow
-            label="操作"
-            icon={showBeanFormIcons ? ShoppingCart : undefined}
-            onClick={onRepurchase}
-          >
-            <span className="text-sm leading-none font-medium text-neutral-500 dark:text-neutral-400">
-              续购
-            </span>
-          </SettingRow>
-        )}
       </SettingSection>
+
+      {isEdit && onRepurchase && !isRepurchasing && !isInRoastingMode && (
+        <FormActionRow>
+          <FormActionButton onClick={onRepurchase}>续购</FormActionButton>
+        </FormActionRow>
+      )}
 
       <SettingSection compact>
         <SettingRow label="烘焙度" icon={showBeanFormIcons ? Flame : undefined}>
@@ -548,34 +541,15 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             </SettingValue>
           )}
         </SettingRow>
-        {!isGreenBean(bean) && (
-          <button
-            type="button"
-            onClick={toggleInTransitState}
-            className="flex w-full cursor-pointer items-center justify-between px-3.5 py-3.5 text-sm font-medium text-neutral-800 transition active:opacity-70 dark:text-neutral-200"
-          >
-            <span
-              className={`flex items-center gap-2 ${
-                showBeanFormIcons
-                  ? 'text-neutral-500 dark:text-neutral-400'
-                  : ''
-              }`}
-            >
-              {showBeanFormIcons && (
-                <Truck
-                  className="size-4 shrink-0"
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-              )}
-              状态
-            </span>
-            <span className="text-neutral-500 dark:text-neutral-400">
-              {bean.isInTransit ? '取消在途' : '设为在途'}
-            </span>
-          </button>
-        )}
       </SettingSection>
+
+      {!isGreenBean(bean) && (
+        <FormActionRow>
+          <FormActionButton onClick={toggleInTransitState}>
+            {bean.isInTransit ? '取消在途' : '设为在途'}
+          </FormActionButton>
+        </FormActionRow>
+      )}
     </>
   );
 };

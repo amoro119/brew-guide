@@ -1,6 +1,7 @@
 import React from 'react';
-import { CalendarCheck, Settings2, Snowflake, TimerReset } from 'lucide-react';
+import { CalendarCheck, Snowflake, TimerReset } from 'lucide-react';
 import AutocompleteInput from '@/components/common/forms/AutocompleteInput';
+import FormActionButton, { FormActionRow } from './FormActionButton';
 import SettingSection from '@/components/settings/atomic/SettingSection';
 import SettingRow from '@/components/settings/atomic/SettingRow';
 import SettingValue from '@/components/settings/atomic/SettingValue';
@@ -105,58 +106,39 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
               />
             </SettingValue>
           </SettingRow>
-          <SettingRow
-            label="操作"
-            icon={showBeanFormIcons ? Settings2 : undefined}
-          >
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={autoSetFlavorPeriod}
-                className="text-sm leading-none font-medium text-neutral-500 transition active:opacity-60 dark:text-neutral-400"
-              >
-                按烘焙度重置
-              </button>
-              <button
-                type="button"
-                onClick={toggleFrozenState}
-                className="text-sm leading-none font-medium text-neutral-500 transition active:opacity-60 dark:text-neutral-400"
-              >
-                设为冷冻
-              </button>
-            </div>
-          </SettingRow>
         </SettingSection>
       )}
 
+      {!bean.isInTransit && !bean.isFrozen && (
+        <FormActionRow>
+          <FormActionButton onClick={autoSetFlavorPeriod}>
+            按烘焙度重置
+          </FormActionButton>
+          <FormActionButton onClick={toggleFrozenState}>
+            设为冷冻
+          </FormActionButton>
+        </FormActionRow>
+      )}
+
       {bean.isFrozen && !bean.isInTransit && (
-        <SettingSection compact>
-          <button
-            type="button"
-            onClick={toggleFrozenState}
-            className="flex w-full cursor-pointer items-center justify-between px-3.5 py-3.5 text-sm font-medium text-neutral-800 transition active:opacity-70 dark:text-neutral-200"
-          >
-            <span
-              className={`flex items-center gap-2 ${
-                showBeanFormIcons
-                  ? 'text-neutral-500 dark:text-neutral-400'
-                  : ''
-              }`}
+        <>
+          <SettingSection compact>
+            <SettingRow
+              label="状态"
+              icon={showBeanFormIcons ? Snowflake : undefined}
             >
-              {showBeanFormIcons && (
-                <Snowflake
-                  className="size-4 shrink-0"
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-              )}
-              当前状态
-            </span>
-            <span className="text-neutral-500 dark:text-neutral-400">
+              <span className="text-sm leading-none font-medium text-neutral-500 dark:text-neutral-400">
+                冷冻
+              </span>
+            </SettingRow>
+          </SettingSection>
+
+          <FormActionRow>
+            <FormActionButton onClick={toggleFrozenState}>
               取消冷冻
-            </span>
-          </button>
-        </SettingSection>
+            </FormActionButton>
+          </FormActionRow>
+        </>
       )}
     </>
   );
