@@ -55,7 +55,7 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
 
   return (
     <>
-      <SettingSection title="类型" contentShape="none">
+      <SettingSection compact contentShape="none">
         <SegmentedControl<BeanType>
           options={BEAN_TYPES}
           value={bean.beanType || 'filter'}
@@ -72,7 +72,7 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
       />
 
       {!bean.isInTransit && !bean.isFrozen && (
-        <SettingSection title="赏味期" footer={flavorPeriodFooter}>
+        <SettingSection compact footer={flavorPeriodFooter}>
           <SettingRow
             label="养豆期结束"
             icon={showBeanFormIcons ? TimerReset : undefined}
@@ -130,7 +130,7 @@ const DetailInfo: React.FC<DetailInfoProps> = ({
       )}
 
       {bean.isFrozen && !bean.isInTransit && (
-        <SettingSection title="状态">
+        <SettingSection compact>
           <button
             type="button"
             onClick={toggleFrozenState}

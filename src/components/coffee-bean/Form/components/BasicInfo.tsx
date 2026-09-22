@@ -363,7 +363,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
           renderAddSideImageButton('back')}
       </div>
 
-      <SettingSection>
+      <SettingSection compact>
         {roasterFieldEnabled && (
           <SettingRow
             label={isGreenBean(bean) ? '生豆商' : '烘焙商'}
@@ -411,7 +411,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
         </SettingRow>
       </SettingSection>
 
-      <SettingSection title={isInRoastingMode ? '烘焙' : '库存'}>
+      <SettingSection compact>
         <SettingRow
           label={isInRoastingMode ? '烘焙量' : '库存量'}
           icon={showBeanFormIcons ? Weight : undefined}
@@ -505,7 +505,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
         )}
       </SettingSection>
 
-      <SettingSection title="烘焙信息">
+      <SettingSection compact>
         <SettingRow label="烘焙度" icon={showBeanFormIcons ? Flame : undefined}>
           <SettingValue
             trailing={<ChevronRight className="size-3.5" aria-hidden="true" />}

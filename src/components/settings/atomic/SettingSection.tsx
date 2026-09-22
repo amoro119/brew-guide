@@ -9,6 +9,7 @@ interface SettingSectionProps {
   children: React.ReactNode;
   className?: string;
   contentShape?: 'auto' | 'card' | 'capsule' | 'none';
+  compact?: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ const SettingSection: React.FC<SettingSectionProps> = ({
   children,
   className = '',
   contentShape = 'auto',
+  compact = false,
 }) => {
   const layoutMode = useSettingPageLayoutMode();
   const sectionPaddingClass = layoutMode === 'embedded' ? 'pl-3 pr-6' : 'px-6';
@@ -111,7 +113,11 @@ const SettingSection: React.FC<SettingSectionProps> = ({
   const content = renderChildren();
 
   return (
-    <div className={`${sectionPaddingClass} pb-5 ${className}`}>
+    <div
+      className={`${sectionPaddingClass} ${
+        compact ? 'pb-3' : 'pb-5'
+      } ${className}`}
+    >
       {title && (
         <div className="mb-3">
           {typeof title === 'string' ? (

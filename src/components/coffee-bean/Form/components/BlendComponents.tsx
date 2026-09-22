@@ -39,7 +39,7 @@ const BlendComponents: React.FC<BlendComponentsProps> = ({
   const showEstateField = showEstateFieldSetting || estateFieldStickyByData;
 
   return (
-    <SettingSection title="成分" contentShape="card">
+    <SettingSection compact contentShape="card">
       <BlendComponentTagRows
         components={components}
         showEstateField={showEstateField}

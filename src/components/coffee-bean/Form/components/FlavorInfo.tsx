@@ -27,7 +27,7 @@ const FlavorInfo: React.FC<FlavorInfoProps> = ({
   const flavors = bean.flavor || [];
 
   return (
-    <SettingSection title="风味">
+    <SettingSection compact>
       <SettingRow label="风味描述" icon={showBeanFormIcons ? Tags : undefined}>
         <TagListField
           items={flavors.map((value, index) => ({ id: index, value }))}

@@ -13,7 +13,7 @@ interface NotesInfoProps {
 
 const NotesInfo: React.FC<NotesInfoProps> = ({ bean, onBeanChange }) => {
   return (
-    <SettingSection title="备注" contentShape="card">
+    <SettingSection compact contentShape="card">
       <SettingRow vertical>
         <AutoResizeTextarea
           value={bean.notes || ''}
