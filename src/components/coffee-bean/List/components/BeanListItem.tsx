@@ -530,7 +530,7 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
           className={`flex min-w-0 flex-1 flex-col gap-y-1.5 ${shouldShowNotes() ? '' : 'justify-center'}`}
         >
           <div className="flex flex-col justify-center gap-y-1">
-            <div className="line-clamp-2 text-xs leading-tight font-medium text-neutral-800 dark:text-neutral-100">
+            <div className="line-clamp-2 text-xs leading-tight font-medium text-neutral-800 select-text dark:text-neutral-100">
               {searchQuery ? (
                 <HighlightText text={displayTitle} highlight={searchQuery} />
               ) : (
@@ -621,7 +621,7 @@ const BeanListItem: React.FC<BeanListItemProps> = ({
 
           {shouldShowNotes() && (
             <div
-              className={`rounded bg-neutral-100 px-1.5 py-1 text-xs font-medium tracking-wide whitespace-pre-line text-neutral-800/70 dark:bg-neutral-800/40 dark:text-neutral-400/85 ${
+              className={`rounded bg-neutral-100 px-1.5 py-1 text-xs font-medium tracking-wide whitespace-pre-line text-neutral-800/70 select-text dark:bg-neutral-800/40 dark:text-neutral-400/85 ${
                 limitNotesLines
                   ? 'cursor-pointer transition-colors hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50'
                   : ''

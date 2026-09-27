@@ -906,6 +906,7 @@ const TableView: React.FC<TableViewProps> = ({
                     const isLast = index === row.getVisibleCells().length - 1;
                     const isCapacity = cell.column.id === 'capacity';
                     const isName = cell.column.id === 'name';
+                    const isNotes = cell.column.id === 'notes';
                     const isRoaster = cell.column.id === 'roaster';
                     const isPreviewCell = isName || isRoaster;
                     const isRating =
@@ -925,7 +926,9 @@ const TableView: React.FC<TableViewProps> = ({
                     return (
                       <td
                         key={cell.id}
-                        className={`${cellClass} ${paddingClass} ${widthClass} border-b border-neutral-200/50 dark:border-neutral-800/50`}
+                        className={`${cellClass} ${paddingClass} ${widthClass} ${
+                          isName || isNotes ? 'select-text' : ''
+                        } border-b border-neutral-200/50 dark:border-neutral-800/50`}
                         style={{
                           width: cell.column.getSize(),
                           minWidth:
