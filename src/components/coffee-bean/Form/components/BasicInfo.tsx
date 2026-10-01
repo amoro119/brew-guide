@@ -586,7 +586,7 @@ const BasicInfo: React.FC<BasicInfoProps> = ({
             <button
               type="button"
               onClick={onRepurchase}
-              className="mt-1 flex items-center text-xs text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
+              className="mt-1 flex items-center text-xs font-bold text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
               title="续购"
             >
               <CornerDownRight className="mr-1 h-3 w-3" />
