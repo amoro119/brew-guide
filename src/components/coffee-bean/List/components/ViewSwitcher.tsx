@@ -52,6 +52,7 @@ import {
 } from '@/lib/utils/beanSummaryDisplay';
 import type { CoffeeBeanGroup } from '@/lib/core/db';
 import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
+import TabButton from '@/components/common/ui/TabButton';
 import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
 import {
   formatRankingDateLabel,
@@ -105,14 +106,6 @@ const isInsideFilterInteraction = (
   });
 };
 
-// 下划线动画配置 - 使用 spring 动画实现丝滑效果
-const UNDERLINE_TRANSITION = {
-  type: 'spring' as const,
-  stiffness: 500,
-  damping: 35,
-  mass: 1,
-};
-
 const EMPTY_BEAN_GROUPS: CoffeeBeanGroup[] = [];
 type SelectableBeanType = Exclude<BeanType, 'all'>;
 
@@ -146,11 +139,9 @@ type InventoryAllClickAction =
   | 'clear-flavor-period'
   | 'clear-roaster'
   | 'clear-group'
-  | 'clear-bean-type'
   | 'none';
 
 export const getInventoryAllClickAction = ({
-  selectedBeanType,
   filterMode,
   selectedVariety,
   selectedOrigin,
@@ -159,7 +150,6 @@ export const getInventoryAllClickAction = ({
   selectedRoaster,
   selectedBeanGroupId,
 }: {
-  selectedBeanType?: BeanType;
   filterMode: BeanFilterMode;
   selectedVariety?: string | null;
   selectedOrigin?: string | null;
@@ -199,96 +189,7 @@ export const getInventoryAllClickAction = ({
     return 'clear-group';
   }
 
-  if (selectedBeanType && selectedBeanType !== 'all') {
-    return 'clear-bean-type';
-  }
-
   return 'none';
-};
-
-// 可复用的标签按钮组件 - 支持 layoutId 实现跨按钮下划线动画
-interface TabButtonProps {
-  isActive: boolean;
-  onClick: () => void;
-  onDoubleClick?: () => void;
-  children: React.ReactNode;
-  className?: string;
-  dataTab?: string;
-  title?: string;
-  layoutId?: string; // 用于区分不同的 tab 组，相同 layoutId 的下划线会产生滑动动画
-}
-
-const TabButton: React.FC<TabButtonProps> = ({
-  isActive,
-  onClick,
-  onDoubleClick,
-  children,
-  className = '',
-  dataTab,
-  title,
-  layoutId = 'tab-underline',
-}) => {
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (clickTimerRef.current) {
-        clearTimeout(clickTimerRef.current);
-      }
-    },
-    []
-  );
-
-  const handleClick = useCallback(() => {
-    if (!onDoubleClick) {
-      onClick();
-      return;
-    }
-
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-    }
-
-    clickTimerRef.current = setTimeout(() => {
-      clickTimerRef.current = null;
-      onClick();
-    }, 180);
-  }, [onClick, onDoubleClick]);
-
-  const handleDoubleClick = useCallback(() => {
-    if (!onDoubleClick) return;
-
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
-
-    onDoubleClick();
-  }, [onDoubleClick]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      onDoubleClick={onDoubleClick ? handleDoubleClick : undefined}
-      className={`relative pb-1.5 text-xs font-medium whitespace-nowrap ${
-        isActive
-          ? 'text-neutral-800 dark:text-neutral-100'
-          : 'text-neutral-600 hover:opacity-80 dark:text-neutral-400'
-      } ${className}`}
-      data-tab={dataTab}
-      title={title}
-    >
-      <span className="relative">{children}</span>
-      {isActive && (
-        <motion.span
-          layoutId={layoutId}
-          className="absolute inset-x-0 bottom-0 h-px bg-neutral-800 dark:bg-white"
-          transition={UNDERLINE_TRANSITION}
-        />
-      )}
-    </button>
-  );
 };
 
 // 筛选按钮组件 - 用于筛选区域的轻量样式
@@ -849,16 +750,24 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     const nextType = getNextBeanType(availableBeanTypes, selectedBeanType);
     if (nextType) onBeanTypeChange?.(nextType);
   }, [availableBeanTypes, onBeanTypeChange, selectedBeanType]);
+  const rankingClickStartType = useRef(rankingBeanType);
+  const handleRankingAllClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      // 原生 dblclick 之前会先触发两次 click；只在第一下保存类型。
+      if (event.detail <= 1) rankingClickStartType.current = rankingBeanType;
+      handleRankingCategoryClick(null);
+    },
+    [handleRankingCategoryClick, rankingBeanType]
+  );
   const handleRankingBeanTypeDoubleClick = useCallback(() => {
     const nextType = getNextBeanType(
       rankingAvailableBeanTypes,
-      rankingBeanType
+      rankingClickStartType.current
     );
     if (nextType) onRankingBeanTypeChange?.(nextType);
-  }, [onRankingBeanTypeChange, rankingAvailableBeanTypes, rankingBeanType]);
+  }, [onRankingBeanTypeChange, rankingAvailableBeanTypes]);
   const handleInventoryAllClick = useCallback(() => {
     const action = getInventoryAllClickAction({
-      selectedBeanType,
       filterMode,
       selectedVariety,
       selectedOrigin,
@@ -887,23 +796,18 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       case 'clear-group':
         onBeanGroupClick?.(null);
         break;
-      case 'clear-bean-type':
-        onBeanTypeChange?.('all');
-        break;
       case 'none':
         break;
     }
   }, [
     filterMode,
     onBeanGroupClick,
-    onBeanTypeChange,
     onFlavorPeriodClick,
     onOriginClick,
     onProcessingMethodClick,
     onRoasterClick,
     onVarietyClick,
     selectedBeanGroupId,
-    selectedBeanType,
     selectedFlavorPeriod,
     selectedOrigin,
     selectedProcessingMethod,
@@ -1342,12 +1246,15 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
               {/* 豆子筛选选项卡 */}
               <div className="relative px-6">
                 {!isSearching ? (
-                  <div className="relative flex items-center">
+                  <div
+                    data-tab-list
+                    className="relative isolate flex items-center overflow-hidden"
+                  >
                     {/* 固定在左侧的"全部"和筛选按钮 */}
                     <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                       <TabButton
                         isActive={rankingSelectedCategory === null}
-                        onClick={() => handleRankingCategoryClick(null)}
+                        onClick={handleRankingAllClick}
                         onDoubleClick={handleRankingBeanTypeDoubleClick}
                         className="mr-1"
                         dataTab="all"
@@ -1380,6 +1287,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
 
                       <div
                         ref={rankingScrollContainerRef}
+                        data-tab-scroll
                         className="flex overflow-x-auto"
                         style={{
                           scrollbarWidth: 'none',
@@ -1557,7 +1465,10 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
           <div className="border-b border-neutral-200/50 dark:border-neutral-800/50">
             <div className="relative px-6">
               {!isSearching ? (
-                <div className="relative flex items-center">
+                <div
+                  data-tab-list
+                  className="relative isolate flex items-center overflow-hidden"
+                >
                   {/* 固定在左侧的"全部"和筛选按钮 */}
                   <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                     <TabButton
@@ -1603,6 +1514,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
 
                     <div
                       ref={scrollContainerRef}
+                      data-tab-scroll
                       className="flex overflow-x-auto"
                       style={{
                         scrollbarWidth: 'none',

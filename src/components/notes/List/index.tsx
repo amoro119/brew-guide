@@ -50,6 +50,11 @@ import {
   addSearchHistory,
 } from './globalCache';
 import ListView from './ListView';
+import {
+  getNotesViewPreference,
+  saveNotesViewPreference,
+  type NotesViewPreference,
+} from './viewPreference';
 import { SortOption, DateGroupingMode, type NotesViewMode } from '../types';
 import { exportSelectedNotes } from '../Share/NotesExporter';
 import {
@@ -192,20 +197,16 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     };
   }, []);
 
-  // 显示模式状态（持久化记忆 - 使用 localStorage 存储 UI 偏好设置）
-  const [viewMode, setViewMode] = useState<NotesViewMode>(() => {
-    if (typeof window !== 'undefined') {
-      const savedMode = localStorage.getItem('notes-view-mode');
-      if (
-        savedMode === 'list' ||
-        savedMode === 'gallery' ||
-        savedMode === 'table'
-      ) {
-        return savedMode;
-      }
-    }
-    return 'list';
-  });
+  const [viewPreference, setViewPreference] = useState(getNotesViewPreference);
+  const { viewMode, imageFlowType } = viewPreference;
+  const isImageFlowMode = viewMode === 'gallery' && imageFlowType === 'normal';
+  const isDateImageFlowMode = viewMode === 'gallery' && imageFlowType === 'date';
+
+  const updateViewPreference = useCallback((preference: NotesViewPreference) => {
+    setViewPreference(preference);
+    saveNotesViewPreference(preference);
+  }, []);
+
   const [tableVisibleColumns, setTableVisibleColumns] = useState<
     NotesTableColumnKey[]
   >(() => {
@@ -228,54 +229,6 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     return defaultColumns;
   });
 
-  // 图片流模式状态（持久化记忆 - 使用 localStorage 存储 UI 偏好设置）
-  const [isImageFlowMode, setIsImageFlowMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('notes-is-image-flow-mode') === 'true';
-    }
-    return false;
-  });
-
-  // 带日期图片流模式状态（持久化记忆 - 使用 localStorage 存储 UI 偏好设置）
-  const [isDateImageFlowMode, setIsDateImageFlowMode] = useState<boolean>(
-    () => {
-      if (typeof window !== 'undefined') {
-        return localStorage.getItem('notes-is-date-image-flow-mode') === 'true';
-      }
-      return false;
-    }
-  );
-
-  // 记住用户上次使用的图片流模式类型（持久化存储 - 使用 localStorage 存储 UI 偏好设置）
-  const [lastImageFlowType, setLastImageFlowType] = useState<'normal' | 'date'>(
-    () => {
-      if (typeof window !== 'undefined') {
-        return (
-          (localStorage.getItem('notes-last-image-flow-type') as
-            | 'normal'
-            | 'date') || 'normal'
-        );
-      }
-      return 'normal';
-    }
-  );
-
-  // 优雅的图片流模式记忆管理
-  const updateImageFlowMemory = useCallback((type: 'normal' | 'date') => {
-    setLastImageFlowType(type);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('notes-last-image-flow-type', type);
-    }
-  }, []);
-
-  // 优雅的显示模式持久化管理
-  const updateViewMode = useCallback((mode: NotesViewMode) => {
-    setViewMode(mode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('notes-view-mode', mode);
-    }
-  }, []);
-
   const updateTableVisibleColumns = (columns: NotesTableColumnKey[]) => {
     if (columns.length === 0) return;
 
@@ -287,55 +240,6 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
       );
     }
   };
-
-  const updateImageFlowState = useCallback((normal: boolean, date: boolean) => {
-    setIsImageFlowMode(normal);
-    setIsDateImageFlowMode(date);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('notes-is-image-flow-mode', normal.toString());
-      localStorage.setItem('notes-is-date-image-flow-mode', date.toString());
-    }
-  }, []);
-
-  // 优雅的图片流模式状态管理
-  const setImageFlowMode = useCallback(
-    (normal: boolean, date: boolean, rememberChoice: boolean = true) => {
-      updateImageFlowState(normal, date);
-
-      // 如果需要记住选择，更新记忆
-      if (rememberChoice && (normal || date)) {
-        updateImageFlowMemory(date ? 'date' : 'normal');
-      }
-
-      // 如果开启了任何图片流模式，切换到gallery视图
-      if (normal || date) {
-        updateViewMode('gallery');
-      }
-    },
-    [updateImageFlowMemory, updateViewMode, updateImageFlowState]
-  );
-
-  // 页面加载时恢复显示模式状态的一致性检查
-  useEffect(() => {
-    // 确保状态一致性：如果是gallery模式但两个图片流模式都是false，恢复到用户偏好
-    if (viewMode === 'gallery' && !isImageFlowMode && !isDateImageFlowMode) {
-      const useDate = lastImageFlowType === 'date';
-      updateImageFlowState(!useDate, useDate);
-    }
-    // 如果离开gallery但有图片流模式开启，关闭图片流模式
-    else if (
-      viewMode !== 'gallery' &&
-      (isImageFlowMode || isDateImageFlowMode)
-    ) {
-      updateImageFlowState(false, false);
-    }
-  }, [
-    isDateImageFlowMode,
-    isImageFlowMode,
-    lastImageFlowType,
-    updateImageFlowState,
-    viewMode,
-  ]); // 添加所有依赖项
 
   const availableTableColumnKeys = new Set(
     tableColumnOptions.map(column => column.key)
@@ -820,61 +724,25 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
     saveSortOptionPreference(option);
   };
 
-  // 处理显示模式变化
   const handleViewModeChange = useCallback(
     (mode: NotesViewMode) => {
-      updateViewMode(mode);
+      updateViewPreference({ viewMode: mode, imageFlowType });
     },
-    [updateViewMode]
+    [imageFlowType, updateViewPreference]
   );
 
-  // 优雅的图片流模式切换处理
   const handleToggleImageFlowMode = useCallback(() => {
-    const newMode = !isImageFlowMode;
-    if (newMode) {
-      // 开启普通图片流：关闭带日期模式，记住选择
-      setImageFlowMode(true, false, true);
-    } else {
-      // 关闭图片流：回到列表模式
-      setImageFlowMode(false, false, false);
-      updateViewMode('list');
-    }
-  }, [isImageFlowMode, setImageFlowMode, updateViewMode]);
+    updateViewPreference({ viewMode: 'gallery', imageFlowType: 'normal' });
+  }, [updateViewPreference]);
 
   const handleToggleDateImageFlowMode = useCallback(() => {
-    const newMode = !isDateImageFlowMode;
-    if (newMode) {
-      // 开启带日期图片流：关闭普通模式，记住选择
-      setImageFlowMode(false, true, true);
-    } else {
-      // 关闭图片流：回到列表模式
-      setImageFlowMode(false, false, false);
-      updateViewMode('list');
-    }
-  }, [isDateImageFlowMode, setImageFlowMode, updateViewMode]);
+    updateViewPreference({ viewMode: 'gallery', imageFlowType: 'date' });
+  }, [updateViewPreference]);
 
-  // 智能切换图片流模式（用于双击"全部"）
+  // 双击“全部”恢复上次图片流类型，或返回列表。
   const handleSmartToggleImageFlow = useCallback(() => {
-    const isInImageFlowMode =
-      viewMode === 'gallery' && (isImageFlowMode || isDateImageFlowMode);
-
-    if (isInImageFlowMode) {
-      // 当前在图片流模式，切换到列表模式
-      setImageFlowMode(false, false, false);
-      updateViewMode('list');
-    } else {
-      // 当前在列表模式，根据记忆恢复到用户偏好的图片流模式
-      const useDate = lastImageFlowType === 'date';
-      setImageFlowMode(!useDate, useDate, false); // 不更新记忆，因为这是恢复操作
-    }
-  }, [
-    viewMode,
-    isImageFlowMode,
-    isDateImageFlowMode,
-    lastImageFlowType,
-    setImageFlowMode,
-    updateViewMode,
-  ]);
+    handleViewModeChange(viewMode === 'gallery' ? 'list' : 'gallery');
+  }, [handleViewModeChange, viewMode]);
 
   // 处理过滤模式变化
   const handleFilterModeChange = (mode: 'equipment' | 'date') => {
@@ -1121,7 +989,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
 
   // 在图片流模式下，如果当前选中的设备没有图片记录，自动切换到"全部"
   useEffect(() => {
-    if (!imageFlowStats) return;
+    if (!imageFlowStats || !areNoteImageCountsLoaded) return;
 
     const { equipments } = imageFlowAvailableOptions;
 
@@ -1134,33 +1002,12 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
       handleEquipmentClick(null);
     }
   }, [
+    areNoteImageCountsLoaded,
     imageFlowStats,
     imageFlowAvailableOptions,
     filterMode,
     selectedEquipment,
     handleEquipmentClick,
-  ]);
-
-  // 当没有图片笔记时，自动关闭图片流模式并切换回列表模式
-  // 但只在数据已经加载完成后才执行此检查，避免初始化时误判
-  useEffect(() => {
-    // 只有当确实没有图片笔记时才关闭
-    if (
-      notes.length > 0 &&
-      areNoteImageCountsLoaded &&
-      imageFlowStats &&
-      imageFlowStats.count === 0
-    ) {
-      // 关闭所有图片流模式
-      setImageFlowMode(false, false, false);
-      updateViewMode('list');
-    }
-  }, [
-    areNoteImageCountsLoaded,
-    imageFlowStats,
-    setImageFlowMode,
-    updateViewMode,
-    notes.length,
   ]);
 
   const navigationSwipeHandlers = useNavigationSwipe(navigationSwipeControl);

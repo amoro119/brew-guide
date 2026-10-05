@@ -20,30 +20,40 @@ describe('getNextBeanType', () => {
 });
 
 describe('getInventoryAllClickAction', () => {
-  it('clears the visible flavor period before widening bean type', () => {
+  it('clears the visible flavor period without changing bean type', () => {
     expect(
       getInventoryAllClickAction({
-        selectedBeanType: 'filter',
         filterMode: 'flavorPeriod',
         selectedFlavorPeriod: FlavorPeriodStatus.OPTIMAL,
       })
     ).toBe('clear-flavor-period');
   });
 
-  it('widens bean type when the visible category is already all', () => {
+  it('keeps bean type when the visible category is already all', () => {
     expect(
       getInventoryAllClickAction({
-        selectedBeanType: 'filter',
         filterMode: 'flavorPeriod',
         selectedFlavorPeriod: null,
       })
-    ).toBe('clear-bean-type');
+    ).toBe('none');
   });
 
-  it('clears structured origin field filters before widening bean type', () => {
+  it.each(['espresso', 'filter', 'omni', 'all'] as const)(
+    'repeated all clicks never change %s bean type',
+    selectedBeanType => {
+      const filters = {
+        selectedBeanType,
+        filterMode: 'roaster' as const,
+        selectedRoaster: null,
+      };
+      expect(getInventoryAllClickAction(filters)).toBe('none');
+      expect(getInventoryAllClickAction(filters)).toBe('none');
+    }
+  );
+
+  it('clears structured origin field filters without changing bean type', () => {
     expect(
       getInventoryAllClickAction({
-        selectedBeanType: 'filter',
         filterMode: 'country',
         selectedOrigin: '埃塞俄比亚',
       })

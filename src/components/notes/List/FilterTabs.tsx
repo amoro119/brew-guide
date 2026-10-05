@@ -1,5 +1,6 @@
 'use client';
 
+import TabButton from '@/components/common/ui/TabButton';
 import React, { memo, useRef, useState, useEffect, useCallback } from 'react';
 import {
   FilterTabsProps,
@@ -144,53 +145,6 @@ const getTodayDateString = (groupingMode: DateGroupingMode): string => {
       return `${year}-${month}`;
   }
 };
-
-// 下划线动画配置 - 使用 spring 动画实现丝滑效果
-const UNDERLINE_TRANSITION = {
-  type: 'spring' as const,
-  stiffness: 500,
-  damping: 35,
-  mass: 1,
-};
-
-// 可复用的标签按钮组件
-interface TabButtonProps {
-  isActive: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-  dataTab?: string;
-  layoutId?: string;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({
-  isActive,
-  onClick,
-  children,
-  className = '',
-  dataTab,
-  layoutId = 'notes-tab-underline',
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`relative pb-1.5 text-xs font-medium whitespace-nowrap ${
-      isActive
-        ? 'text-neutral-800 dark:text-neutral-100'
-        : 'text-neutral-600 hover:opacity-80 dark:text-neutral-400'
-    } ${className}`}
-    data-tab={dataTab}
-  >
-    <span className="relative">{children}</span>
-    {isActive && (
-      <motion.span
-        layoutId={layoutId}
-        className="absolute inset-x-0 bottom-0 h-px bg-neutral-800 dark:bg-white"
-        transition={UNDERLINE_TRANSITION}
-      />
-    )}
-  </button>
-);
 
 // 筛选按钮组件 - 用于筛选区域的轻量样式
 interface FilterButtonProps {
@@ -358,30 +312,13 @@ const ViewModeSection: React.FC<ViewModeSectionProps> = ({
       <div className="flex flex-wrap items-center gap-2">
         <FilterButton
           isActive={viewMode === 'list'}
-          onClick={() => {
-            onViewModeChange('list');
-            // 关闭所有图片流模式
-            if (isImageFlowMode && onToggleImageFlowMode) {
-              onToggleImageFlowMode();
-            }
-            if (isDateImageFlowMode && onToggleDateImageFlowMode) {
-              onToggleDateImageFlowMode();
-            }
-          }}
+          onClick={() => onViewModeChange('list')}
         >
           列表
         </FilterButton>
         <FilterButton
           isActive={viewMode === 'table'}
-          onClick={() => {
-            if (isImageFlowMode && onToggleImageFlowMode) {
-              onToggleImageFlowMode();
-            }
-            if (isDateImageFlowMode && onToggleDateImageFlowMode) {
-              onToggleDateImageFlowMode();
-            }
-            onViewModeChange('table');
-          }}
+          onClick={() => onViewModeChange('table')}
         >
           表格
         </FilterButton>
@@ -677,7 +614,10 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
       <div className="border-b border-neutral-200/50 dark:border-neutral-800/50">
         <div className="relative px-6">
           {!isSearching ? (
-            <div className="relative flex items-center">
+            <div
+              data-tab-list
+              className="relative isolate flex items-center overflow-hidden"
+            >
               {/* 固定在左侧的"全部"和筛选按钮 */}
               <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                 <TabButton
@@ -693,13 +633,12 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                       onDateClick(null);
                     }
                   }}
+                  onDoubleClick={onSmartToggleImageFlow}
                   className="mr-1"
                   dataTab="all"
                   layoutId={`notes-${filterMode}-underline`}
                 >
-                  <span onDoubleClick={() => onSmartToggleImageFlow?.()}>
-                    全部
-                  </span>
+                  全部
                 </TabButton>
 
                 {/* 筛选图标按钮 */}
@@ -726,6 +665,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
 
                 <div
                   ref={scrollContainerRef}
+                  data-tab-scroll
                   className="flex overflow-x-auto"
                   style={{
                     scrollbarWidth: 'none',
