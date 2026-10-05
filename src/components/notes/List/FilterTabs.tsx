@@ -1,7 +1,8 @@
 'use client';
 
 import TabButton from '@/components/common/ui/TabButton';
-import React, { memo, useRef, useState, useEffect, useCallback } from 'react';
+import { centerCategoryTab } from '@/lib/utils/centerCategoryTab';
+import React, { memo, useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   FilterTabsProps,
   SORT_OPTIONS,
@@ -480,64 +481,22 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
     }
   };
 
-  // 滚动到选中项的函数
-  const scrollToSelected = useCallback(() => {
-    if (!scrollContainerRef.current) return;
+  const categoryTabsKey = (filterMode === 'equipment'
+    ? availableEquipments
+    : availableDates
+  ).join('\u0001');
 
-    let selectedId =
-      filterMode === 'equipment' ? selectedEquipment : selectedDate;
-    if (!selectedId) return;
-
-    // 特殊处理日期模式下的快捷选项，确保能滚动到对应的快捷按钮
-    if (filterMode === 'date' && dateGroupingMode === 'day') {
-      const todayStr = getTodayDateString('day');
-      const now = new Date();
-
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-
-      const dayBeforeYesterday = new Date(now);
-      dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
-      const dayBeforeYesterdayStr = `${dayBeforeYesterday.getFullYear()}-${String(dayBeforeYesterday.getMonth() + 1).padStart(2, '0')}-${String(dayBeforeYesterday.getDate()).padStart(2, '0')}`;
-
-      if (selectedId === todayStr) selectedId = 'today';
-      else if (selectedId === yesterdayStr) selectedId = 'yesterday';
-      else if (selectedId === dayBeforeYesterdayStr)
-        selectedId = 'dayBeforeYesterday';
-    }
-
-    const selectedElement = scrollContainerRef.current.querySelector(
-      `[data-tab="${selectedId}"]`
-    );
-    if (!selectedElement) return;
-
-    const container = scrollContainerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = selectedElement.getBoundingClientRect();
-
-    // 计算元素相对于容器的位置
-    const elementLeft =
-      elementRect.left - containerRect.left + container.scrollLeft;
-    const elementWidth = elementRect.width;
-    const containerWidth = containerRect.width;
-
-    // 计算目标滚动位置（将选中项居中）
-    const targetScrollLeft = elementLeft - (containerWidth - elementWidth) / 2;
-
-    // 平滑滚动到目标位置
-    container.scrollTo({
-      left: Math.max(0, targetScrollLeft),
-      behavior: 'smooth',
-    });
-  }, [filterMode, selectedEquipment, selectedDate, dateGroupingMode]);
-
-  // 当选中项变化时滚动到选中项
-  useEffect(() => {
-    // 延迟执行以确保DOM已更新
-    const timer = setTimeout(scrollToSelected, 100);
-    return () => clearTimeout(timer);
-  }, [selectedEquipment, selectedDate, filterMode, scrollToSelected]);
+  useLayoutEffect(() => {
+    centerCategoryTab(scrollContainerRef.current);
+  }, [
+    filterMode,
+    selectedEquipment,
+    selectedDate,
+    dateGroupingMode,
+    isSearching,
+    viewMode,
+    categoryTabsKey,
+  ]);
 
   // 添加滚动事件监听
   useEffect(() => {
@@ -614,12 +573,9 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
       <div className="border-b border-neutral-200/50 dark:border-neutral-800/50">
         <div className="relative px-6">
           {!isSearching ? (
-            <div
-              data-tab-list
-              className="relative isolate flex items-center overflow-hidden"
-            >
-              {/* 固定在左侧的"全部"和筛选按钮 */}
-              <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
+            <div className="relative isolate flex items-center">
+              {/* 固定区覆盖滚动视口，与 pl-14 留白对应，避免裁剪跨区下划线 */}
+              <div className="absolute inset-y-0 left-0 z-10 flex w-14 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                 <TabButton
                   isActive={
                     (filterMode === 'equipment' &&
@@ -653,20 +609,20 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                 </button>
 
                 {/* 左侧固定按钮的右侧渐变遮罩 */}
-                <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-5 bg-neutral-50 dark:bg-neutral-900"></div>
               </div>
 
               {/* 中间滚动区域 */}
               <div className="relative flex-1 overflow-hidden">
                 {/* 左侧渐变阴影 - 覆盖在滚动内容上 */}
                 {showLeftShadow && (
-                  <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                  <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-14 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                 )}
 
                 <div
                   ref={scrollContainerRef}
-                  data-tab-scroll
-                  className="flex overflow-x-auto"
+                  data-category-scroll
+                  className="flex overflow-x-auto pl-14"
                   style={{
                     scrollbarWidth: 'none',
                     msOverflowStyle: 'none',
@@ -690,6 +646,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                           selectedEquipment !== equipment &&
                           onEquipmentClick(equipment)
                         }
+                        onDoubleClick={onSmartToggleImageFlow}
                         className="mr-3"
                         dataTab={equipment}
                         layoutId="notes-equipment-underline"
@@ -730,6 +687,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                                   selectedDate !== 'today' &&
                                   onDateClick('today')
                                 }
+                                onDoubleClick={onSmartToggleImageFlow}
                                 className="mr-3"
                                 dataTab="today"
                                 layoutId="notes-date-underline"
@@ -748,6 +706,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                                   selectedDate !== 'yesterday' &&
                                   onDateClick('yesterday')
                                 }
+                                onDoubleClick={onSmartToggleImageFlow}
                                 className="mr-3"
                                 dataTab="yesterday"
                                 layoutId="notes-date-underline"
@@ -766,6 +725,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                                   selectedDate !== 'dayBeforeYesterday' &&
                                   onDateClick('dayBeforeYesterday')
                                 }
+                                onDoubleClick={onSmartToggleImageFlow}
                                 className="mr-3"
                                 dataTab="dayBeforeYesterday"
                                 layoutId="notes-date-underline"
@@ -806,6 +766,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                             onClick={() =>
                               selectedDate !== date && onDateClick(date)
                             }
+                            onDoubleClick={onSmartToggleImageFlow}
                             className="mr-3"
                             dataTab={date}
                             layoutId="notes-date-underline"
@@ -818,7 +779,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                 </div>
 
                 {/* 右侧渐变阴影 - 覆盖在滚动内容上 */}
-                <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
               </div>
 
               {/* 固定在右侧的搜索按钮 */}
@@ -834,7 +795,7 @@ const FilterTabs: React.FC<FilterTabsProps> = memo(function FilterTabs({
                 </button>
 
                 {/* 右侧固定按钮的左侧渐变遮罩 */}
-                <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
               </div>
             </div>
           ) : (

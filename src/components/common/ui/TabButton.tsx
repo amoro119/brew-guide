@@ -1,13 +1,41 @@
 'use client';
 
-import type React from 'react';
-import TabUnderline from './TabUnderline';
+import { useRef, type ReactNode, type MouseEventHandler } from 'react';
+import { motion } from 'framer-motion';
+import { centerCategoryTab } from '@/lib/utils/centerCategoryTab';
+
+const UNDERLINE_TRANSITION = {
+  type: 'spring' as const,
+  stiffness: 500,
+  damping: 35,
+  mass: 1,
+};
+
+// 仅在跨按钮动画期间越过固定区；静止时让固定区遮住滚入其下方的分类。
+const TabUnderline = ({ layoutId }: { layoutId: string }) => {
+  const ref = useRef<HTMLSpanElement>(null);
+  return (
+    <motion.span
+      ref={ref}
+      layoutId={layoutId}
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-neutral-800 dark:bg-white"
+      transition={UNDERLINE_TRANSITION}
+      onLayoutAnimationStart={() => {
+        if (ref.current) ref.current.style.zIndex = '20';
+      }}
+      onLayoutAnimationComplete={() => {
+        if (ref.current) ref.current.style.zIndex = '';
+      }}
+    />
+  );
+};
 
 interface TabButtonProps {
   isActive: boolean;
-  onClick: React.MouseEventHandler<HTMLButtonElement>;
+  onClick: MouseEventHandler<HTMLButtonElement>;
   onDoubleClick?: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   dataTab?: string;
   title?: string;
@@ -24,10 +52,21 @@ const TabButton = ({
   title,
   layoutId = 'tab-underline',
 }: TabButtonProps) => {
+  const handleClick: MouseEventHandler<HTMLButtonElement> = event => {
+    onClick(event);
+    // 新选择由布局更新后的 effect 居中；这里只处理再次点击已选项。
+    if (isActive && event.detail < 2) {
+      centerCategoryTab(
+        event.currentTarget.closest<HTMLElement>('[data-category-scroll]'),
+        event.currentTarget
+      );
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
       onDoubleClick={onDoubleClick}
       className={`relative pb-1.5 text-xs font-medium whitespace-nowrap ${
         isActive
@@ -35,6 +74,7 @@ const TabButton = ({
           : 'text-neutral-600 hover:opacity-80 dark:text-neutral-400'
       } ${className}`}
       data-tab={dataTab}
+      data-tab-active={isActive}
       title={title}
     >
       <span className="relative">{children}</span>

@@ -4,6 +4,7 @@ import React, {
   useRef,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useMemo,
 } from 'react';
@@ -53,6 +54,7 @@ import {
 import type { CoffeeBeanGroup } from '@/lib/core/db';
 import type { BeanFieldId } from '@/lib/coffee-beans/beanFields';
 import TabButton from '@/components/common/ui/TabButton';
+import { centerCategoryTab } from '@/lib/utils/centerCategoryTab';
 import SearchAllSuggestion from '@/components/common/ui/SearchAllSuggestion';
 import {
   formatRankingDateLabel,
@@ -759,13 +761,13 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     },
     [handleRankingCategoryClick, rankingBeanType]
   );
-  const handleRankingBeanTypeDoubleClick = useCallback(() => {
-    const nextType = getNextBeanType(
-      rankingAvailableBeanTypes,
-      rankingClickStartType.current
-    );
-    if (nextType) onRankingBeanTypeChange?.(nextType);
-  }, [onRankingBeanTypeChange, rankingAvailableBeanTypes]);
+  const handleRankingBeanTypeDoubleClick = useCallback(
+    (startType: BeanType) => {
+      const nextType = getNextBeanType(rankingAvailableBeanTypes, startType);
+      if (nextType) onRankingBeanTypeChange?.(nextType);
+    },
+    [onRankingBeanTypeChange, rankingAvailableBeanTypes]
+  );
   const handleInventoryAllClick = useCallback(() => {
     const action = getInventoryAllClickAction({
       filterMode,
@@ -969,79 +971,31 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     }
   }, []);
 
-  // 滚动到选中项的函数 - 用于品种筛选
-  const scrollToSelected = useCallback(() => {
-    if (!scrollContainerRef.current || !selectedVariety) return;
+  const inventoryTabsKey = currentBeanFieldId
+    ? availableCurrentBeanFieldValues.join('\u0001')
+    : filterMode === 'roaster'
+      ? availableRoasters.join('\u0001')
+      : filterMode === 'group'
+        ? availableBeanGroups.map(group => group.id).join('\u0001')
+        : (availableFlavorPeriods ?? []).join('\u0001');
+  const rankingTabsKey = rankingCategoryTabs.map(tab => tab.value).join('\u0001');
 
-    const selectedElement = scrollContainerRef.current.querySelector(
-      `[data-tab="${selectedVariety}"]`
-    );
-    if (!selectedElement) return;
+  useLayoutEffect(() => {
+    centerCategoryTab(scrollContainerRef.current);
+  }, [
+    viewMode,
+    isSearching,
+    filterMode,
+    selectedBeanFieldValue,
+    selectedFlavorPeriod,
+    selectedRoaster,
+    selectedBeanGroupId,
+    inventoryTabsKey,
+  ]);
 
-    const container = scrollContainerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = selectedElement.getBoundingClientRect();
-
-    // 计算元素相对于容器的位置
-    const elementLeft =
-      elementRect.left - containerRect.left + container.scrollLeft;
-    const elementWidth = elementRect.width;
-    const containerWidth = containerRect.width;
-
-    // 计算目标滚动位置（将选中项居中）
-    const targetScrollLeft = elementLeft - (containerWidth - elementWidth) / 2;
-
-    // 平滑滚动到目标位置
-    container.scrollTo({
-      left: Math.max(0, targetScrollLeft),
-      behavior: 'smooth',
-    });
-  }, [selectedVariety]);
-
-  // 滚动到选中项的函数 - 用于榜单豆子类型筛选
-  const scrollToRankingSelected = useCallback(() => {
-    if (!rankingScrollContainerRef.current || !rankingSelectedCategory) return;
-
-    const selectedElement = Array.from(
-      rankingScrollContainerRef.current.querySelectorAll<HTMLElement>(
-        '[data-tab]'
-      )
-    ).find(element => element.dataset.tab === rankingSelectedCategory);
-    if (!selectedElement) return;
-
-    const container = rankingScrollContainerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = selectedElement.getBoundingClientRect();
-
-    // 计算元素相对于容器的位置
-    const elementLeft =
-      elementRect.left - containerRect.left + container.scrollLeft;
-    const elementWidth = elementRect.width;
-    const containerWidth = containerRect.width;
-
-    // 计算目标滚动位置（将选中项居中）
-    const targetScrollLeft = elementLeft - (containerWidth - elementWidth) / 2;
-
-    // 平滑滚动到目标位置
-    container.scrollTo({
-      left: Math.max(0, targetScrollLeft),
-      behavior: 'smooth',
-    });
-  }, [rankingSelectedCategory]);
-
-  // 当选中项变化时滚动到选中项
-  useEffect(() => {
-    // 延迟执行以确保DOM已更新
-    const timer = setTimeout(scrollToSelected, 100);
-    return () => clearTimeout(timer);
-  }, [selectedVariety, scrollToSelected]);
-
-  // 当榜单豆子类型变化时滚动到选中项
-  useEffect(() => {
-    // 延迟执行以确保DOM已更新
-    const timer = setTimeout(scrollToRankingSelected, 100);
-    return () => clearTimeout(timer);
-  }, [rankingSelectedCategory, scrollToRankingSelected]);
+  useLayoutEffect(() => {
+    centerCategoryTab(rankingScrollContainerRef.current);
+  }, [viewMode, isSearching, rankingFilterMode, rankingSelectedCategory, rankingTabsKey]);
 
   // 注：isMinimalistMode 和 hideTotalWeight 功能已移除，始终为 false
 
@@ -1246,16 +1200,17 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
               {/* 豆子筛选选项卡 */}
               <div className="relative px-6">
                 {!isSearching ? (
-                  <div
-                    data-tab-list
-                    className="relative isolate flex items-center overflow-hidden"
-                  >
-                    {/* 固定在左侧的"全部"和筛选按钮 */}
-                    <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
+                  <div className="relative isolate flex items-center">
+                    {/* 固定区覆盖滚动视口，与 pl-14 留白对应，避免裁剪跨区下划线 */}
+                    <div className="absolute inset-y-0 left-0 z-10 flex w-14 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                       <TabButton
                         isActive={rankingSelectedCategory === null}
                         onClick={handleRankingAllClick}
-                        onDoubleClick={handleRankingBeanTypeDoubleClick}
+                        onDoubleClick={() =>
+                          handleRankingBeanTypeDoubleClick(
+                            rankingClickStartType.current
+                          )
+                        }
                         className="mr-1"
                         dataTab="all"
                         layoutId={`ranking-${rankingFilterMode}-underline`}
@@ -1275,20 +1230,20 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       </button>
 
                       {/* 左侧固定按钮的右侧渐变遮罩 */}
-                      <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                      <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-5 bg-neutral-50 dark:bg-neutral-900"></div>
                     </div>
 
                     {/* 中间滚动区域 */}
                     <div className="relative flex-1 overflow-hidden">
                       {/* 左侧渐变阴影 - 覆盖在滚动内容上 */}
                       {showRankingLeftShadow && (
-                        <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                        <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-14 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                       )}
 
                       <div
                         ref={rankingScrollContainerRef}
-                        data-tab-scroll
-                        className="flex overflow-x-auto"
+                        data-category-scroll
+                        className="flex overflow-x-auto pl-14"
                         style={{
                           scrollbarWidth: 'none',
                           msOverflowStyle: 'none',
@@ -1309,6 +1264,9 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                             onClick={() =>
                               handleRankingCategoryClick(tab.value)
                             }
+                            onDoubleClick={() =>
+                              handleRankingBeanTypeDoubleClick(rankingBeanType)
+                            }
                             className="mr-3"
                             dataTab={tab.value}
                             layoutId={`ranking-${rankingFilterMode}-underline`}
@@ -1319,7 +1277,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       </div>
 
                       {/* 右侧渐变阴影 - 覆盖在滚动内容上 */}
-                      <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                      <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                     </div>
 
                     {/* 固定在右侧的搜索按钮 */}
@@ -1335,7 +1293,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                       </button>
 
                       {/* 右侧固定按钮的左侧渐变遮罩 */}
-                      <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                      <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
                     </div>
                   </div>
                 ) : (
@@ -1465,12 +1423,9 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
           <div className="border-b border-neutral-200/50 dark:border-neutral-800/50">
             <div className="relative px-6">
               {!isSearching ? (
-                <div
-                  data-tab-list
-                  className="relative isolate flex items-center overflow-hidden"
-                >
-                  {/* 固定在左侧的"全部"和筛选按钮 */}
-                  <div className="relative flex shrink-0 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
+                <div className="relative isolate flex items-center">
+                  {/* 固定区覆盖滚动视口，与 pl-14 留白对应，避免裁剪跨区下划线 */}
+                  <div className="absolute inset-y-0 left-0 z-10 flex w-14 items-center bg-neutral-50 pr-3 dark:bg-neutral-900">
                     <TabButton
                       isActive={
                         (currentBeanFieldId &&
@@ -1502,20 +1457,20 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     </button>
 
                     {/* 左侧固定按钮的右侧渐变遮罩 */}
-                    <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                    <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-5 bg-neutral-50 dark:bg-neutral-900"></div>
                   </div>
 
                   {/* 中间滚动区域 */}
                   <div className="relative flex-1 overflow-hidden">
                     {/* 左侧渐变阴影 - 覆盖在滚动内容上 */}
                     {showLeftShadow && (
-                      <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                      <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-14 z-10 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                     )}
 
                     <div
                       ref={scrollContainerRef}
-                      data-tab-scroll
-                      className="flex overflow-x-auto"
+                      data-category-scroll
+                      className="flex overflow-x-auto pl-14"
                       style={{
                         scrollbarWidth: 'none',
                         msOverflowStyle: 'none',
@@ -1536,6 +1491,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                             key={value}
                             isActive={selectedBeanFieldValue === value}
                             onClick={() => handleBeanFieldValueClick(value)}
+                            onDoubleClick={handleBeanTypeDoubleClick}
                             className="mr-3"
                             dataTab={value}
                             layoutId={`inventory-${filterMode}-underline`}
@@ -1554,6 +1510,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                                 selectedFlavorPeriod !== status &&
                                 onFlavorPeriodClick?.(status)
                               }
+                              onDoubleClick={handleBeanTypeDoubleClick}
                               className="mr-3"
                               dataTab={status}
                               layoutId="inventory-flavorPeriod-underline"
@@ -1572,6 +1529,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                               selectedRoaster !== roaster &&
                               onRoasterClick?.(roaster)
                             }
+                            onDoubleClick={handleBeanTypeDoubleClick}
                             className="mr-3"
                             dataTab={roaster}
                             layoutId="inventory-roaster-underline"
@@ -1589,6 +1547,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                               selectedBeanGroupId !== group.id &&
                               onBeanGroupClick?.(group.id)
                             }
+                            onDoubleClick={handleBeanTypeDoubleClick}
                             className="mr-3"
                             dataTab={group.id}
                             layoutId="inventory-group-underline"
@@ -1599,7 +1558,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     </div>
 
                     {/* 右侧渐变阴影 - 覆盖在滚动内容上 */}
-                    <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-0 w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
+                    <div className="fade-mask-to-l pointer-events-none absolute top-0 right-0 bottom-px w-6 bg-neutral-50/95 dark:bg-neutral-900/95"></div>
                   </div>
 
                   {/* 固定在右侧的搜索按钮 */}
@@ -1615,7 +1574,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
                     </button>
 
                     {/* 右侧固定按钮的左侧渐变遮罩 */}
-                    <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-0 left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
+                    <div className="fade-mask-to-r pointer-events-none absolute top-0 bottom-px left-0 w-5 bg-neutral-50 dark:bg-neutral-900"></div>
                   </div>
                 </div>
               ) : (
