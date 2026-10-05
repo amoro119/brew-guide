@@ -122,7 +122,7 @@ const RandomCoffeeBeanSettings: React.FC<RandomCoffeeBeanSettingsProps> = ({
 
   return (
     <SettingPage title="随机咖啡豆" isVisible={isVisible} onClose={handleClose}>
-      <SettingSection title="类型">
+      <SettingSection title="类型" className="-mt-4">
         <SettingRow
           label="长按随机不同类型咖啡豆"
           isLast={!randomSettings.enableLongPressRandomType}

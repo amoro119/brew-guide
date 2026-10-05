@@ -1123,6 +1123,7 @@ const CoffeeBeanGroupSettings: React.FC<CoffeeBeanGroupSettingsProps> = ({
       <SettingPage title="分组" isVisible={isVisible} onClose={handleClose}>
         <SettingSection
           title={groupSectionTitle}
+          className="-mt-4"
           footer="为不同咖啡豆创建分组，并在筛选分类中快速切换。"
         >
           {orderedGroups.length === 0 ? (

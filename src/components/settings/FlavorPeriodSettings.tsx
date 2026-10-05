@@ -256,11 +256,26 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
   );
 
   return (
-    <SettingPage title="赏味期" isVisible={isVisible} onClose={handleClose}>
-      <div className="mt-4">
+    <SettingPage
+      title="赏味期"
+      isVisible={isVisible}
+      onClose={handleClose}
+      bottomContent={
+        <SettingsSearchBar
+          isVisible={isVisible}
+          query={searchQuery}
+          firstResult={null}
+          placeholder="搜索烘焙商"
+          onQueryChange={setSearchQuery}
+          onSelect={() => {}}
+        />
+      }
+    >
+      <>
         {/* 全局默认预设 */}
         <SettingSection
           title="全局默认预设"
+          className="-mt-4"
           footer="添加咖啡豆时，会根据烘焙度自动设定赏味期。"
         >
           <SettingRow label="浅烘">
@@ -454,16 +469,7 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
 
         {/* 底部空间 */}
         <div className="h-28" />
-      </div>
-
-      <SettingsSearchBar
-        query={searchQuery}
-        firstResult={null}
-        placeholder="搜索烘焙商"
-        position="fixed"
-        onQueryChange={setSearchQuery}
-        onSelect={() => {}}
-      />
+      </>
     </SettingPage>
   );
 };

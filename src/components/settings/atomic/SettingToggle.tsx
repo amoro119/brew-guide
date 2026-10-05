@@ -4,6 +4,7 @@ interface SettingToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }
 
 /**
@@ -14,6 +15,7 @@ const SettingToggle: React.FC<SettingToggleProps> = ({
   checked,
   onChange,
   disabled = false,
+  ariaLabel,
 }) => {
   // 使用内部状态实现即时响应（乐观更新）
   const [localChecked, setLocalChecked] = useState(checked);
@@ -38,6 +40,7 @@ const SettingToggle: React.FC<SettingToggleProps> = ({
     <label className="relative inline-flex h-0 w-12 cursor-pointer items-center">
       <input
         type="checkbox"
+        aria-label={ariaLabel}
         checked={localChecked}
         onChange={handleChange}
         disabled={disabled}

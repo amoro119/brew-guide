@@ -11,10 +11,10 @@
  * 注意：移除了手动上传/下载按钮，改为全自动实时同步
  */
 
+import { SettingInput, SettingRow } from '../atomic';
 import React, { useState, useRef, useEffect } from 'react';
 import { SUPABASE_SETUP_SQL } from '@/lib/supabase';
 import { SettingsOptions } from '../Settings';
-import { ExternalLink, Eye, EyeOff } from 'lucide-react';
 import ActionDrawer from '@/components/common/ui/ActionDrawer';
 import DataAlertIcon from '@public/images/icons/ui/data-alert.svg';
 import { SyncHeaderButton } from './shared/SyncHeaderButton';
@@ -129,7 +129,7 @@ const SupabaseSyncProgressPanel: React.FC<{
   if (!showProgressPanel) return null;
 
   return (
-    <div className="rounded-md bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:bg-neutral-900 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+    <div className="border-t border-black/5 py-3.5 dark:border-white/5">
       <div className="space-y-1">
         <p className="text-sm font-medium text-neutral-800 tabular-nums dark:text-neutral-100">
           {panelTitle}
@@ -204,7 +204,6 @@ export const SupabaseSyncSection: React.FC<SupabaseSyncSectionProps> = ({
   onEnable,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const [showAnonKey, setShowAnonKey] = useState(false);
   const [showSQLDrawer, setShowSQLDrawer] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [error, setError] = useState('');
@@ -243,8 +242,9 @@ export const SupabaseSyncSection: React.FC<SupabaseSyncSectionProps> = ({
       case 'connected':
         return 'bg-green-500';
       case 'connecting':
+        return 'bg-yellow-500 animate-pulse';
       case 'error':
-        return 'bg-neutral-500';
+        return 'bg-red-500';
       default:
         return 'bg-neutral-300 dark:bg-neutral-600';
     }
@@ -323,12 +323,13 @@ export const SupabaseSyncSection: React.FC<SupabaseSyncSectionProps> = ({
   };
 
   return (
-    <div className="ml-0 space-y-3">
+    <>
       <SyncHeaderButton
         serviceName="Supabase"
         enabled={enabled}
         status={status}
         expanded={expanded}
+        isLast={!expanded}
         statusColor={getStatusColor()}
         statusText={getStatusText()}
         onClick={() => {
@@ -338,68 +339,65 @@ export const SupabaseSyncSection: React.FC<SupabaseSyncSectionProps> = ({
       />
 
       {enabled && expanded && (
-        <div className="space-y-3 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              Supabase URL
-            </label>
-            <input
+        <>
+          <SettingRow
+            label="Supabase URL"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="Supabase URL"
+              autoCapitalize="none"
+              spellCheck={false}
               type="url"
               value={settings.url}
               onChange={e => onSettingChange('url', e.target.value)}
               placeholder="https://xxx.supabase.co"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              Anon Key
-            </label>
-            <div className="relative">
-              <input
-                type={showAnonKey ? 'text' : 'password'}
-                value={settings.anonKey}
-                onChange={e => onSettingChange('anonKey', e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR..."
-                className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
-              />
-              <button
-                type="button"
-                onClick={() => setShowAnonKey(!showAnonKey)}
-                className="absolute top-1/2 right-2 -translate-y-1/2 transform p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              >
-                {showAnonKey ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowSQLDrawer(true)}
-            className="flex w-full items-center justify-between rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+          <SettingRow
+            label="Anon Key"
+            isSubSetting
+            expandControl
+            isLast={false}
           >
-            <span>查看初始化 SQL 脚本</span>
-            <ExternalLink className="h-4 w-4" />
-          </button>
+            <SettingInput
+              aria-label="Anon Key"
+              autoCapitalize="none"
+              spellCheck={false}
+              type="password"
+              value={settings.anonKey}
+              onChange={e => onSettingChange('anonKey', e.target.value)}
+              placeholder="eyJhbGciOiJIUzI1NiIsInR..."
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="初始化 SQL 脚本"
+            isSubSetting
+            onClick={() => setShowSQLDrawer(true)}
+            isLast
+          >
+            {null}
+          </SettingRow>
 
           {visibleError && (
-            <div className="rounded-md bg-red-50 p-3 dark:bg-red-900/20">
+            <div role="alert" className="px-3.5 py-3">
               <p className="text-xs text-red-600 dark:text-red-400">
                 {visibleError}
               </p>
             </div>
           )}
 
-          <SupabaseSyncProgressPanel
-            progress={supabaseSyncProgress}
-            pendingChangesCount={pendingChangesCount}
-          />
-        </div>
+          <div className="px-3.5">
+            <SupabaseSyncProgressPanel
+              progress={supabaseSyncProgress}
+              pendingChangesCount={pendingChangesCount}
+            />
+          </div>
+        </>
       )}
 
       <ActionDrawer
@@ -433,6 +431,6 @@ export const SupabaseSyncSection: React.FC<SupabaseSyncSectionProps> = ({
           </ActionDrawer.PrimaryButton>
         </ActionDrawer.Actions>
       </ActionDrawer>
-    </div>
+    </>
   );
 };

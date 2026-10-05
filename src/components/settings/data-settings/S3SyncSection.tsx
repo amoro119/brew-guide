@@ -6,8 +6,9 @@
  * 2025-12-21 重构：使用共享 Hook 和组件减少代码重复
  */
 
+import { SettingInput, SettingRow } from '../atomic';
+import { makeSettingRowSearchId } from '../settingsSearch';
 import React, { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
 import { S3SyncManager } from '@/lib/s3/syncManagerV2';
 import type {
   SyncResult,
@@ -16,8 +17,6 @@ import type {
 } from '@/lib/s3/types';
 import { useSyncSection } from '@/lib/hooks/useSyncSection';
 import { SettingsOptions } from '../Settings';
-import ActionDrawer from '@/components/common/ui/ActionDrawer';
-import DataAlertIcon from '@public/images/icons/ui/data-alert.svg';
 import { showToast } from '@/components/common/feedback/LightToast';
 import {
   SyncHeaderButton,
@@ -31,6 +30,11 @@ type S3SyncSettings = NonNullable<SettingsOptions['s3Sync']>;
 interface S3SyncSectionProps {
   settings: S3SyncSettings;
   enabled: boolean;
+  isLast?: boolean;
+  renderContent: (
+    configuration: React.ReactNode,
+    actions: React.ReactNode
+  ) => React.ReactNode;
   hapticFeedback: boolean;
   onSettingChange: <K extends keyof S3SyncSettings>(
     key: K,
@@ -44,6 +48,8 @@ interface S3SyncSectionProps {
 export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
   settings,
   enabled,
+  isLast = true,
+  renderContent,
   hapticFeedback,
   onSettingChange,
   onSyncComplete,
@@ -63,7 +69,6 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
     setExpanded,
     isSyncing,
     setIsSyncing,
-    syncProgress,
     setSyncProgress,
     debugLogs,
     setDebugLogs,
@@ -81,7 +86,6 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
   // S3 特有状态
   // ============================================
 
-  const [showSecretKey, setShowSecretKey] = useState(false);
   const [syncManager, setSyncManager] = useState<S3SyncManager | null>(null);
   const [showBackupDrawer, setShowBackupDrawer] = useState(false);
   const [backups, setBackups] = useState<BackupRecord[]>([]);
@@ -360,14 +364,15 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
   // UI 渲染
   // ============================================
 
-  return (
-    <div className="ml-0 space-y-3">
+  const configuration = (
+    <>
       {/* 头部按钮 */}
       <SyncHeaderButton
         serviceName="S3"
         enabled={enabled}
         status={effectiveStatus}
         expanded={expanded}
+        isLast={!expanded && isLast}
         statusColor={getEffectiveStatusColor()}
         statusText={getEffectiveStatusText()}
         onClick={() => {
@@ -380,126 +385,144 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
 
       {/* 配置表单 */}
       {enabled && expanded && (
-        <div className="space-y-3 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
+        <>
           {/* 服务地址 (Endpoint) */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              服务地址 (Endpoint)
-            </label>
-            <input
+          <SettingRow
+            label="服务地址 (Endpoint)"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="服务地址 (Endpoint)"
+              autoCapitalize="none"
+              spellCheck={false}
               type="url"
               value={settings.endpoint || ''}
               onChange={e => onSettingChange('endpoint', e.target.value)}
               placeholder="s3.cstcloud.cn"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* 区域 (Region) */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              区域 (Region)
-            </label>
-            <input
+          <SettingRow
+            label="区域 (Region)"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="区域 (Region)"
+              autoCapitalize="none"
+              spellCheck={false}
               type="text"
               value={settings.region}
               onChange={e => onSettingChange('region', e.target.value)}
               placeholder="us-east-1"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* Access Key ID */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              Access Key ID
-            </label>
-            <input
+          <SettingRow
+            label="Access Key ID"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="Access Key ID"
+              autoCapitalize="none"
+              spellCheck={false}
               type="text"
               value={settings.accessKeyId}
               onChange={e => onSettingChange('accessKeyId', e.target.value)}
               placeholder="AKIA..."
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* Secret Access Key */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              Secret Access Key
-            </label>
-            <div className="relative">
-              <input
-                type={showSecretKey ? 'text' : 'password'}
-                value={settings.secretAccessKey}
-                onChange={e =>
-                  onSettingChange('secretAccessKey', e.target.value)
-                }
-                placeholder="密钥"
-                className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecretKey(!showSecretKey)}
-                className="absolute top-1/2 right-2 -translate-y-1/2 transform p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              >
-                {showSecretKey ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </div>
+          <SettingRow
+            label="Secret Access Key"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="Secret Access Key"
+              autoCapitalize="none"
+              spellCheck={false}
+              type="password"
+              value={settings.secretAccessKey}
+              onChange={e => onSettingChange('secretAccessKey', e.target.value)}
+              placeholder="密钥"
+            />
+          </SettingRow>
 
           {/* 存储桶 (Bucket) */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              存储桶 (Bucket)
-            </label>
-            <input
+          <SettingRow
+            label="存储桶 (Bucket)"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="存储桶 (Bucket)"
+              autoCapitalize="none"
+              spellCheck={false}
               type="text"
               value={settings.bucketName}
               onChange={e => onSettingChange('bucketName', e.target.value)}
               placeholder="bucket-name"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* 文件前缀 */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              文件前缀（可选）
-            </label>
-            <input
+          <SettingRow
+            label="文件前缀（可选）"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="文件前缀（可选）"
+              autoCapitalize="none"
+              spellCheck={false}
               type="text"
               value={settings.prefix}
               onChange={e => onSettingChange('prefix', e.target.value)}
               placeholder="brew-guide-data/"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* 错误信息 */}
           {effectiveError && (
-            <div className="rounded-md bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <div
+              role="alert"
+              className="px-3.5 py-3 text-xs leading-relaxed text-red-600 dark:text-red-400"
+            >
               {effectiveError}
             </div>
           )}
 
           {/* 测试连接按钮 */}
-          <button
-            type="button"
+          <SettingRow
+            label={effectiveStatus === 'connecting' ? '连接中…' : '测试连接'}
+            settingId={makeSettingRowSearchId('测试连接')}
+            isSubSetting
+            className="min-h-11"
             onClick={testConnection}
             disabled={effectiveStatus === 'connecting'}
-            className="w-full rounded-md bg-neutral-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-900 disabled:bg-neutral-400 dark:bg-neutral-700 dark:hover:bg-neutral-600"
+            isLast={isLast}
           >
-            {effectiveStatus === 'connecting' ? '连接中...' : '测试连接'}
-          </button>
-        </div>
+            {null}
+          </SettingRow>
+        </>
       )}
+    </>
+  );
 
-      {/* 同步按钮 */}
+  const actions =
+    enabled && effectiveStatus === 'connected' ? (
       <SyncButtons
         enabled={enabled}
         isConnected={effectiveStatus === 'connected'}
@@ -508,7 +531,13 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
         onDownload={() => performSync('download')}
         onShowBackups={handleShowBackups}
         isLoadingBackups={isLoadingBackups}
+        isLast
       />
+    ) : null;
+
+  return (
+    <>
+      {renderContent(configuration, actions)}
 
       {/* 备份历史抽屉 */}
       <BackupHistoryDrawer
@@ -530,6 +559,6 @@ export const S3SyncSection: React.FC<S3SyncSectionProps> = ({
         onSelectAll={handleSelectAll}
         title="S3 同步日志"
       />
-    </div>
+    </>
   );
 };

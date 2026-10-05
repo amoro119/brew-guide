@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { DataManager as DataManagerUtil } from '@/lib/core/dataManager';
 import { BackupReminderUtils } from '@/lib/utils/backupReminderUtils';
 import { exportDataAsJsonFile } from '@/lib/utils/dataExportUtils';
@@ -10,7 +9,11 @@ import {
   recordCrashOperationStart,
   recordCrashOperationStep,
 } from '@/lib/app/crashDiagnostics';
-import { useScrollToHighlightedSetting } from '../atomic';
+import {
+  SettingSection,
+  SettingRow,
+  useScrollToHighlightedSetting,
+} from '../atomic';
 import { makeSettingRowSearchId } from '../settingsSearch';
 
 interface DataManagementSectionProps {
@@ -218,132 +221,102 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     }
   };
 
-  const recompressImageLabel =
-    isRecompressing || status.scope === 'image' ? status.message : '图片补压';
-  const highlightedSettingId = useScrollToHighlightedSetting(
+  useScrollToHighlightedSetting(
     `${showConfirmReset}:${isExporting}:${isRecompressing}`
   );
-  const getSearchHighlightClass = React.useCallback(
-    (label: string) =>
-      highlightedSettingId === makeSettingRowSearchId(label)
-        ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
-        : '',
-    [highlightedSettingId]
-  );
+
+  const buttonClass =
+    'h-4 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300';
+  const statusMessage = status.type ? (
+    <p
+      role={status.type === 'error' ? 'alert' : 'status'}
+      className={`text-xs ${status.type === 'error' ? 'text-red-500 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400'}`}
+    >
+      {status.message}
+    </p>
+  ) : undefined;
 
   return (
     <>
-      <div
-        data-settings-search-id={makeSettingRowSearchId('数据管理')}
-        className={`px-6 py-4 transition-colors ${getSearchHighlightClass('数据管理')}`}
-      >
-        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-          数据管理
-        </h3>
-
-        {status.type && status.scope !== 'image' && (
-          <div
-            className={`mb-4 rounded-md p-3 text-sm ${
-              status.type === 'success'
-                ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                : status.type === 'error'
-                  ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                  : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-            }`}
-          >
-            {status.message}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <button
-            type="button"
-            data-settings-search-id={makeSettingRowSearchId('导出数据')}
+      <div data-settings-search-id={makeSettingRowSearchId('数据管理')}>
+        <SettingSection
+          title="数据管理"
+          footer={
+            showConfirmReset
+              ? '确认重置全部数据？此操作无法撤销，请先导出备份。'
+              : status.scope !== 'image'
+                ? statusMessage
+                : undefined
+          }
+        >
+          <SettingRow
+            label={isExporting ? '导出中…' : '导出数据'}
+            settingId={makeSettingRowSearchId('导出数据')}
+            className="min-h-11"
             onClick={handleExport}
             disabled={isExporting}
-            className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('导出数据')}`}
           >
-            <span>
-              {isExporting ? '导出中...' : '导出数据'}
-            </span>
-            <ChevronRight className="size-4 text-neutral-400" />
-          </button>
-
-          <div>
-            <button
-              type="button"
-              data-settings-search-id={makeSettingRowSearchId('导入数据')}
-              onClick={handleImportClick}
-              className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('导入数据')}`}
-            >
-              <span>导入数据</span>
-              <ChevronRight className="size-4 text-neutral-400" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              aria-label="导入数据文件"
-              accept=".json"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-
-          {!showConfirmReset ? (
-            <button
-              type="button"
-              data-settings-search-id={makeSettingRowSearchId('重置数据')}
-              onClick={() => setShowConfirmReset(true)}
-              className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('重置数据')}`}
-            >
-              <span>重置数据</span>
-              <ChevronRight className="size-4 text-neutral-400" />
-            </button>
-          ) : (
-            <div
-              data-settings-search-id={makeSettingRowSearchId('重置数据')}
-              className={`space-y-3 rounded bg-neutral-100 p-4 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('重置数据')}`}
-            >
-              <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                确认重置数据？此操作无法撤销
-              </p>
-              <div className="flex gap-2">
+            {null}
+          </SettingRow>
+          <SettingRow
+            label="导入数据"
+            onClick={handleImportClick}
+            className="min-h-11"
+          >
+            {null}
+          </SettingRow>
+          <SettingRow
+            label="重置数据"
+            className="min-h-11"
+            onClick={
+              showConfirmReset ? undefined : () => setShowConfirmReset(true)
+            }
+            isLast
+          >
+            {showConfirmReset ? (
+              <div className="flex h-4 items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleReset}
-                  className="flex-1 rounded bg-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+                  onClick={() => void handleReset()}
+                  className="cursor-pointer text-sm leading-none font-medium text-red-500 active:opacity-70 dark:text-red-400"
                 >
                   确认重置
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowConfirmReset(false)}
-                  className="flex-1 rounded bg-neutral-800 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-900 dark:bg-neutral-600 dark:hover:bg-neutral-500"
+                  className={buttonClass}
                 >
                   取消
                 </button>
               </div>
-            </div>
-          )}
-        </div>
+            ) : null}
+          </SettingRow>
+        </SettingSection>
       </div>
-
-      <div className="px-6 py-4">
-        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-          数据操作
-        </h3>
-
-        <button
-          type="button"
-          data-settings-search-id={makeSettingRowSearchId('图片补压')}
+      <input
+        ref={fileInputRef}
+        type="file"
+        aria-label="导入数据文件"
+        accept=".json"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <SettingSection
+        title="数据操作"
+        footer={status.scope === 'image' ? statusMessage : undefined}
+      >
+        <SettingRow
+          label={isRecompressing ? '补压中…' : '图片补压'}
+          settingId={makeSettingRowSearchId('图片补压')}
+          className="min-h-11"
           onClick={handleRecompressImages}
           disabled={isRecompressing}
-          className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('图片补压')}`}
+          isLast
         >
-          <span>{recompressImageLabel}</span>
-          <ChevronRight className="size-4 text-neutral-400" />
-        </button>
-      </div>
+          {null}
+        </SettingRow>
+      </SettingSection>
     </>
   );
 };

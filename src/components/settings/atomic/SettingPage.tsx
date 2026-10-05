@@ -6,6 +6,7 @@ import { useSettingPageLayoutMode } from './SettingPageLayoutContext';
 interface SettingPageProps {
   title: string;
   children: React.ReactNode;
+  bottomContent?: React.ReactNode;
   isVisible: boolean;
   onClose: () => void;
 }
@@ -17,6 +18,7 @@ interface SettingPageProps {
 const SettingPage: React.FC<SettingPageProps> = ({
   title,
   children,
+  bottomContent,
   isVisible,
   onClose,
 }) => {
@@ -28,7 +30,7 @@ const SettingPage: React.FC<SettingPageProps> = ({
     <div
       className={
         isEmbedded
-          ? 'flex h-full min-w-0 flex-col bg-neutral-50 dark:bg-neutral-900'
+          ? 'relative flex h-full min-w-0 flex-col bg-neutral-50 dark:bg-neutral-900'
           : 'fixed inset-0 mx-auto flex flex-col bg-neutral-50 dark:bg-neutral-900'
       }
       style={isEmbedded ? undefined : getChildPageStyle(isVisible)}
@@ -71,6 +73,13 @@ const SettingPage: React.FC<SettingPageProps> = ({
           children
         )}
       </div>
+      {bottomContent && (
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 ${isEmbedded ? embeddedContentClass : ''}`}
+        >
+          {bottomContent}
+        </div>
+      )}
     </div>
   );
 };

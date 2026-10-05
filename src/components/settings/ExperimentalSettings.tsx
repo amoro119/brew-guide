@@ -197,7 +197,7 @@ const ExperimentalSettings: React.FC<ExperimentalSettingsProps> = ({
 
   return (
     <SettingPage title="实验性功能" isVisible={isVisible} onClose={handleClose}>
-      <SettingSection title="设置">
+      <SettingSection title="设置" className="-mt-4">
         <SettingRow label="设置全局搜索" isLast>
           <SettingToggle
             checked={settings.experimentalSettingsSearchEnabled || false}

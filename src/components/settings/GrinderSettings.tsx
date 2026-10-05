@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus } from 'lucide-react';
 import { SettingsOptions } from './Settings';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 import hapticsUtils from '@/lib/ui/haptics';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import { useGrinderStore } from '@/lib/stores/grinderStore';
-import { SettingPage, useScrollToHighlightedSetting } from './atomic';
+import {
+  SettingPage,
+  SettingSection,
+  SettingRow,
+  useScrollToHighlightedSetting,
+} from './atomic';
 import {
   makeDynamicSettingSearchId,
   makeSettingRowSearchId,
@@ -92,19 +96,8 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
     updateGrinder,
     deleteGrinder,
   } = useGrinderStore();
-  const highlightedSettingId = useScrollToHighlightedSetting(
+  useScrollToHighlightedSetting(
     `${grinders.map(grinder => grinder.id).join('\n')}:${addingStep}`
-  );
-  const isSearchRowHighlighted = React.useCallback(
-    (label: string) => highlightedSettingId === makeSettingRowSearchId(label),
-    [highlightedSettingId]
-  );
-  const getSearchHighlightClass = React.useCallback(
-    (label: string) =>
-      isSearchRowHighlighted(label)
-        ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
-        : '',
-    [isSearchRowHighlighted]
   );
   // 初始化 store
   useEffect(() => {
@@ -162,30 +155,119 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
 
   return (
     <SettingPage title="磨豆机" isVisible={isVisible} onClose={handleClose}>
-      {/* 顶部渐变阴影 */}
-      <div className="-mt-4 space-y-4 px-6">
+      <SettingSection title="磨豆机" className="-mt-4">
+        {/* 添加新磨豆机 */}
+        {addingStep === 'name' ? (
+          <SettingRow
+            vertical
+            isLast={grinders.length === 0}
+            settingId={makeSettingRowSearchId('添加磨豆机')}
+          >
+            <div className="flex h-4 min-w-0 items-center gap-2">
+              <input
+                type="text"
+                value={newGrinderName}
+                onChange={e => setNewGrinderName(e.target.value)}
+                onBlur={() => {
+                  if (!newGrinderName.trim()) {
+                    setAddingStep('none');
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newGrinderName.trim()) {
+                    setAddingStep('grindSize');
+                  } else if (e.key === 'Escape') {
+                    setAddingStep('none');
+                    setNewGrinderName('');
+                  }
+                }}
+                aria-label="磨豆机名称"
+                placeholder="输入磨豆机名称"
+                autoFocus
+                className="h-4 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-none font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  newGrinderName.trim() && setAddingStep('grindSize')
+                }
+                disabled={!newGrinderName.trim()}
+                className="shrink-0 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300"
+              >
+                下一步
+              </button>
+            </div>
+          </SettingRow>
+        ) : addingStep === 'grindSize' ? (
+          <SettingRow
+            vertical
+            isLast={grinders.length === 0}
+            settingId={makeSettingRowSearchId('添加磨豆机')}
+          >
+            <div className="flex h-4 min-w-0 items-center gap-2">
+              <span className="max-w-[50%] truncate text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                {newGrinderName}
+              </span>
+              <span className="shrink-0 text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                ·
+              </span>
+              <input
+                type="text"
+                value={newGrindSize}
+                onChange={e => setNewGrindSize(e.target.value)}
+                onBlur={() => {
+                  if (!newGrindSize.trim()) {
+                    setAddingStep('name');
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    handleAddGrinder();
+                  } else if (e.key === 'Escape') {
+                    setAddingStep('name');
+                    setNewGrindSize('');
+                  }
+                }}
+                aria-label="当前刻度"
+                placeholder="输入当前刻度"
+                autoFocus
+                className="h-4 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-none font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
+              />
+              <button
+                type="button"
+                onClick={handleAddGrinder}
+                disabled={!newGrindSize.trim()}
+                className="ml-auto shrink-0 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300"
+              >
+                添加
+              </button>
+            </div>
+          </SettingRow>
+        ) : (
+          <SettingRow
+            settingId={makeSettingRowSearchId('添加磨豆机')}
+            onClick={() => setAddingStep('name')}
+            isLast={grinders.length === 0}
+          >
+            <span className="flex h-4 items-center text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+              添加磨豆机
+            </span>
+          </SettingRow>
+        )}
+
         {/* 磨豆机列表 */}
-        {grinders.map(grinder => {
-          const isEditing = editingId === grinder.id;
-          const grinderSearchId = makeDynamicSettingSearchId(
-            'grinder',
-            grinder.id
-          );
-          const isSearchHighlighted = highlightedSettingId === grinderSearchId;
-          return (
-            <div
-              key={grinder.id}
-              data-settings-search-id={grinderSearchId}
-              className={`flex items-center justify-between gap-3 rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors duration-200 dark:bg-neutral-800 dark:text-neutral-200 ${
-                isSearchHighlighted
-                  ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
-                  : ''
-              }`}
-            >
-              <div className="flex flex-1 items-center gap-2">
-                {grinder.name}
+        {grinders.map((grinder, index) => (
+          <SettingRow
+            key={grinder.id}
+            settingId={makeDynamicSettingSearchId('grinder', grinder.id)}
+            vertical
+            isLast={index === grinders.length - 1}
+          >
+            <div className="flex h-4 min-w-0 items-center justify-between gap-3 text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="max-w-[50%] truncate">{grinder.name}</span>
                 <span>·</span>
-                {isEditing ? (
+                {editingId === grinder.id ? (
                   <input
                     type="text"
                     defaultValue={grinder.currentGrindSize || ''}
@@ -193,25 +275,36 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
                       (tempGrindSizeRef.current[grinder.id] = e.target.value)
                     }
                     onBlur={() => handleGrindSizeBlur(grinder.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') {
+                        delete tempGrindSizeRef.current[grinder.id];
+                        setEditingId(null);
+                      }
+                    }}
+                    aria-label={`${grinder.name} 的当前刻度`}
                     placeholder="当前刻度"
                     autoFocus
-                    className="flex-1 appearance-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                    className="h-4 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-none font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
                   />
                 ) : (
-                  <span
+                  <button
+                    type="button"
+                    aria-label={`修改 ${grinder.name} 的当前刻度`}
                     onClick={() => {
                       setEditingId(grinder.id);
                       tempGrindSizeRef.current[grinder.id] =
                         grinder.currentGrindSize || '';
                     }}
-                    className="cursor-pointer"
+                    className="min-w-0 truncate text-left active:opacity-70"
                   >
                     {grinder.currentGrindSize || '点击设置刻度'}
-                  </span>
+                  </button>
                 )}
               </div>
               <button
                 type="button"
+                aria-label={`${deletingId === grinder.id ? '确认删除' : '删除'} ${grinder.name}`}
                 onClick={e => {
                   e.stopPropagation();
                   if (deletingId === grinder.id) {
@@ -220,106 +313,19 @@ const GrinderSettings: React.FC<GrinderSettingsProps> = ({
                     setDeletingId(grinder.id);
                   }
                 }}
-                className={`text-xs font-medium transition-colors ${
+                className={`shrink-0 cursor-pointer text-sm leading-none font-medium active:opacity-70 ${
                   deletingId === grinder.id
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-neutral-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400'
+                    ? 'text-red-500 dark:text-red-400'
+                    : 'text-neutral-600 dark:text-neutral-300'
                 }`}
               >
                 {deletingId === grinder.id ? '确认删除' : '删除'}
               </button>
             </div>
-          );
-        })}
-
-        {/* 添加新磨豆机 */}
-        {addingStep === 'name' ? (
-          <div className="flex items-center gap-2 rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
-            <input
-              type="text"
-              value={newGrinderName}
-              onChange={e => setNewGrinderName(e.target.value)}
-              onBlur={() => {
-                if (!newGrinderName.trim()) {
-                  setAddingStep('none');
-                }
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && newGrinderName.trim()) {
-                  setAddingStep('grindSize');
-                } else if (e.key === 'Escape') {
-                  setAddingStep('none');
-                  setNewGrinderName('');
-                }
-              }}
-              placeholder="输入磨豆机名称"
-              autoFocus
-              className="flex-1 appearance-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
-            />
-            <button
-              type="button"
-              onClick={() =>
-                newGrinderName.trim() && setAddingStep('grindSize')
-              }
-              disabled={!newGrinderName.trim()}
-              className="text-xs font-medium text-neutral-800 transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-200 dark:hover:text-neutral-100"
-            >
-              下一步
-            </button>
-          </div>
-        ) : addingStep === 'grindSize' ? (
-          <div className="flex items-center gap-2 rounded bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
-            <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              {newGrinderName}
-            </span>
-            <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              ·
-            </span>
-            <input
-              type="text"
-              value={newGrindSize}
-              onChange={e => setNewGrindSize(e.target.value)}
-              onBlur={() => {
-                if (!newGrindSize.trim()) {
-                  setAddingStep('name');
-                }
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  handleAddGrinder();
-                } else if (e.key === 'Escape') {
-                  setAddingStep('name');
-                  setNewGrindSize('');
-                }
-              }}
-              placeholder="输入当前刻度"
-              autoFocus
-              className="flex-1 appearance-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
-            />
-            <button
-              type="button"
-              onClick={handleAddGrinder}
-              disabled={!newGrindSize.trim()}
-              className="ml-auto text-xs font-medium text-neutral-800 transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-200 dark:hover:text-neutral-100"
-            >
-              添加
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            data-settings-search-id={makeSettingRowSearchId('添加磨豆机')}
-            onClick={() => setAddingStep('name')}
-            className={`flex w-full items-center justify-center gap-2 rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('添加磨豆机')}`}
-          >
-            <Plus className="h-4 w-4" />
-            添加磨豆机
-          </button>
-        )}
-
-        {/* 底部空间 */}
-        <div className="h-16" />
-      </div>
+          </SettingRow>
+        ))}
+      </SettingSection>
+      <div className="h-16" />
     </SettingPage>
   );
 };

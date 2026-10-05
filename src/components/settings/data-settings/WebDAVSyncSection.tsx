@@ -6,8 +6,9 @@
  * 2025-12-21 重构：使用共享 Hook 和组件减少代码重复
  */
 
+import { SettingInput, SettingRow } from '../atomic';
+import { makeSettingRowSearchId } from '../settingsSearch';
 import React, { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
 import { WebDAVSyncManager } from '@/lib/webdav/syncManager';
 import type { SyncResult as WebDAVSyncResult } from '@/lib/webdav/types';
 import type { BackupRecord } from '@/lib/s3/types';
@@ -27,6 +28,11 @@ type WebDAVSyncSettings = NonNullable<SettingsOptions['webdavSync']>;
 interface WebDAVSyncSectionProps {
   settings: WebDAVSyncSettings;
   enabled: boolean;
+  isLast?: boolean;
+  renderContent: (
+    configuration: React.ReactNode,
+    actions: React.ReactNode
+  ) => React.ReactNode;
   hapticFeedback: boolean;
   onSettingChange: <K extends keyof WebDAVSyncSettings>(
     key: K,
@@ -39,6 +45,8 @@ interface WebDAVSyncSectionProps {
 export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
   settings,
   enabled,
+  isLast = true,
+  renderContent,
   hapticFeedback,
   onSettingChange,
   onSyncComplete,
@@ -74,7 +82,6 @@ export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
   // WebDAV 特有状态
   // ============================================
 
-  const [showPassword, setShowPassword] = useState(false);
   const [syncManager, setSyncManager] = useState<WebDAVSyncManager | null>(
     null
   );
@@ -364,14 +371,15 @@ export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
   // UI 渲染
   // ============================================
 
-  return (
-    <div className="ml-0 space-y-3">
+  const configuration = (
+    <>
       {/* 头部按钮 */}
       <SyncHeaderButton
         serviceName="WebDAV"
         enabled={enabled}
         status={effectiveStatus}
         expanded={expanded}
+        isLast={!expanded && isLast}
         statusColor={getEffectiveStatusColor()}
         statusText={getEffectiveStatusText()}
         onClick={() => {
@@ -384,119 +392,104 @@ export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
 
       {/* 配置表单 */}
       {enabled && expanded && (
-        <div className="space-y-3 rounded bg-neutral-100 p-4 dark:bg-neutral-800">
+        <>
           {/* URL */}
-          <div>
-            <label
-              htmlFor="webdav-url"
-              className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400"
-            >
-              服务器地址
-            </label>
-            <input
+          <SettingRow
+            label="服务器地址"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="服务器地址"
+              autoCapitalize="none"
+              spellCheck={false}
               id="webdav-url"
               type="url"
               value={settings.url}
               onChange={e => onSettingChange('url', e.target.value)}
               placeholder="https://dav.jianguoyun.com/dav/"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-            <div className="mt-1.5 space-y-1">
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                坚果云: https://dav.jianguoyun.com/dav/
-              </p>
-            </div>
-          </div>
+          </SettingRow>
 
           {/* 账号 */}
-          <div>
-            <label
-              htmlFor="webdav-username"
-              className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400"
-            >
-              账号
-            </label>
-            <input
+          <SettingRow label="账号" isSubSetting expandControl isLast={false}>
+            <SettingInput
+              aria-label="账号"
+              autoCapitalize="none"
+              spellCheck={false}
               id="webdav-username"
               type="text"
               value={settings.username}
               onChange={e => onSettingChange('username', e.target.value)}
               placeholder="username"
               autoComplete="username"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* 密码 */}
-          <div>
-            <label
-              htmlFor="webdav-password"
-              className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400"
-            >
-              密码
-            </label>
-            <div className="relative">
-              <input
-                id="webdav-password"
-                type={showPassword ? 'text' : 'password'}
-                value={settings.password}
-                onChange={e => onSettingChange('password', e.target.value)}
-                placeholder="password"
-                autoComplete="current-password"
-                className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute top-1/2 right-2 -translate-y-1/2 transform p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </div>
+          <SettingRow label="密码" isSubSetting expandControl isLast={false}>
+            <SettingInput
+              aria-label="密码"
+              autoCapitalize="none"
+              spellCheck={false}
+              id="webdav-password"
+              type="password"
+              value={settings.password}
+              onChange={e => onSettingChange('password', e.target.value)}
+              placeholder="password"
+              autoComplete="current-password"
+            />
+          </SettingRow>
 
           {/* 远程路径 */}
-          <div>
-            <label
-              htmlFor="webdav-remote-path"
-              className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400"
-            >
-              远程目录路径
-            </label>
-            <input
+          <SettingRow
+            label="远程目录路径"
+            isSubSetting
+            expandControl
+            isLast={false}
+          >
+            <SettingInput
+              aria-label="远程目录路径"
+              autoCapitalize="none"
+              spellCheck={false}
               id="webdav-remote-path"
               type="text"
               value={settings.remotePath}
               onChange={e => onSettingChange('remotePath', e.target.value)}
               placeholder="brew-guide-data/"
-              className="w-full rounded-md border border-neutral-200/50 bg-neutral-50 px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
             />
-          </div>
+          </SettingRow>
 
           {/* 错误信息 */}
           {effectiveError && (
-            <div className="rounded-md bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <div
+              role="alert"
+              className="px-3.5 py-3 text-xs leading-relaxed text-red-600 dark:text-red-400"
+            >
               {effectiveError}
             </div>
           )}
 
           {/* 测试连接按钮 */}
-          <button
-            type="button"
+          <SettingRow
+            label={effectiveStatus === 'connecting' ? '连接中…' : '测试连接'}
+            settingId={makeSettingRowSearchId('测试连接')}
+            isSubSetting
+            className="min-h-11"
             onClick={testConnection}
             disabled={effectiveStatus === 'connecting'}
-            className="w-full rounded-md bg-neutral-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-900 disabled:bg-neutral-400 dark:bg-neutral-700 dark:hover:bg-neutral-600"
+            isLast={isLast}
           >
-            {effectiveStatus === 'connecting' ? '连接中...' : '测试连接'}
-          </button>
-        </div>
+            {null}
+          </SettingRow>
+        </>
       )}
+    </>
+  );
 
-      {/* 同步按钮 */}
+  const actions =
+    enabled && effectiveStatus === 'connected' ? (
       <SyncButtons
         enabled={enabled}
         isConnected={effectiveStatus === 'connected'}
@@ -505,7 +498,13 @@ export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
         onDownload={() => performSync('download')}
         onShowBackups={handleShowBackups}
         isLoadingBackups={isLoadingBackups}
+        isLast
       />
+    ) : null;
+
+  return (
+    <>
+      {renderContent(configuration, actions)}
 
       {/* 备份历史抽屉 */}
       <BackupHistoryDrawer
@@ -534,6 +533,6 @@ export const WebDAVSyncSection: React.FC<WebDAVSyncSectionProps> = ({
         onSelectAll={handleSelectAll}
         title="WebDAV 同步日志"
       />
-    </div>
+    </>
   );
 };

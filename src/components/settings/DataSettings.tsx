@@ -13,8 +13,11 @@ import {
 import hapticsUtils from '@/lib/ui/haptics';
 import SettingPage from './atomic/SettingPage';
 import SettingSelector from './atomic/SettingSelector';
+import SettingSelect from './atomic/SettingSelect';
 import {
-  useSettingSearchHighlight,
+  SettingSection,
+  SettingRow,
+  SettingToggle,
   useScrollToHighlightedSetting,
 } from './atomic';
 import { S3SyncSection } from './data-settings/S3SyncSection';
@@ -58,77 +61,6 @@ interface DataSettingsProps {
   ) => void | Promise<void>;
   onDataChange?: () => void;
 }
-
-interface SelectionDropdownProps {
-  label: string;
-  value: string;
-  valueLabel: string;
-  isOpen: boolean;
-  options: Array<{
-    value: string;
-    label: string;
-  }>;
-  settingId?: string;
-  onToggle: () => void;
-  onSelect: (value: string) => void;
-}
-
-const SelectionDropdown: React.FC<SelectionDropdownProps> = ({
-  label,
-  value,
-  valueLabel,
-  isOpen,
-  options,
-  settingId,
-  onToggle,
-  onSelect,
-}) => {
-  const { highlightedSettingId } = useSettingSearchHighlight();
-  const resolvedSettingId = settingId ?? makeSettingRowSearchId(label);
-  const isHighlighted = highlightedSettingId === resolvedSettingId;
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        data-settings-search-id={resolvedSettingId}
-        onClick={onToggle}
-        className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${
-          isHighlighted ? 'bg-neutral-200/70 dark:bg-neutral-700/45' : ''
-        }`}
-      >
-        <span>{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-500 dark:text-neutral-400">
-            {valueLabel}
-          </span>
-          <ChevronRight
-            className={`h-4 w-4 text-neutral-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
-          />
-        </div>
-      </button>
-
-      {isOpen && (
-        <div className="mt-2 space-y-2 rounded bg-neutral-100 p-2 dark:bg-neutral-800">
-          {options.map(option => (
-            <button
-              type="button"
-              key={option.value}
-              onClick={() => onSelect(option.value)}
-              className={`w-full rounded px-3 py-2 text-left text-sm transition-colors ${
-                value === option.value
-                  ? 'bg-neutral-200 font-medium text-neutral-900 dark:bg-neutral-700 dark:text-neutral-100'
-                  : 'text-neutral-700 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-700'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 function canUsePullToSync(): boolean {
   if (typeof window === 'undefined') return false;
@@ -197,9 +129,6 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   const [supportsPullToSync, setSupportsPullToSync] = useState(false);
 
   // 云同步类型选择
-  const [showSyncTypeDropdown, setShowSyncTypeDropdown] = useState(false);
-  const [showSupabaseBackupDropdown, setShowSupabaseBackupDropdown] =
-    useState(false);
   // WebDAV 教程弹窗
   const [showWebDAVTutorial, setShowWebDAVTutorial] = useState(false);
 
@@ -531,6 +460,10 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   const isManualSyncConnected =
     getConnectedManualSyncProvider(resolvedSyncSettings) !== 'none';
   const isManualPullToSyncEnabled = isPullToSyncEnabled(resolvedSyncSettings);
+  const showWebDAVTutorialEntry =
+    selectedManualSyncType === 'webdav' &&
+    !webdavSettings.lastConnectionSuccess;
+  const showPullToSync = supportsPullToSync && isManualSyncConnected;
 
   const handlePullToSyncSettingChange = (enabled: boolean) => {
     if (selectedManualSyncType === 's3') {
@@ -549,6 +482,8 @@ const DataSettings: React.FC<DataSettingsProps> = ({
       return (
         <S3SyncSection
           settings={s3Settings}
+          renderContent={renderManualSyncContent}
+          isLast={!showWebDAVTutorialEntry && !showPullToSync}
           enabled={true}
           hapticFeedback={settings.hapticFeedback}
           onSettingChange={handleS3SettingChange}
@@ -566,6 +501,8 @@ const DataSettings: React.FC<DataSettingsProps> = ({
       return (
         <WebDAVSyncSection
           settings={webdavSettings}
+          renderContent={renderManualSyncContent}
+          isLast={!showWebDAVTutorialEntry && !showPullToSync}
           enabled={true}
           hapticFeedback={settings.hapticFeedback}
           onSettingChange={handleWebDAVSettingChange}
@@ -636,44 +573,101 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     }
   };
 
-  const highlightedSettingId = useScrollToHighlightedSetting(
+  useScrollToHighlightedSetting(
     `${syncType}:${supabaseBackupProvider}:${backupReminderSettings?.enabled ?? false}:${isPersisted}:${isManualSyncConnected}`
   );
-  const getSearchHighlightClass = React.useCallback(
-    (label: string) =>
-      highlightedSettingId === makeSettingRowSearchId(label)
-        ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
-        : '',
-    [highlightedSettingId]
+
+  const manualSyncControls = (
+    <>
+      {showWebDAVTutorialEntry && (
+        <SettingRow
+          label="引导式配置"
+          onClick={() => setShowWebDAVTutorial(true)}
+          isLast={!showPullToSync}
+        >
+          <ChevronRight className="size-4 text-neutral-400 dark:text-neutral-500" />
+        </SettingRow>
+      )}
+      {showPullToSync && (
+        <SettingRow label="下拉上传" isLast>
+          <SettingToggle
+            checked={isManualPullToSyncEnabled}
+            onChange={handlePullToSyncSettingChange}
+            ariaLabel="下拉上传"
+          />
+        </SettingRow>
+      )}
+    </>
+  );
+
+  const cloudServiceRow = (
+    <SettingRow
+      label="同步服务"
+      settingId={makeSettingRowSearchId('同步服务')}
+      className="min-h-11"
+      isLast={syncType === 'none'}
+    >
+      <SettingSelect
+        value={syncType}
+        options={[
+          { value: 'none', label: getCloudProviderLabel('none') },
+          { value: 'webdav', label: getCloudProviderLabel('webdav') },
+          { value: 's3', label: getCloudProviderLabel('s3') },
+          { value: 'supabase', label: getCloudProviderLabel('supabase') },
+        ]}
+        onChange={switchSyncType}
+        ariaLabel="同步服务"
+      />
+    </SettingRow>
+  );
+  const backupServiceRow = (
+    <SettingRow
+      label="备份服务"
+      settingId={makeSettingRowSearchId('备份服务')}
+      className="min-h-11"
+      isLast={supabaseBackupProvider === 'none'}
+    >
+      <SettingSelect
+        value={supabaseBackupProvider}
+        options={[
+          { value: 'none', label: getCloudProviderLabel('none') },
+          { value: 'webdav', label: getCloudProviderLabel('webdav') },
+          { value: 's3', label: getCloudProviderLabel('s3') },
+        ]}
+        onChange={switchSupabaseBackupProvider}
+        ariaLabel="备份服务"
+      />
+    </SettingRow>
+  );
+  const renderManualSyncContent = (
+    configuration: React.ReactNode,
+    actions: React.ReactNode
+  ) => (
+    <>
+      <SettingSection
+        title={syncType === 'supabase' ? '手动备份' : '云同步'}
+        className={syncType === 'supabase' ? '' : '-mt-4'}
+        contentShape="card"
+      >
+        {syncType === 'supabase' ? backupServiceRow : cloudServiceRow}
+        {configuration}
+        {manualSyncControls}
+      </SettingSection>
+      {actions && <SettingSection title="同步操作">{actions}</SettingSection>}
+    </>
   );
 
   return (
     <SettingPage title="数据与备份" isVisible={isVisible} onClose={handleClose}>
-      {/* 云同步设置组 */}
-      <div className="-mt-4 px-6 py-4">
-        <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-          云同步
-        </h3>
-
-        <div className="space-y-3">
-          <SelectionDropdown
-            label="同步服务"
-            value={syncType}
-            valueLabel={getCloudProviderLabel(syncType)}
-            isOpen={showSyncTypeDropdown}
-            options={[
-              { value: 'none', label: getCloudProviderLabel('none') },
-              { value: 'webdav', label: getCloudProviderLabel('webdav') },
-              { value: 's3', label: getCloudProviderLabel('s3') },
-              { value: 'supabase', label: getCloudProviderLabel('supabase') },
-            ]}
-            onToggle={() => setShowSyncTypeDropdown(prev => !prev)}
-            onSelect={value => {
-              switchSyncType(value as CloudSyncType);
-              setShowSyncTypeDropdown(false);
-            }}
-          />
-
+      {syncType === 's3' || syncType === 'webdav' ? (
+        renderManualSyncSection()
+      ) : (
+        <SettingSection
+          title="云同步"
+          className="-mt-4"
+          contentShape={syncType === 'none' ? 'capsule' : 'card'}
+        >
+          {cloudServiceRow}
           {syncType === 'supabase' && (
             <SupabaseSyncSection
               settings={supabaseSettings}
@@ -684,276 +678,92 @@ const DataSettings: React.FC<DataSettingsProps> = ({
               onEnable={() => switchSyncType('supabase')}
             />
           )}
-
-          {syncType !== 'supabase' && renderManualSyncSection()}
-
-          {syncType !== 'supabase' &&
-            selectedManualSyncType === 'webdav' &&
-            !webdavSettings.lastConnectionSuccess && (
-              <button
-                type="button"
-                data-settings-search-id={makeSettingRowSearchId('引导式配置')}
-                onClick={() => setShowWebDAVTutorial(true)}
-                className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('引导式配置')}`}
-              >
-                <span>引导式配置（推荐新手）</span>
-                <ChevronRight className="h-4 w-4 text-neutral-400" />
-              </button>
-            )}
-
-          {syncType !== 'supabase' &&
-            supportsPullToSync &&
-            isManualSyncConnected && (
-              <div
-                data-settings-search-id={makeSettingRowSearchId('下拉上传')}
-                className={`flex items-center justify-between rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('下拉上传')}`}
-              >
-                <div>
-                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    下拉上传
-                  </div>
-                  <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                    在导航栏下拉可快速上传数据
-                  </div>
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={isManualPullToSyncEnabled}
-                    onChange={e =>
-                      handlePullToSyncSettingChange(e.target.checked)
-                    }
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-            )}
-        </div>
-      </div>
-
-      {syncType === 'supabase' && (
-        <div className="px-6 py-4">
-          <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            手动备份
-          </h3>
-
-          <div className="space-y-3">
-            <SelectionDropdown
-              label="备份服务"
-              value={supabaseBackupProvider}
-              valueLabel={getCloudProviderLabel(supabaseBackupProvider)}
-              isOpen={showSupabaseBackupDropdown}
-              options={[
-                { value: 'none', label: getCloudProviderLabel('none') },
-                { value: 'webdav', label: getCloudProviderLabel('webdav') },
-                { value: 's3', label: getCloudProviderLabel('s3') },
-              ]}
-              onToggle={() => setShowSupabaseBackupDropdown(prev => !prev)}
-              onSelect={value => {
-                switchSupabaseBackupProvider(value as ManualSyncProvider);
-                setShowSupabaseBackupDropdown(false);
-              }}
-            />
-
-            {supabaseBackupProvider !== 'none' && renderManualSyncSection()}
-
-            {selectedManualSyncType === 'webdav' &&
-              !webdavSettings.lastConnectionSuccess && (
-                <button
-                  type="button"
-                  data-settings-search-id={makeSettingRowSearchId('引导式配置')}
-                  onClick={() => setShowWebDAVTutorial(true)}
-                  className={`flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 ${getSearchHighlightClass('引导式配置')}`}
-                >
-                  <span>引导式配置（推荐新手）</span>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
-                </button>
-              )}
-
-            {supportsPullToSync && isManualSyncConnected && (
-              <div
-                data-settings-search-id={makeSettingRowSearchId('下拉上传')}
-                className={`flex items-center justify-between rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('下拉上传')}`}
-              >
-                <div>
-                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    下拉上传
-                  </div>
-                  <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                    在导航栏下拉可快速上传数据
-                  </div>
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={isManualPullToSyncEnabled}
-                    onChange={e =>
-                      handlePullToSyncSettingChange(e.target.checked)
-                    }
-                    className="peer sr-only"
-                  />
-                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                </label>
-              </div>
-            )}
-          </div>
-        </div>
+        </SettingSection>
       )}
+
+      {syncType === 'supabase' &&
+        (supabaseBackupProvider === 'none' ? (
+          <SettingSection title="手动备份">{backupServiceRow}</SettingSection>
+        ) : (
+          renderManualSyncSection()
+        ))}
 
       {!isPersisted && (
-        <div className="px-6 py-4">
-          <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            数据持久化
-          </h3>
-
-          <div className="space-y-3">
-            {!isPWA && !isNativePlatform ? (
-              <div
-                data-settings-search-id={makeSettingRowSearchId('持久化存储')}
-                className={`rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('持久化存储')}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    持久化存储
-                  </div>
-                  <label className="relative inline-flex cursor-pointer items-center">
-                    <input
-                      type="checkbox"
-                      aria-label="持久化存储不可用"
-                      checked={false}
-                      disabled={true}
-                      readOnly
-                      className="peer sr-only"
-                    />
-                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] dark:bg-neutral-700"></div>
-                  </label>
-                </div>
-
-                <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
-
-                <div className="text-xs text-neutral-600 dark:text-neutral-400">
-                  <p>
-                    请将本应用添加到主屏幕以启用 PWA
-                    模式，即可使用持久化存储功能。
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div
-                data-settings-search-id={makeSettingRowSearchId('持久化存储')}
-                className={`rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('持久化存储')}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    持久化存储
-                  </div>
-                  <label className="relative inline-flex cursor-pointer items-center">
-                    <input
-                      type="checkbox"
-                      aria-label="开启持久化存储"
-                      checked={false}
-                      onChange={handleRequestPersist}
-                      disabled={isRequestingPersist}
-                      className="peer sr-only"
-                    />
-                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-                  </label>
-                </div>
-
-                <div className="my-3 border-t border-neutral-200/50 dark:border-neutral-700"></div>
-
-                <div className="text-xs text-neutral-600 dark:text-neutral-400">
-                  <p>
-                    开启后可保护应用数据不被浏览器自动清理。建议经常使用本应用的用户开启此功能，以确保数据安全。
-                  </p>
-                  {storageEstimate && (
-                    <p className="mt-2">
-                      当前已使用 {storageEstimate.usageFormatted} /{' '}
-                      {storageEstimate.quotaFormatted}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <SettingSection
+          title="数据持久化"
+          footer={
+            !isPWA && !isNativePlatform
+              ? '请将本应用添加到主屏幕以启用 PWA 模式，即可使用持久化存储功能。'
+              : '启用后可保护应用数据不被浏览器自动清理。'
+          }
+        >
+          <SettingRow
+            label="持久化存储"
+            isLast={!storageEstimate || (!isPWA && !isNativePlatform)}
+          >
+            <SettingToggle
+              checked={isPersisted || isRequestingPersist}
+              onChange={() => void handleRequestPersist()}
+              disabled={
+                isRequestingPersist ||
+                isNativePlatform ||
+                !isPWA ||
+                !isPersistentStorageSupported()
+              }
+              ariaLabel="持久化存储"
+            />
+          </SettingRow>
+          {storageEstimate && (isPWA || isNativePlatform) && (
+            <SettingRow label="已用空间" isLast>
+              <span className="text-sm text-neutral-400 dark:text-neutral-500">
+                {storageEstimate.usageFormatted} /{' '}
+                {storageEstimate.quotaFormatted}
+              </span>
+            </SettingRow>
+          )}
+        </SettingSection>
       )}
 
-      {/* 备份提醒设置组 */}
       {backupReminderSettings && (
-        <div className="px-6 py-4">
-          <h3 className="mb-3 text-sm font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            备份提醒
-          </h3>
-
-          <div className="space-y-3">
-            {/* 备份提醒开关 */}
-            <div
-              data-settings-search-id={makeSettingRowSearchId('备份提醒')}
-              className={`flex items-center justify-between rounded bg-neutral-100 px-4 py-3 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('备份提醒')}`}
-            >
-              <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                备份提醒
-              </div>
-              <label className="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  checked={backupReminderSettings.enabled}
-                  onChange={e => {
-                    handleBackupReminderChange(e.target.checked);
-                  }}
-                  className="peer sr-only"
-                />
-                <div className="peer h-6 w-11 rounded-full bg-neutral-200 peer-checked:bg-neutral-600 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full dark:bg-neutral-700 dark:peer-checked:bg-neutral-500"></div>
-              </label>
-            </div>
-
-            {/* 展开的频率设置 */}
-            {backupReminderSettings.enabled && (
-              <div
-                data-settings-search-id={makeSettingRowSearchId('提醒频率')}
-                className={`space-y-2 rounded bg-neutral-100 p-4 transition-colors dark:bg-neutral-800 ${getSearchHighlightClass('提醒频率')}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    提醒频率
-                  </div>
-                  {nextReminderText && (
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {nextReminderText}
-                    </div>
-                  )}
-                </div>
-                <SettingSelector
-                  value={backupReminderSettings.interval.toString()}
-                  options={[
-                    {
-                      value: BACKUP_REMINDER_INTERVALS.WEEKLY.toString(),
-                      label: '每周',
-                    },
-                    {
-                      value: BACKUP_REMINDER_INTERVALS.BIWEEKLY.toString(),
-                      label: '每两周',
-                    },
-                    {
-                      value: BACKUP_REMINDER_INTERVALS.MONTHLY.toString(),
-                      label: '每月',
-                    },
-                  ]}
-                  onChange={value =>
-                    handleBackupIntervalChange(
-                      parseInt(value) as BackupReminderInterval
-                    )
-                  }
-                  ariaLabel="备份提醒频率"
-                  className="w-full"
-                  fullWidth
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        <SettingSection
+          title="备份提醒"
+          footer={backupReminderSettings.enabled ? nextReminderText : undefined}
+        >
+          <SettingRow label="备份提醒" isLast={!backupReminderSettings.enabled}>
+            <SettingToggle
+              checked={backupReminderSettings.enabled}
+              onChange={handleBackupReminderChange}
+              ariaLabel="备份提醒"
+            />
+          </SettingRow>
+          {backupReminderSettings.enabled && (
+            <SettingRow label="提醒频率" isSubSetting isLast>
+              <SettingSelector
+                value={backupReminderSettings.interval.toString()}
+                options={[
+                  {
+                    value: BACKUP_REMINDER_INTERVALS.WEEKLY.toString(),
+                    label: '每周',
+                  },
+                  {
+                    value: BACKUP_REMINDER_INTERVALS.BIWEEKLY.toString(),
+                    label: '每两周',
+                  },
+                  {
+                    value: BACKUP_REMINDER_INTERVALS.MONTHLY.toString(),
+                    label: '每月',
+                  },
+                ]}
+                onChange={value =>
+                  handleBackupIntervalChange(
+                    parseInt(value) as BackupReminderInterval
+                  )
+                }
+                ariaLabel="备份提醒频率"
+              />
+            </SettingRow>
+          )}
+        </SettingSection>
       )}
 
       {/* 数据管理设置组 */}

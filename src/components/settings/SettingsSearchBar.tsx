@@ -3,6 +3,7 @@
 import React from 'react';
 import { Search, X } from 'lucide-react';
 import type { SettingsSearchItem } from './settingsSearch';
+import { useSettingPageLayoutMode } from './atomic/SettingPageLayoutContext';
 
 interface SettingsSearchBarProps {
   query: string;
@@ -23,6 +24,8 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   onQueryChange,
   onSelect,
 }) => {
+  const layoutMode = useSettingPageLayoutMode();
+  const paddingClass = layoutMode === 'embedded' ? 'pl-4 pr-6' : 'px-6';
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [keyboardOffset, setKeyboardOffset] = React.useState(0);
   const updateKeyboardOffset = React.useCallback(() => {
@@ -113,7 +116,7 @@ const SettingsSearchBar: React.FC<SettingsSearchBarProps> = ({
   return (
     <div
       aria-hidden={!isVisible}
-      className={`pointer-events-none ${positionClass} z-30 px-6 pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]`}
+      className={`pointer-events-none ${positionClass} z-30 ${paddingClass} pt-8 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]`}
       style={{
         opacity: isVisible ? 1 : 0,
         transform: `translate3d(0, ${searchBarTranslateY}px, 0)`,

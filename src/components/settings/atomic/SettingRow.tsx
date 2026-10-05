@@ -10,6 +10,8 @@ interface SettingRowProps {
   className?: string;
   vertical?: boolean; // 是否垂直布局（用于复杂控件）
   isSubSetting?: boolean; // 是否为子设置项（显示半透明横杆前缀）
+  expandControl?: boolean; // 让控件使用标签右侧的剩余空间
+  disabled?: boolean;
   settingId?: string;
   onClick?: () => void;
 }
@@ -27,6 +29,8 @@ const SettingRow: React.FC<SettingRowProps> = ({
   className = '',
   vertical = false,
   isSubSetting = false,
+  expandControl = false,
+  disabled = false,
   settingId,
   onClick,
 }) => {
@@ -53,12 +57,12 @@ const SettingRow: React.FC<SettingRowProps> = ({
       <div
         ref={rowRef}
         data-settings-search-id={resolvedSettingId || undefined}
-        className={`flex w-full flex-col transition-colors duration-200 ${
+        className={`flex w-full flex-col px-3.5 transition-colors duration-200 ${
           isHighlighted ? 'bg-neutral-200/70 dark:bg-neutral-700/45' : ''
         } ${className}`}
       >
         <div
-          className={`flex flex-col p-3.5 ${
+          className={`flex flex-col py-3.5 ${
             !isLast ? 'border-b border-black/5 dark:border-white/5' : ''
           }`}
         >
@@ -93,14 +97,17 @@ const SettingRow: React.FC<SettingRowProps> = ({
       <RowContent
         type={onClick ? 'button' : undefined}
         onClick={onClick}
+        disabled={onClick ? disabled : undefined}
         className={`flex min-w-0 flex-1 items-center justify-between py-3.5 text-left ${
-          onClick ? 'cursor-pointer transition-opacity active:opacity-70' : ''
-        } ${
-          !isLast ? 'border-b border-black/5 dark:border-white/5' : ''
-        }`}
+          onClick
+            ? 'cursor-pointer transition-opacity active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40'
+            : ''
+        } ${!isLast ? 'border-b border-black/5 dark:border-white/5' : ''}`}
       >
         {label && (
-          <div className="mr-4 flex min-w-0 flex-1 flex-col">
+          <div
+            className={`mr-4 flex min-w-0 flex-col ${expandControl ? 'max-w-[50%] shrink-0' : 'flex-1'}`}
+          >
             <span className="truncate text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
               {isSubSetting && (
                 <span className="mr-1.5 inline-block text-neutral-500 opacity-50 dark:text-neutral-400">
@@ -116,7 +123,11 @@ const SettingRow: React.FC<SettingRowProps> = ({
             )}
           </div>
         )}
-        <div className="flex shrink-0 items-center">{children}</div>
+        <div
+          className={`flex items-center ${expandControl ? 'min-w-0 flex-1' : 'shrink-0'}`}
+        >
+          {children}
+        </div>
       </RowContent>
     </div>
   );

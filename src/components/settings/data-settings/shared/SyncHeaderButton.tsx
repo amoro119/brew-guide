@@ -7,12 +7,14 @@
 'use client';
 
 import React from 'react';
-import { ChevronDown } from 'lucide-react';
+import { SettingRow } from '../../atomic';
+import { ChevronRight } from 'lucide-react';
 import type { ConnectionStatus } from '@/lib/sync/types';
 
 interface SyncHeaderButtonProps {
   /** 服务名称 */
   serviceName: string;
+  isLast?: boolean;
   /** 是否启用 */
   enabled: boolean;
   /** 当前状态 */
@@ -29,29 +31,36 @@ interface SyncHeaderButtonProps {
 
 export const SyncHeaderButton: React.FC<SyncHeaderButtonProps> = ({
   serviceName,
+  isLast = true,
   statusColor,
   statusText,
   expanded,
   onClick,
 }) => {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between rounded bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-    >
-      <div className="flex items-center gap-2">
-        <div className={`h-2 w-2 rounded-full ${statusColor}`}></div>
-        <span>{serviceName} 云同步配置</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-neutral-500 dark:text-neutral-400">
-          {statusText}
+    <SettingRow vertical isLast={isLast}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={expanded}
+        className="flex h-4 w-full min-w-0 items-center justify-between gap-3 text-left active:opacity-70"
+      >
+        <span className="truncate text-sm leading-none font-medium text-neutral-800 dark:text-neutral-200">
+          {serviceName} 配置
         </span>
-        <ChevronDown
-          className={`h-4 w-4 text-neutral-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-        />
-      </div>
-    </button>
+        <span className="flex shrink-0 items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={`size-1.5 shrink-0 rounded-full ${statusColor}`}
+          />
+          <span className="text-sm leading-none font-normal text-neutral-600 dark:text-neutral-300">
+            {statusText}
+          </span>
+          <ChevronRight
+            className={`size-4 text-neutral-400 transition-transform dark:text-neutral-500 ${expanded ? 'rotate-90' : ''}`}
+          />
+        </span>
+      </button>
+    </SettingRow>
   );
 };
