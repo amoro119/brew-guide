@@ -1040,9 +1040,7 @@ const BrewingHistory: React.FC<BrewingHistoryProps> = ({
                 {(() => {
                   // 图片流模式下显示有图片的记录统计
                   if (imageFlowStats) {
-                    return imageFlowStats.count === 0
-                      ? ''
-                      : `${imageFlowStats.count} 条图片记录，已消耗 ${formatConsumption(imageFlowStats.consumption)}`;
+                    return `${imageFlowStats.count} 条图片记录，已消耗 ${formatConsumption(imageFlowStats.consumption)}`;
                   }
 
                   // 普通模式下显示总记录统计
