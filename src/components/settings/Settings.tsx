@@ -1052,44 +1052,7 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
         {isLargeScreen && (
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            <AnimatePresence mode="wait" initial={false}>
-              {activeSubSettingId ? (
-                <motion.div
-                  key={activeSubSettingId}
-                  className="h-full"
-                  initial={
-                    shouldReduceMotion
-                      ? { opacity: 0 }
-                      : { opacity: 0, transform: 'translate3d(12px, 0, 0)' }
-                  }
-                  animate={
-                    shouldReduceMotion
-                      ? { opacity: 1 }
-                      : { opacity: 1, transform: 'translate3d(0, 0, 0)' }
-                  }
-                  exit={
-                    shouldReduceMotion
-                      ? { opacity: 0 }
-                      : { opacity: 0, transform: 'translate3d(-8px, 0, 0)' }
-                  }
-                  transition={{
-                    duration: shouldReduceMotion ? 0.12 : 0.2,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                >
-                  {subSettingsContent}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="settings-empty-detail"
-                  className="h-full"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                />
-              )}
-            </AnimatePresence>
+            {subSettingsContent}
           </div>
         )}
       </div>
