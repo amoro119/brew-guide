@@ -14,6 +14,8 @@ import hapticsUtils from '@/lib/ui/haptics';
 import SettingPage from './atomic/SettingPage';
 import SettingSelector from './atomic/SettingSelector';
 import SettingSelect from './atomic/SettingSelect';
+import SettingNotice from './atomic/SettingNotice';
+import { getBooleanState, saveBooleanState } from '@/lib/core/statePersistence';
 import {
   SettingSection,
   SettingRow,
@@ -29,7 +31,6 @@ import { Capacitor } from '@capacitor/core';
 import PersistentStorageManager, {
   isPersistentStorageSupported,
   isPWAMode,
-  type StorageEstimate,
 } from '@/lib/utils/persistentStorage';
 import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import {
@@ -120,12 +121,16 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   const [nextReminderText, setNextReminderText] = useState('');
 
   // 持久化存储状态
-  const [isPersisted, setIsPersisted] = useState<boolean>(false);
-  const [storageEstimate, setStorageEstimate] =
-    useState<StorageEstimate | null>(null);
+  const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
+  const storageNoticeId = isPersistentStorageSupported()
+    ? 'storage-browser-mode'
+    : 'storage-unsupported';
+  const [isStorageNoticeDismissed, setIsStorageNoticeDismissed] = useState(() =>
+    getBooleanState('setting-notices', storageNoticeId)
+  );
   const [isRequestingPersist, setIsRequestingPersist] = useState(false);
-  const [isNativePlatform, setIsNativePlatform] = useState(false);
-  const [isPWA, setIsPWA] = useState(false);
+  const [isNativePlatform] = useState(() => Capacitor.isNativePlatform());
+  const [isPWA] = useState(() => !Capacitor.isNativePlatform() && isPWAMode());
   const [supportsPullToSync, setSupportsPullToSync] = useState(false);
 
   // 云同步类型选择
@@ -177,17 +182,6 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     });
   }, []);
 
-  // 检测平台
-  useEffect(() => {
-    const isNative = Capacitor.isNativePlatform();
-    setIsNativePlatform(isNative);
-
-    // 检测是否为 PWA 模式
-    if (!isNative) {
-      setIsPWA(isPWAMode());
-    }
-  }, []);
-
   useEffect(() => {
     const updatePullToSyncSupport = () => {
       setSupportsPullToSync(canUsePullToSync());
@@ -209,38 +203,21 @@ const DataSettings: React.FC<DataSettingsProps> = ({
   useEffect(() => {
     const loadStorageStatus = async () => {
       if (isNativePlatform) {
-        // Capacitor 原生平台，设置为已持久化状态并加载存储信息
+        // 原生平台沿用已有的数据保护状态，无需申请浏览器权限。
         setIsPersisted(true);
-
-        // 原生平台也可以获取存储估算
-        try {
-          const estimate = await PersistentStorageManager.getEstimate();
-          setStorageEstimate(estimate);
-        } catch (error) {
-          console.error('加载存储信息失败:', error);
-        }
-        return;
-      }
-
-      // Web 环境
-      if (!isPWA) {
-        // 非 PWA 模式，不加载持久化状态
         return;
       }
 
       try {
         const persisted = await PersistentStorageManager.checkPersisted();
         setIsPersisted(persisted);
-
-        const estimate = await PersistentStorageManager.getEstimate();
-        setStorageEstimate(estimate);
       } catch (error) {
         console.error('加载存储状态失败:', error);
       }
     };
 
     loadStorageStatus();
-  }, [isNativePlatform, isPWA]);
+  }, [isNativePlatform]);
 
   // 加载备份提醒设置
   useEffect(() => {
@@ -562,10 +539,6 @@ const DataSettings: React.FC<DataSettingsProps> = ({
       if (settings.hapticFeedback) {
         hapticsUtils.light();
       }
-
-      // 刷新存储估算
-      const estimate = await PersistentStorageManager.getEstimate(true);
-      setStorageEstimate(estimate);
     } catch (error) {
       console.error('请求持久化存储失败:', error);
     } finally {
@@ -646,7 +619,7 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     <>
       <SettingSection
         title={syncType === 'supabase' ? '手动备份' : '云同步'}
-        className={syncType === 'supabase' ? '' : '-mt-4'}
+        className={syncType === 'supabase' || showStorageNotice ? '' : '-mt-4'}
         contentShape="card"
       >
         {syncType === 'supabase' ? backupServiceRow : cloudServiceRow}
@@ -657,14 +630,35 @@ const DataSettings: React.FC<DataSettingsProps> = ({
     </>
   );
 
+  const showStorageNotice =
+    isPersisted === false &&
+    !isStorageNoticeDismissed &&
+    (!isPersistentStorageSupported() || (!isPWA && !isNativePlatform));
+
   return (
     <SettingPage title="数据与备份" isVisible={isVisible} onClose={handleClose}>
+      {showStorageNotice && (
+        <SettingNotice
+          id={storageNoticeId}
+          className="-mt-4"
+          level="important"
+          message={
+            !isPersistentStorageSupported()
+              ? '当前环境不支持持久化存储，请使用支持此功能的新版浏览器。'
+              : '当前浏览器模式未提供持久化存储，请添加到主屏幕后打开应用。'
+          }
+          onClose={() => {
+            saveBooleanState('setting-notices', storageNoticeId, true);
+            setIsStorageNoticeDismissed(true);
+          }}
+        />
+      )}
       {syncType === 's3' || syncType === 'webdav' ? (
         renderManualSyncSection()
       ) : (
         <SettingSection
           title="云同步"
-          className="-mt-4"
+          className={showStorageNotice ? undefined : '-mt-4'}
           contentShape={syncType === 'none' ? 'capsule' : 'card'}
         >
           {cloudServiceRow}
@@ -688,39 +682,16 @@ const DataSettings: React.FC<DataSettingsProps> = ({
           renderManualSyncSection()
         ))}
 
-      {!isPersisted && (
-        <SettingSection
-          title="数据持久化"
-          footer={
-            !isPWA && !isNativePlatform
-              ? '请将本应用添加到主屏幕以启用 PWA 模式，即可使用持久化存储功能。'
-              : '启用后可保护应用数据不被浏览器自动清理。'
-          }
-        >
-          <SettingRow
-            label="持久化存储"
-            isLast={!storageEstimate || (!isPWA && !isNativePlatform)}
-          >
+      {isPersisted === false && isPWA && isPersistentStorageSupported() && (
+        <SettingSection title="数据持久化">
+          <SettingRow label="持久化存储" isLast>
             <SettingToggle
-              checked={isPersisted || isRequestingPersist}
+              checked={isRequestingPersist}
               onChange={() => void handleRequestPersist()}
-              disabled={
-                isRequestingPersist ||
-                isNativePlatform ||
-                !isPWA ||
-                !isPersistentStorageSupported()
-              }
+              disabled={isRequestingPersist}
               ariaLabel="持久化存储"
             />
           </SettingRow>
-          {storageEstimate && (isPWA || isNativePlatform) && (
-            <SettingRow label="已用空间" isLast>
-              <span className="text-sm text-neutral-400 dark:text-neutral-500">
-                {storageEstimate.usageFormatted} /{' '}
-                {storageEstimate.quotaFormatted}
-              </span>
-            </SettingRow>
-          )}
         </SettingSection>
       )}
 
