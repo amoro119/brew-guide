@@ -457,7 +457,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
 
   return (
     <SettingPage
-      title="烘焙商"
+      title="烘焙商图标"
       isVisible={isVisible}
       onClose={handleClose}
       bottomContent={
@@ -475,9 +475,9 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
         title={
           <div className="flex min-w-0 items-center justify-between gap-3 pl-3.5">
             <h3 className="text-sm leading-none font-semibold tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-              烘焙商
+              烘焙商 ({filteredRoasters.length})
             </h3>
-            {roasters.length > 0 &&
+            {(isEditingRoasters || filteredRoasters.length > 0) &&
               (isEditingRoasters ? (
                 <div className="flex shrink-0 items-center">
                   <button
@@ -699,7 +699,7 @@ const RoasterLogoSettings: React.FC<RoasterLogoSettingsProps> = ({
           })
         )}
       </SettingSection>
-      {roasters.length > 0 && !isEditingRoasters && (
+      {roasters.length > 0 && !isEditingRoasters && !searchQuery.trim() && (
         <SettingSection title="图标管理" contentShape="card">
           <SettingRow
             label="导入图标"

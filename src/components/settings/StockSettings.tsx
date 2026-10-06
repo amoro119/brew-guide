@@ -87,6 +87,8 @@ const StockSettings: React.FC<StockSettingsProps> = ({
 
   // ===== 熟豆扣除预设值状态 =====
   const [decrementValue, setDecrementValue] = useState<string>('');
+  const [isAddingPreset, setIsAddingPreset] = useState(false);
+  const [deletingPreset, setDeletingPreset] = useState<number | null>(null);
   const [decrementPresets, setDecrementPresets] = useState<number[]>(
     settings.decrementPresets || []
   );
@@ -108,6 +110,7 @@ const StockSettings: React.FC<StockSettingsProps> = ({
         setDecrementPresets(newPresets);
         handleChange('decrementPresets', newPresets);
         setDecrementValue('');
+        setIsAddingPreset(false);
         if (settings.hapticFeedback) {
           hapticsUtils.light();
         }
@@ -118,14 +121,28 @@ const StockSettings: React.FC<StockSettingsProps> = ({
   const removeDecrementPreset = (value: number) => {
     const newPresets = decrementPresets.filter(v => v !== value);
     setDecrementPresets(newPresets);
+    setDeletingPreset(null);
     handleChange('decrementPresets', newPresets);
     if (settings.hapticFeedback) {
       hapticsUtils.light();
     }
   };
 
+  useEffect(() => {
+    if (deletingPreset === null) return;
+
+    const handleClick = () => setDeletingPreset(null);
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClick);
+    };
+  }, [deletingPreset]);
+
   const highlightedSettingId = useScrollToHighlightedSetting(
-    decrementPresets.join(',')
+    `${decrementPresets.join(',')}:${isAddingPreset}`
   );
   const isPresetSectionHighlighted =
     highlightedSettingId === makeSettingRowSearchId('预设快捷扣除量');
@@ -134,8 +151,8 @@ const StockSettings: React.FC<StockSettingsProps> = ({
     <SettingPage title="库存扣除" isVisible={isVisible} onClose={handleClose}>
       <SettingSection title="熟豆库存扣除" className="-mt-4">
         <SettingRow
-          label="启用“全部扣除”选项"
-          description="显示ALL按钮，可一次性扣除剩余库存"
+          label="全部扣除"
+          description="在快捷扣除中显示“ALL”，一次扣除剩余库存。"
         >
           <SettingToggle
             checked={settings.enableAllDecrementOption}
@@ -145,8 +162,8 @@ const StockSettings: React.FC<StockSettingsProps> = ({
           />
         </SettingRow>
         <SettingRow
-          label="启用自定义扣除输入"
-          description="允许用户在快捷扣除框中输入任意数字"
+          label="自定义扣除量"
+          description="在快捷扣除中输入需要扣除的克数。"
           isLast
         >
           <SettingToggle
@@ -158,71 +175,109 @@ const StockSettings: React.FC<StockSettingsProps> = ({
         </SettingRow>
       </SettingSection>
 
-      <SettingSection title="预设快捷扣除量">
+      <SettingSection title="预设快捷扣除量" contentShape="card">
         <div
           data-settings-search-id={makeSettingRowSearchId('预设快捷扣除量')}
-          className={`p-4 transition-colors ${
+          className={`transition-colors ${
             isPresetSectionHighlighted
               ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
               : ''
           }`}
         >
-          <div className="mb-3 flex flex-wrap gap-2">
-            {decrementPresets.map(value => (
-              <button
-                type="button"
-                key={value}
-                onClick={() => removeDecrementPreset(value)}
-                className="cursor-pointer rounded bg-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
-              >
-                -{value}g ×
-              </button>
-            ))}
-
-            <div className="flex h-9">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={decrementValue}
-                onChange={e => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
-                  const dotCount = (value.match(/\./g) || []).length;
-                  let sanitizedValue =
-                    dotCount > 1
-                      ? value.substring(0, value.lastIndexOf('.'))
-                      : value;
-                  const dotIndex = sanitizedValue.indexOf('.');
-                  if (dotIndex !== -1 && dotIndex < sanitizedValue.length - 2) {
-                    sanitizedValue = sanitizedValue.substring(0, dotIndex + 2);
+          {isAddingPreset ? (
+            <SettingRow vertical isLast={decrementPresets.length === 0}>
+              <div className="flex h-4 min-w-0 items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  aria-label="扣除克数"
+                  value={decrementValue}
+                  onChange={e => {
+                    const value = e.target.value.replace(/[^0-9.]/g, '');
+                    const dotCount = (value.match(/\./g) || []).length;
+                    let sanitizedValue =
+                      dotCount > 1
+                        ? value.substring(0, value.lastIndexOf('.'))
+                        : value;
+                    const dotIndex = sanitizedValue.indexOf('.');
+                    if (dotIndex !== -1 && dotIndex < sanitizedValue.length - 2) {
+                      sanitizedValue = sanitizedValue.substring(0, dotIndex + 2);
+                    }
+                    setDecrementValue(sanitizedValue);
+                  }}
+                  onBlur={() => {
+                    if (!decrementValue.trim()) setIsAddingPreset(false);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addDecrementPreset();
+                    } else if (e.key === 'Escape') {
+                      setIsAddingPreset(false);
+                      setDecrementValue('');
+                    }
+                  }}
+                  placeholder="输入扣除克数（g）"
+                  autoFocus
+                  className="h-4 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-none font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                />
+                <button
+                  type="button"
+                  onClick={addDecrementPreset}
+                  disabled={
+                    !decrementValue ||
+                    isNaN(parseFloat(decrementValue)) ||
+                    parseFloat(decrementValue) <= 0 ||
+                    decrementPresets.includes(
+                      parseFloat(parseFloat(decrementValue).toFixed(1))
+                    )
                   }
-                  setDecrementValue(sanitizedValue);
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addDecrementPreset();
-                  }
-                }}
-                placeholder="克数"
-                className="w-16 rounded-l rounded-r-none bg-neutral-200 px-2 py-1.5 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-hidden dark:bg-neutral-700"
-              />
-              <button
-                type="button"
-                onClick={addDecrementPreset}
-                disabled={
-                  !decrementValue ||
-                  isNaN(parseFloat(decrementValue)) ||
-                  parseFloat(decrementValue) <= 0
-                }
-                className="cursor-pointer rounded-r bg-neutral-700 px-2 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-20 dark:bg-neutral-600"
-              >
-                +
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            点击预设值可以删除，输入克数后按回车或点击「+」可以添加新的预设值。
-          </p>
+                  className="shrink-0 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300"
+                >
+                  添加
+                </button>
+              </div>
+            </SettingRow>
+          ) : (
+            <SettingRow
+              onClick={() => setIsAddingPreset(true)}
+              isLast={decrementPresets.length === 0}
+            >
+              <span className="flex h-4 items-center text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                添加预设
+              </span>
+            </SettingRow>
+          )}
+          {decrementPresets.map((value, index) => (
+            <SettingRow
+              key={value}
+              vertical
+              isLast={index === decrementPresets.length - 1}
+            >
+              <div className="flex h-4 min-w-0 items-center justify-between gap-3 text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                <span className="min-w-0 truncate">{value} g</span>
+                <button
+                  type="button"
+                  aria-label={`${deletingPreset === value ? '确认删除' : '删除'} ${value} g 的扣除预设`}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (deletingPreset === value) {
+                      removeDecrementPreset(value);
+                    } else {
+                      setDeletingPreset(value);
+                    }
+                  }}
+                  className={`shrink-0 cursor-pointer text-sm leading-none font-medium active:opacity-70 ${
+                    deletingPreset === value
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-neutral-600 dark:text-neutral-300'
+                  }`}
+                >
+                  {deletingPreset === value ? '确认删除' : '删除'}
+                </button>
+              </div>
+            </SettingRow>
+          ))}
         </div>
       </SettingSection>
     </SettingPage>

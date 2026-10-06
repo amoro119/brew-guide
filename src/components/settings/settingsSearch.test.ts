@@ -61,7 +61,7 @@ describe('settings search reveal state', () => {
       )
     ).toBe(true);
     expect(
-      shouldRevealGreenBeanSearchSettings(makeSettingRowSearchId('启用生豆库'))
+      shouldRevealGreenBeanSearchSettings(makeSettingRowSearchId('生豆库'))
     ).toBe(false);
   });
 });

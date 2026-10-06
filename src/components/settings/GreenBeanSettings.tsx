@@ -94,6 +94,8 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
 
   // ===== 生豆烘焙预设值状态 =====
   const [greenBeanRoastValue, setGreenBeanRoastValue] = useState<string>('');
+  const [isAddingPreset, setIsAddingPreset] = useState(false);
+  const [deletingPreset, setDeletingPreset] = useState<number | null>(null);
   const [greenBeanRoastPresets, setGreenBeanRoastPresets] = useState<number[]>(
     settings.greenBeanRoastPresets || defaultSettings.greenBeanRoastPresets
   );
@@ -115,6 +117,7 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
         setGreenBeanRoastPresets(newPresets);
         handleChange('greenBeanRoastPresets', newPresets);
         setGreenBeanRoastValue('');
+        setIsAddingPreset(false);
         if (settings.hapticFeedback) {
           hapticsUtils.light();
         }
@@ -125,14 +128,28 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
   const removeGreenBeanRoastPreset = (value: number) => {
     const newPresets = greenBeanRoastPresets.filter(v => v !== value);
     setGreenBeanRoastPresets(newPresets);
+    setDeletingPreset(null);
     handleChange('greenBeanRoastPresets', newPresets);
     if (settings.hapticFeedback) {
       hapticsUtils.light();
     }
   };
 
+  useEffect(() => {
+    if (deletingPreset === null) return;
+
+    const handleClick = () => setDeletingPreset(null);
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClick);
+    };
+  }, [deletingPreset]);
+
   const highlightedSettingId = useScrollToHighlightedSetting(
-    greenBeanRoastPresets.join(',')
+    `${greenBeanRoastPresets.join(',')}:${isAddingPreset}`
   );
   const isPresetSectionHighlighted =
     highlightedSettingId === makeSettingRowSearchId('预设快捷烘焙量');
@@ -156,10 +173,10 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
     <SettingPage title="生豆库" isVisible={isVisible} onClose={handleClose}>
       <SettingSection
         title="生豆库"
-        footer="在咖啡豆库存概要中点击「咖啡豆」来切换生豆/熟豆库"
+        footer="轻点库存概要中的“咖啡豆”，切换生豆库与熟豆库。"
         className="-mt-4"
       >
-        <SettingRow label="启用生豆库" isLast>
+        <SettingRow label="生豆库" isLast>
           <SettingToggle
             checked={settings.enableGreenBeanInventory || false}
             onChange={checked =>
@@ -173,8 +190,8 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
         <>
           <SettingSection title="快捷烘焙">
             <SettingRow
-              label={'启用"全部烘焙"选项'}
-              description="显示ALL按钮，可一次性烘焙剩余库存"
+              label="全部烘焙"
+              description="在快捷烘焙中显示“ALL”，一次烘焙剩余库存。"
             >
               <SettingToggle
                 checked={
@@ -187,8 +204,8 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
               />
             </SettingRow>
             <SettingRow
-              label="启用自定义烘焙量输入"
-              description="允许用户在快捷烘焙框中输入任意数字"
+              label="自定义烘焙量"
+              description="在快捷烘焙中输入需要烘焙的克数。"
               isLast
             >
               <SettingToggle
@@ -203,77 +220,109 @@ const GreenBeanSettings: React.FC<GreenBeanSettingsProps> = ({
             </SettingRow>
           </SettingSection>
 
-          <SettingSection title="预设快捷烘焙量">
+          <SettingSection title="预设快捷烘焙量" contentShape="card">
             <div
               data-settings-search-id={makeSettingRowSearchId('预设快捷烘焙量')}
-              className={`p-4 transition-colors ${
+              className={`transition-colors ${
                 isPresetSectionHighlighted
                   ? 'bg-neutral-200/70 dark:bg-neutral-700/45'
                   : ''
               }`}
             >
-              <div className="mb-3 flex flex-wrap gap-2">
-                {greenBeanRoastPresets.map(value => (
-                  <button
-                    type="button"
-                    key={value}
-                    onClick={() => removeGreenBeanRoastPreset(value)}
-                    className="cursor-pointer rounded bg-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
-                  >
-                    -{value}g ×
-                  </button>
-                ))}
-
-                <div className="flex h-9">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={greenBeanRoastValue}
-                    onChange={e => {
-                      const value = e.target.value.replace(/[^0-9.]/g, '');
-                      const dotCount = (value.match(/\./g) || []).length;
-                      let sanitizedValue =
-                        dotCount > 1
-                          ? value.substring(0, value.lastIndexOf('.'))
-                          : value;
-                      const dotIndex = sanitizedValue.indexOf('.');
-                      if (
-                        dotIndex !== -1 &&
-                        dotIndex < sanitizedValue.length - 2
-                      ) {
-                        sanitizedValue = sanitizedValue.substring(
-                          0,
-                          dotIndex + 2
-                        );
+              {isAddingPreset ? (
+                <SettingRow vertical isLast={greenBeanRoastPresets.length === 0}>
+                  <div className="flex h-4 min-w-0 items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="烘焙克数"
+                      value={greenBeanRoastValue}
+                      onChange={e => {
+                        const value = e.target.value.replace(/[^0-9.]/g, '');
+                        const dotCount = (value.match(/\./g) || []).length;
+                        let sanitizedValue =
+                          dotCount > 1
+                            ? value.substring(0, value.lastIndexOf('.'))
+                            : value;
+                        const dotIndex = sanitizedValue.indexOf('.');
+                        if (dotIndex !== -1 && dotIndex < sanitizedValue.length - 2) {
+                          sanitizedValue = sanitizedValue.substring(0, dotIndex + 2);
+                        }
+                        setGreenBeanRoastValue(sanitizedValue);
+                      }}
+                      onBlur={() => {
+                        if (!greenBeanRoastValue.trim()) setIsAddingPreset(false);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addGreenBeanRoastPreset();
+                        } else if (e.key === 'Escape') {
+                          setIsAddingPreset(false);
+                          setGreenBeanRoastValue('');
+                        }
+                      }}
+                      placeholder="输入烘焙克数（g）"
+                      autoFocus
+                      className="h-4 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-none font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={addGreenBeanRoastPreset}
+                      disabled={
+                        !greenBeanRoastValue ||
+                        isNaN(parseFloat(greenBeanRoastValue)) ||
+                        parseFloat(greenBeanRoastValue) <= 0 ||
+                        greenBeanRoastPresets.includes(
+                          parseFloat(parseFloat(greenBeanRoastValue).toFixed(1))
+                        )
                       }
-                      setGreenBeanRoastValue(sanitizedValue);
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addGreenBeanRoastPreset();
-                      }
-                    }}
-                    placeholder="克数"
-                    className="w-16 rounded-l rounded-r-none bg-neutral-200 px-2 py-1.5 text-sm focus:ring-1 focus:ring-neutral-500 focus:outline-hidden dark:bg-neutral-700"
-                  />
-                  <button
-                    type="button"
-                    onClick={addGreenBeanRoastPreset}
-                    disabled={
-                      !greenBeanRoastValue ||
-                      isNaN(parseFloat(greenBeanRoastValue)) ||
-                      parseFloat(greenBeanRoastValue) <= 0
-                    }
-                    className="cursor-pointer rounded-r bg-neutral-700 px-2 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-20 dark:bg-neutral-600"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                点击预设值可以删除，输入克数后按回车或点击「+」可以添加新的预设值。
-              </p>
+                      className="shrink-0 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </SettingRow>
+              ) : (
+                <SettingRow
+                  onClick={() => setIsAddingPreset(true)}
+                  isLast={greenBeanRoastPresets.length === 0}
+                >
+                  <span className="flex h-4 items-center text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                    添加预设
+                  </span>
+                </SettingRow>
+              )}
+              {greenBeanRoastPresets.map((value, index) => (
+                <SettingRow
+                  key={value}
+                  vertical
+                  isLast={index === greenBeanRoastPresets.length - 1}
+                >
+                  <div className="flex h-4 min-w-0 items-center justify-between gap-3 text-sm leading-none font-medium text-neutral-900 dark:text-neutral-100">
+                    <span className="min-w-0 truncate">{value} g</span>
+                    <button
+                      type="button"
+                      aria-label={`${deletingPreset === value ? '确认删除' : '删除'} ${value} g 的烘焙预设`}
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (deletingPreset === value) {
+                          removeGreenBeanRoastPreset(value);
+                        } else {
+                          setDeletingPreset(value);
+                        }
+                      }}
+                      className={`shrink-0 cursor-pointer text-sm leading-none font-medium active:opacity-70 ${
+                        deletingPreset === value
+                          ? 'text-red-500 dark:text-red-400'
+                          : 'text-neutral-600 dark:text-neutral-300'
+                      }`}
+                    >
+                      {deletingPreset === value ? '确认删除' : '删除'}
+                    </button>
+                  </div>
+                </SettingRow>
+              ))}
             </div>
           </SettingSection>
 

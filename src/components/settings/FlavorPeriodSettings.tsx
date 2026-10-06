@@ -62,6 +62,7 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
   >(new Map());
   const [expandedRoaster, setExpandedRoaster] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const hasSearchQuery = searchQuery.trim().length > 0;
   const filteredRoasters = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return roasters;
@@ -273,45 +274,47 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
     >
       <>
         {/* 全局默认预设 */}
-        <SettingSection
-          title="全局默认预设"
-          className="-mt-4"
-          footer="添加咖啡豆时，会根据烘焙度自动设定赏味期。"
-        >
-          <SettingRow label="浅烘">
-            {renderFlavorInputs(
-              settings.customFlavorPeriod?.light?.startDay || 0,
-              settings.customFlavorPeriod?.light?.endDay || 0,
-              val => updateCustomFlavorPeriod('light', 'startDay', val),
-              val => updateCustomFlavorPeriod('light', 'endDay', val),
-              '7',
-              '60'
-            )}
-          </SettingRow>
-          <SettingRow label="中烘">
-            {renderFlavorInputs(
-              settings.customFlavorPeriod?.medium?.startDay || 0,
-              settings.customFlavorPeriod?.medium?.endDay || 0,
-              val => updateCustomFlavorPeriod('medium', 'startDay', val),
-              val => updateCustomFlavorPeriod('medium', 'endDay', val),
-              '10',
-              '60'
-            )}
-          </SettingRow>
-          <SettingRow label="深烘" isLast>
-            {renderFlavorInputs(
-              settings.customFlavorPeriod?.dark?.startDay || 0,
-              settings.customFlavorPeriod?.dark?.endDay || 0,
-              val => updateCustomFlavorPeriod('dark', 'startDay', val),
-              val => updateCustomFlavorPeriod('dark', 'endDay', val),
-              '14',
-              '90'
-            )}
-          </SettingRow>
-        </SettingSection>
+        {!hasSearchQuery && (
+          <SettingSection
+            title="全局默认预设"
+            className="-mt-4"
+            footer="添加咖啡豆时，会根据烘焙度自动设定赏味期。"
+          >
+            <SettingRow label="浅烘">
+              {renderFlavorInputs(
+                settings.customFlavorPeriod?.light?.startDay || 0,
+                settings.customFlavorPeriod?.light?.endDay || 0,
+                val => updateCustomFlavorPeriod('light', 'startDay', val),
+                val => updateCustomFlavorPeriod('light', 'endDay', val),
+                '7',
+                '60'
+              )}
+            </SettingRow>
+            <SettingRow label="中烘">
+              {renderFlavorInputs(
+                settings.customFlavorPeriod?.medium?.startDay || 0,
+                settings.customFlavorPeriod?.medium?.endDay || 0,
+                val => updateCustomFlavorPeriod('medium', 'startDay', val),
+                val => updateCustomFlavorPeriod('medium', 'endDay', val),
+                '10',
+                '60'
+              )}
+            </SettingRow>
+            <SettingRow label="深烘" isLast>
+              {renderFlavorInputs(
+                settings.customFlavorPeriod?.dark?.startDay || 0,
+                settings.customFlavorPeriod?.dark?.endDay || 0,
+                val => updateCustomFlavorPeriod('dark', 'startDay', val),
+                val => updateCustomFlavorPeriod('dark', 'endDay', val),
+                '14',
+                '90'
+              )}
+            </SettingRow>
+          </SettingSection>
+        )}
 
         {/* 烘焙商特定预设 */}
-        {roasters.length > 0 && (
+        {(roasters.length > 0 || hasSearchQuery) && (
           <div
             data-settings-search-id={makeSettingRowSearchId('烘焙商特定预设')}
             className={`transition-colors ${
@@ -322,12 +325,18 @@ const FlavorPeriodSettings: React.FC<FlavorPeriodSettingsProps> = ({
           >
             <SettingSection
               title={`烘焙商特定预设 (${filteredRoasters.length})`}
-              footer="为特定烘焙商设置专属的赏味期，优先级高于全局默认预设。"
+              className={hasSearchQuery ? '-mt-4' : undefined}
+              contentShape="card"
+              footer={
+                hasSearchQuery
+                  ? undefined
+                  : '为特定烘焙商设置专属的赏味期，优先级高于全局默认预设。'
+              }
             >
               {filteredRoasters.length === 0 ? (
-                <div className="px-3.5 py-6 text-sm text-neutral-500 dark:text-neutral-400">
-                  没有找到匹配的烘焙商
-                </div>
+                <SettingRow label="没有找到匹配的烘焙商" isLast>
+                  {null}
+                </SettingRow>
               ) : (
                 filteredRoasters.map((roaster, index) => {
                   const config = roasterConfigs.get(roaster);

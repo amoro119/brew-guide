@@ -112,8 +112,8 @@ const BEAN_FIELD_SEARCH_IDS = makeSettingSearchIdSet([
   ),
 ]);
 const GREEN_BEAN_DETAIL_SEARCH_IDS = makeSettingSearchIdSet([
-  '启用"全部烘焙"选项',
-  '启用自定义烘焙量输入',
+  '全部烘焙',
+  '自定义烘焙量',
   '预设快捷烘焙量',
   '熟豆转生豆',
 ]);
@@ -421,14 +421,14 @@ export const buildSettingsSearchItems = ({
         '品种',
       ]),
       ...createRowItems('stock-settings', '库存扣除', [
-        '启用“全部扣除”选项',
-        '启用自定义扣除输入',
+        '全部扣除',
+        '自定义扣除量',
         '预设快捷扣除量',
       ]),
       ...createRowItems('green-bean-settings', '生豆库', [
-        '启用生豆库',
-        '启用"全部烘焙"选项',
-        '启用自定义烘焙量输入',
+        '生豆库',
+        '全部烘焙',
+        '自定义烘焙量',
         '预设快捷烘焙量',
         '熟豆转生豆',
       ]),
