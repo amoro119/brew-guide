@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type ReactNode, type MouseEventHandler } from 'react';
+import type { ReactNode, MouseEventHandler } from 'react';
 import { motion } from 'framer-motion';
 import { centerCategoryTab } from '@/lib/utils/centerCategoryTab';
 
@@ -9,26 +9,6 @@ const UNDERLINE_TRANSITION = {
   stiffness: 500,
   damping: 35,
   mass: 1,
-};
-
-// 仅在跨按钮动画期间越过固定区；静止时让固定区遮住滚入其下方的分类。
-const TabUnderline = ({ layoutId }: { layoutId: string }) => {
-  const ref = useRef<HTMLSpanElement>(null);
-  return (
-    <motion.span
-      ref={ref}
-      layoutId={layoutId}
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-neutral-800 dark:bg-white"
-      transition={UNDERLINE_TRANSITION}
-      onLayoutAnimationStart={() => {
-        if (ref.current) ref.current.style.zIndex = '20';
-      }}
-      onLayoutAnimationComplete={() => {
-        if (ref.current) ref.current.style.zIndex = '';
-      }}
-    />
-  );
 };
 
 interface TabButtonProps {
@@ -78,7 +58,13 @@ const TabButton = ({
       title={title}
     >
       <span className="relative">{children}</span>
-      {isActive && <TabUnderline layoutId={layoutId} />}
+      {isActive && (
+        <motion.span
+          layoutId={layoutId}
+          className="absolute inset-x-0 bottom-0 h-px bg-neutral-800 dark:bg-white"
+          transition={UNDERLINE_TRANSITION}
+        />
+      )}
     </button>
   );
 };
