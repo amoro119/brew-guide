@@ -9,7 +9,7 @@ import {
   SettingPage,
   SettingSection,
   SettingRow,
-  SettingSelector,
+  SettingSelect,
   SettingToggle,
 } from './atomic';
 
@@ -135,7 +135,7 @@ const RandomCoffeeBeanSettings: React.FC<RandomCoffeeBeanSettingsProps> = ({
 
         {randomSettings.enableLongPressRandomType && (
           <SettingRow label="长按时随机的类型" isLast>
-            <SettingSelector
+            <SettingSelect
               value={randomSettings.defaultRandomType}
               options={[
                 { value: 'espresso', label: '意式' },

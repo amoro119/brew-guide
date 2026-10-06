@@ -8,7 +8,7 @@ import { useModalHistory, modalHistory } from '@/lib/hooks/useModalHistory';
 import SettingPage from './atomic/SettingPage';
 import SettingSection from './atomic/SettingSection';
 import SettingRow from './atomic/SettingRow';
-import SettingSelector from './atomic/SettingSelector';
+import SettingSelect from './atomic/SettingSelect';
 import SettingSlider from './atomic/SettingSlider';
 import SettingToggle from './atomic/SettingToggle';
 import { useScrollToHighlightedSetting } from './atomic/SettingSearchHighlightContext';
@@ -146,7 +146,7 @@ const BeanSettings: React.FC<BeanSettingsProps> = ({
 
       <SettingSection title="列表">
         <SettingRow label="日期模式">
-          <SettingSelector
+          <SettingSelect
             value={settings.dateDisplayMode || 'date'}
             options={[
               { value: 'date', label: '日期' },

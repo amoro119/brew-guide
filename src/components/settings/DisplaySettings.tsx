@@ -11,7 +11,7 @@ import {
   SettingPage,
   SettingSection,
   SettingRow,
-  SettingSelector,
+  SettingSelect,
   SettingSlider,
   SettingToggle,
 } from './atomic';
@@ -310,7 +310,7 @@ function DisplaySettings({ onClose }: DisplaySettingsProps) {
 
       <SettingSection title="外观" className="-mt-4">
         <SettingRow label="外观模式" isLast>
-          <SettingSelector
+          <SettingSelect
             value={theme ?? 'system'}
             options={APPEARANCE_OPTIONS}
             ariaLabel="外观模式"

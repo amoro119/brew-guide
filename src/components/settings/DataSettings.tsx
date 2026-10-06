@@ -12,7 +12,6 @@ import {
 } from '@/lib/utils/backupReminderUtils';
 import hapticsUtils from '@/lib/ui/haptics';
 import SettingPage from './atomic/SettingPage';
-import SettingSelector from './atomic/SettingSelector';
 import SettingSelect from './atomic/SettingSelect';
 import SettingNotice from './atomic/SettingNotice';
 import { getBooleanState, saveBooleanState } from '@/lib/core/statePersistence';
@@ -709,7 +708,7 @@ const DataSettings: React.FC<DataSettingsProps> = ({
           </SettingRow>
           {backupReminderSettings.enabled && (
             <SettingRow label="提醒频率" isSubSetting isLast>
-              <SettingSelector
+              <SettingSelect
                 value={backupReminderSettings.interval.toString()}
                 options={[
                   {

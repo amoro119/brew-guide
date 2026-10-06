@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SettingSelector } from '@/components/settings/atomic';
+import { SettingSelect } from '@/components/settings/atomic';
 import { useSettingsStore } from '@/lib/stores/settingsStore';
 
 // 布局设置接口
@@ -133,7 +133,7 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
                 <span className="text-sm text-neutral-700 dark:text-neutral-300">
                   步骤时间显示
                 </span>
-                <SettingSelector
+                <SettingSelect
                   value={localLayoutSettings?.stepDisplayMode || 'cumulative'}
                   options={[
                     { value: 'independent', label: '独立' },
@@ -210,7 +210,7 @@ const BrewingTimerSettings: React.FC<BrewingTimerSettingsProps> = ({
                 <span className="text-sm text-neutral-700 dark:text-neutral-300">
                   数据显示字体大小
                 </span>
-                <SettingSelector
+                <SettingSelect
                   value={localLayoutSettings?.dataFontSize || '2xl'}
                   options={[
                     { value: '2xl', label: '标准' },

@@ -13,9 +13,7 @@ import {
   type BeanFieldGroupId,
 } from '@/lib/coffee-beans/beanFields';
 import type { SettingsOptions } from './Settings';
-import SettingSelector, {
-  type SettingSelectorOption,
-} from './atomic/SettingSelector';
+import SettingSelect from './atomic/SettingSelect';
 import SettingRow from './atomic/SettingRow';
 import SettingSection from './atomic/SettingSection';
 import SettingToggle from './atomic/SettingToggle';
@@ -24,7 +22,7 @@ import { makeSettingRowSearchId } from './settingsSearch';
 
 const ROASTER_SETTING_ID = makeSettingRowSearchId('烘焙商');
 const ROASTER_SEPARATOR_SETTING_ID = makeSettingRowSearchId('烘焙商分隔符');
-const ROASTER_SEPARATOR_OPTIONS: SettingSelectorOption<' ' | '/'>[] = [
+const ROASTER_SEPARATOR_OPTIONS: { value: ' ' | '/'; label: string }[] = [
   { value: ' ', label: '空格' },
   { value: '/', label: '/' },
 ];
@@ -195,7 +193,7 @@ const BeanFieldSettingsDrawer: React.FC<BeanFieldSettingsDrawerProps> = ({
                   isLast
                   isSubSetting
                 >
-                  <SettingSelector
+                  <SettingSelect
                     value={settings.roasterSeparator || ' '}
                     options={ROASTER_SEPARATOR_OPTIONS}
                     ariaLabel="烘焙商分隔符"

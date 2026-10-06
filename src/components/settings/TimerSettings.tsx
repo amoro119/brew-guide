@@ -8,7 +8,7 @@ import {
   SettingPage,
   SettingSection,
   SettingRow,
-  SettingSelector,
+  SettingSelect,
   SettingToggle,
   SettingSlider,
 } from './atomic';
@@ -122,7 +122,7 @@ const TimerSettings: React.FC<TimerSettingsProps> = ({
           />
         </SettingRow>
         <SettingRow label="数据显示字体大小" isLast>
-          <SettingSelector
+          <SettingSelect
             value={settings.layoutSettings?.dataFontSize || '2xl'}
             options={[
               { value: '2xl', label: '标准' },
@@ -143,7 +143,7 @@ const TimerSettings: React.FC<TimerSettingsProps> = ({
 
       <SettingSection title="列表">
         <SettingRow label="步骤时间显示" isLast>
-          <SettingSelector
+          <SettingSelect
             value={settings.layoutSettings?.stepDisplayMode || 'cumulative'}
             options={[
               { value: 'independent', label: '独立' },

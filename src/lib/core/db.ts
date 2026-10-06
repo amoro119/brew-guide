@@ -286,7 +286,6 @@ export interface AppSettings {
   experimentalBeanRecognitionModel?: string;
   experimentalBeanRecognitionPrompt?: string;
   experimentalBeanSharePackageEnabled?: boolean;
-  experimentalSettingsSearchEnabled?: boolean;
   syncNewNoteDateWithSelectedDate?: boolean;
   syncQuickDecrementDateWithSelectedDate?: boolean;
 
