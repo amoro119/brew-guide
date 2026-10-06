@@ -54,7 +54,6 @@ import {
   revertCapacityAdjustmentRecord,
   updateBeanWithCapacityAdjustmentRecord,
 } from '@/lib/coffee-beans/capacityAdjustment';
-import RescueModeDrawer from '@/components/layout/RescueModeDrawer';
 
 interface ExtendedCoffeeBean extends CoffeeBean {
   blendComponents?: {
@@ -1264,8 +1263,6 @@ const AppModals: React.FC<AppModalsProps> = ({
           onExitComplete={() => setImageViewerData(null)}
         />
       )}
-
-      <RescueModeDrawer />
     </>
   );
 };
