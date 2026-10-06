@@ -221,9 +221,18 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
     }
   };
 
-  useScrollToHighlightedSetting(
+  const highlightedSettingId = useScrollToHighlightedSetting(
     `${showConfirmReset}:${isExporting}:${isRecompressing}`
   );
+  const [showImageOperations, setShowImageOperations] = useState(false);
+
+  // 搜索高亮结束后保留入口，离开页面时随组件卸载重置。
+  if (
+    !showImageOperations &&
+    highlightedSettingId === makeSettingRowSearchId('图片补压')
+  ) {
+    setShowImageOperations(true);
+  }
 
   const buttonClass =
     'h-4 cursor-pointer text-sm leading-none font-medium text-neutral-600 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300';
@@ -302,21 +311,23 @@ export const DataManagementSection: React.FC<DataManagementSectionProps> = ({
         onChange={handleFileChange}
         className="hidden"
       />
-      <SettingSection
-        title="数据操作"
-        footer={status.scope === 'image' ? statusMessage : undefined}
-      >
-        <SettingRow
-          label={isRecompressing ? '补压中…' : '图片补压'}
-          settingId={makeSettingRowSearchId('图片补压')}
-          className="min-h-11"
-          onClick={handleRecompressImages}
-          disabled={isRecompressing}
-          isLast
+      {showImageOperations && (
+        <SettingSection
+          title="数据操作"
+          footer={status.scope === 'image' ? statusMessage : undefined}
         >
-          {null}
-        </SettingRow>
-      </SettingSection>
+          <SettingRow
+            label={isRecompressing ? '补压中…' : '图片补压'}
+            settingId={makeSettingRowSearchId('图片补压')}
+            className="min-h-11"
+            onClick={handleRecompressImages}
+            disabled={isRecompressing}
+            isLast
+          >
+            {null}
+          </SettingRow>
+        </SettingSection>
+      )}
     </>
   );
 };
