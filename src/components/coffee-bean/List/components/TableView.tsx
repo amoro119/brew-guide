@@ -372,12 +372,29 @@ const TableView: React.FC<TableViewProps> = ({
   }, [supportsHoverPreview]);
 
   useEffect(() => {
-    return () => {
+    const cancelPendingPreview = () => {
+      hoverPreviewRequestIdRef.current += 1;
       const timeoutId = hidePreviewTimeoutRef.current;
       hidePreviewTimeoutRef.current = null;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [hidePreviewTimeoutRef]);
+    const dismissPreview = () => {
+      cancelPendingPreview();
+      setHoverPreviewBean(null);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) dismissPreview();
+    };
+
+    window.addEventListener('blur', dismissPreview);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', dismissPreview);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cancelPendingPreview();
+    };
+  }, []);
 
   const roasterConfigs = useSettingsStore(
     state => state.settings.roasterConfigs
