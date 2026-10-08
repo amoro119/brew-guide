@@ -19,6 +19,8 @@ import {
   Row,
   SortingFn,
   sortingFns,
+  type ColumnSizingState,
+  type Table,
 } from '@tanstack/react-table';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { ExtendedCoffeeBean } from '../types';
@@ -34,6 +36,12 @@ import {
   formatBeanNameWithoutRoaster,
   getRoasterName,
 } from '@/lib/utils/beanVarietyUtils';
+import ColumnResizeHandle from './ColumnResizeHandle';
+import {
+  COLUMN_SIZE_CONFIG,
+  DEFAULT_COLUMN_MAX_SIZE,
+  parseColumnSizing,
+} from './tableSizing';
 import FlavorStatusRing from './FlavorStatusRing';
 import TableHoverPreview, { type HoverPreviewBean } from './TableHoverPreview';
 import { getCoffeeBeanImageSource } from '@/lib/coffee-beans/imageRepository';
@@ -53,30 +61,13 @@ import {
 
 // 默认排序状态（空数组，表示不预设列排序）
 const DEFAULT_SORTING: SortingState = [];
+const DEFAULT_VISIBLE_COLUMNS = getDefaultVisibleColumns();
 const SORTING_STORAGE_KEY = 'brew-guide:coffee-beans:tableSorting:v2';
 const HOVER_PREVIEW_OFFSET_X = 24;
 const HOVER_PREVIEW_OFFSET_Y = 20;
 const HOVER_PREVIEW_HIDE_DELAY_MS = 40;
-const DEFAULT_COLUMN_MIN_SIZE = 96;
-const COLUMN_SIZE_CONFIG: Record<
-  TableColumnKey,
-  { size: number; minSize: number; maxSize?: number }
-> = {
-  roaster: { size: 125, minSize: 100, maxSize: 250 },
-  name: { size: 200, minSize: 100, maxSize: 400 },
-  flavorPeriod: { size: 90, minSize: 70, maxSize: 120 },
-  capacity: { size: 90, minSize: 90, maxSize: 120 },
-  price: { size: 90, minSize: 90, maxSize: 120 },
-  beanType: { size: 70, minSize: 65, maxSize: 120 },
-  origin: { size: 100, minSize: 90, maxSize: 200 },
-  estate: { size: 100, minSize: 90, maxSize: 200 },
-  process: { size: 100, minSize: 90, maxSize: 200 },
-  variety: { size: 100, minSize: 90, maxSize: 200 },
-  roastLevel: { size: 90, minSize: 90, maxSize: 120 },
-  flavor: { size: 200, minSize: 100, maxSize: 400 },
-  rating: { size: 90, minSize: 90, maxSize: 120 },
-  notes: { size: 200, minSize: 160, maxSize: 400 },
-};
+const COLUMN_SIZING_STORAGE_KEY =
+  'brew-guide:coffee-beans:tableColumnSizing:v1';
 
 // 从 localStorage 读取排序状态
 const loadSorting = (): SortingState => {
@@ -273,6 +264,135 @@ const columnHelper = createColumnHelper<ExtendedCoffeeBean>();
 const getColumnSizing = (columnKey: TableColumnKey) =>
   COLUMN_SIZE_CONFIG[columnKey];
 
+interface TableBodyProps {
+  // Column definitions can change without rebuilding the core row model.
+  columns: Table<ExtendedCoffeeBean>['options']['columns'];
+  rows: Row<ExtendedCoffeeBean>[];
+  activeBeanId?: string | null;
+  onRate?: TableViewProps['onRate'];
+  onRemainingClick?: TableViewProps['onRemainingClick'];
+  handleDetailClick: (bean: ExtendedCoffeeBean) => void;
+  handleRateClick: (
+    bean: ExtendedCoffeeBean,
+    event: React.MouseEvent<HTMLElement>
+  ) => void;
+  handlePreviewCellMouseEnter: (
+    bean: ExtendedCoffeeBean,
+    kind: 'bean' | 'roaster',
+    event: React.MouseEvent<HTMLElement>
+  ) => void;
+  handleNameCellMouseMove: (event: React.MouseEvent<HTMLElement>) => void;
+  clearHoverPreview: () => void;
+}
+
+const TableBody = React.memo(function TableBody({
+  rows,
+  activeBeanId,
+  onRate,
+  onRemainingClick,
+  handleDetailClick,
+  handleRateClick,
+  handlePreviewCellMouseEnter,
+  handleNameCellMouseMove,
+  clearHoverPreview,
+}: TableBodyProps) {
+  return (
+    <tbody>
+      {rows.map(row => {
+        const bean = row.original;
+        const isEmpty = isBeanEmpty(bean);
+        const isActive = activeBeanId === bean.id;
+
+        return (
+          <tr
+            key={row.id}
+            className={`cursor-pointer hover:bg-neutral-100 active:bg-neutral-100 dark:hover:bg-neutral-800/30 dark:active:bg-neutral-800/30 ${
+              isActive ? 'bg-neutral-100 dark:bg-neutral-800/30' : ''
+            } ${isEmpty ? 'opacity-50' : ''}`}
+            tabIndex={0}
+            onKeyDown={event => {
+              if (
+                event.target !== event.currentTarget ||
+                (event.key !== 'Enter' && event.key !== ' ')
+              )
+                return;
+              event.preventDefault();
+              handleDetailClick(bean);
+            }}
+            onClick={() => handleDetailClick(bean)}
+            aria-current={isActive ? 'true' : undefined}
+          >
+            {row.getVisibleCells().map((cell, index) => {
+              const isFirst = index === 0;
+              const isLast = index === row.getVisibleCells().length - 1;
+              const isCapacity = cell.column.id === 'capacity';
+              const isName = cell.column.id === 'name';
+              const isNotes = cell.column.id === 'notes';
+              const isRoaster = cell.column.id === 'roaster';
+              const isPreviewCell = isName || isRoaster;
+              const isRating = cell.column.id === 'rating' && Boolean(onRate);
+
+              const cellClass =
+                'text-xs leading-relaxed font-medium text-neutral-600 dark:text-neutral-400';
+              const paddingClass = `py-2.5 ${isFirst ? 'pl-6 pr-3' : isLast ? 'pl-3 pr-6' : 'px-3'}`;
+              const widthClass = 'truncate';
+              const content = flexRender(
+                cell.column.columnDef.cell,
+                cell.getContext()
+              );
+
+              return (
+                <td
+                  key={cell.id}
+                  className={`${cellClass} ${paddingClass} ${widthClass} ${
+                    isName || isNotes ? 'select-text' : ''
+                  } border-b border-neutral-200/50 dark:border-neutral-800/50`}
+                  onClick={
+                    isCapacity && !isEmpty && onRemainingClick
+                      ? e => {
+                          e.stopPropagation();
+                          onRemainingClick?.(bean, e);
+                        }
+                      : isRating
+                        ? e => handleRateClick(bean, e)
+                        : undefined
+                  }
+                  onMouseEnter={
+                    isPreviewCell
+                      ? e =>
+                          handlePreviewCellMouseEnter(
+                            bean,
+                            isRoaster ? 'roaster' : 'bean',
+                            e
+                          )
+                      : undefined
+                  }
+                  onMouseMove={
+                    isPreviewCell ? handleNameCellMouseMove : undefined
+                  }
+                  onMouseLeave={isPreviewCell ? clearHoverPreview : undefined}
+                >
+                  {isCapacity && !isEmpty && onRemainingClick ? (
+                    <button
+                      type="button"
+                      className="block w-full truncate text-left focus-visible:outline-2"
+                      aria-label={`调整 ${bean.name} 的剩余容量`}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    content
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+    </tbody>
+  );
+});
+
 const TableView: React.FC<TableViewProps> = ({
   filteredBeans,
   emptyBeans,
@@ -280,7 +400,7 @@ const TableView: React.FC<TableViewProps> = ({
   onRate,
   onRemainingClick,
   settings,
-  visibleColumns = getDefaultVisibleColumns(),
+  visibleColumns = DEFAULT_VISIBLE_COLUMNS,
   activeBeanId,
 }) => {
   const storeDateDisplayMode = useSettingsStore(
@@ -323,6 +443,15 @@ const TableView: React.FC<TableViewProps> = ({
   const hoverPreviewRequestIdRef = useRef(0);
   const hidePreviewTimeoutRef = useRef<number | null>(null);
 
+  // 列宽状态（持久化）
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return parseColumnSizing(localStorage.getItem(COLUMN_SIZING_STORAGE_KEY));
+    } catch {
+      return {};
+    }
+  });
   // 多重排序状态（持久化）
   const [sorting, setSorting] = useState<SortingState>(loadSorting);
   const effectiveSorting = useMemo(() => {
@@ -406,39 +535,41 @@ const TableView: React.FC<TableViewProps> = ({
     return [...filteredBeans, ...emptyBeans];
   }, [filteredBeans, emptyBeans, showEmptyBeans]);
 
-  const buildRoasterHoverPreview = (
-    bean: ExtendedCoffeeBean
-  ): HoverPreviewBean | null => {
-    const roasterName = getRoasterName(bean, roasterSettings);
-    if (!roasterName || roasterName === '未知烘焙商') return null;
+  const buildRoasterHoverPreview = useCallback(
+    (bean: ExtendedCoffeeBean): HoverPreviewBean | null => {
+      const roasterName = getRoasterName(bean, roasterSettings);
+      if (!roasterName || roasterName === '未知烘焙商') return null;
 
-    const imageSrc = getRoasterLogoFromConfigs(roasterConfigs, roasterName);
-    if (!imageSrc) return null;
+      const imageSrc = getRoasterLogoFromConfigs(roasterConfigs, roasterName);
+      if (!imageSrc) return null;
 
-    return {
-      id: `${bean.id}:roaster:${roasterName}`,
-      imageSrc,
-    };
-  };
+      return {
+        id: `${bean.id}:roaster:${roasterName}`,
+        imageSrc,
+      };
+    },
+    [roasterConfigs, roasterSettings]
+  );
 
-  const setHoverPreviewBeanIfChanged = (
-    nextPreview: HoverPreviewBean | null
-  ) => {
-    setHoverPreviewBean(currentPreview => {
-      if (isSameHoverPreviewImage(currentPreview, nextPreview)) {
-        return currentPreview;
-      }
+  const setHoverPreviewBeanIfChanged = useCallback(
+    (nextPreview: HoverPreviewBean | null) => {
+      setHoverPreviewBean(currentPreview => {
+        if (isSameHoverPreviewImage(currentPreview, nextPreview)) {
+          return currentPreview;
+        }
 
-      return nextPreview;
-    });
-  };
+        return nextPreview;
+      });
+    },
+    []
+  );
 
-  const cancelScheduledHoverPreviewClear = () => {
+  const cancelScheduledHoverPreviewClear = useCallback(() => {
     if (hidePreviewTimeoutRef.current === null) return;
 
     window.clearTimeout(hidePreviewTimeoutRef.current);
     hidePreviewTimeoutRef.current = null;
-  };
+  }, []);
 
   const updatePreviewPosition = useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
@@ -448,33 +579,44 @@ const TableView: React.FC<TableViewProps> = ({
     [previewX, previewY]
   );
 
-  const handlePreviewCellMouseEnter = (
-    bean: ExtendedCoffeeBean,
-    kind: 'bean' | 'roaster',
-    event: React.MouseEvent<HTMLElement>
-  ) => {
-    if (!supportsHoverPreview) return;
-    cancelScheduledHoverPreviewClear();
-    updatePreviewPosition(event);
+  const handlePreviewCellMouseEnter = useCallback(
+    (
+      bean: ExtendedCoffeeBean,
+      kind: 'bean' | 'roaster',
+      event: React.MouseEvent<HTMLElement>
+    ) => {
+      if (!supportsHoverPreview) return;
+      cancelScheduledHoverPreviewClear();
+      updatePreviewPosition(event);
 
-    const requestId = hoverPreviewRequestIdRef.current + 1;
-    hoverPreviewRequestIdRef.current = requestId;
+      const requestId = hoverPreviewRequestIdRef.current + 1;
+      hoverPreviewRequestIdRef.current = requestId;
 
-    if (kind === 'roaster') {
-      setHoverPreviewBeanIfChanged(buildRoasterHoverPreview(bean));
-      return;
-    }
+      if (kind === 'roaster') {
+        setHoverPreviewBeanIfChanged(buildRoasterHoverPreview(bean));
+        return;
+      }
 
-    const fallbackPreviewBean = buildRoasterHoverPreview(bean);
-    if (fallbackPreviewBean) {
-      setHoverPreviewBeanIfChanged(fallbackPreviewBean);
-    }
+      const fallbackPreviewBean = buildRoasterHoverPreview(bean);
+      if (fallbackPreviewBean) {
+        setHoverPreviewBeanIfChanged(fallbackPreviewBean);
+      }
 
-    void buildBeanHoverPreview(bean, fallbackPreviewBean).then(previewBean => {
-      if (hoverPreviewRequestIdRef.current !== requestId) return;
-      setHoverPreviewBeanIfChanged(previewBean);
-    });
-  };
+      void buildBeanHoverPreview(bean, fallbackPreviewBean).then(
+        previewBean => {
+          if (hoverPreviewRequestIdRef.current !== requestId) return;
+          setHoverPreviewBeanIfChanged(previewBean);
+        }
+      );
+    },
+    [
+      supportsHoverPreview,
+      cancelScheduledHoverPreviewClear,
+      updatePreviewPosition,
+      buildRoasterHoverPreview,
+      setHoverPreviewBeanIfChanged,
+    ]
+  );
 
   const handleNameCellMouseMove = useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
@@ -491,7 +633,7 @@ const TableView: React.FC<TableViewProps> = ({
       hidePreviewTimeoutRef.current = null;
       setHoverPreviewBeanIfChanged(null);
     }, HOVER_PREVIEW_HIDE_DELAY_MS);
-  }, []);
+  }, [cancelScheduledHoverPreviewClear, setHoverPreviewBeanIfChanged]);
 
   const handleRateClick = useCallback(
     (bean: ExtendedCoffeeBean, event: React.MouseEvent<HTMLElement>) => {
@@ -533,7 +675,7 @@ const TableView: React.FC<TableViewProps> = ({
       showRoasterColumn
         ? formatBeanNameWithoutRoaster(bean, roasterSettings)
         : formatBeanDisplayName(bean, roasterSettings);
-    const nameSortingFn = createBeanSortingFn(sorting, (rowA, rowB) =>
+    const nameSortingFn = createBeanSortingFn(effectiveSorting, (rowA, rowB) =>
       getNameDisplayValue(rowA.original).localeCompare(
         getNameDisplayValue(rowB.original),
         'zh-CN'
@@ -770,7 +912,10 @@ const TableView: React.FC<TableViewProps> = ({
   const table = useReactTable({
     data: allBeans,
     columns,
-    state: { sorting: effectiveSorting },
+    state: { sorting: effectiveSorting, columnSizing },
+    onColumnSizingChange: setColumnSizing,
+    defaultColumn: { maxSize: DEFAULT_COLUMN_MAX_SIZE },
+    getRowId: bean => bean.id,
     onSortingChange: handleSortingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -780,12 +925,25 @@ const TableView: React.FC<TableViewProps> = ({
     columnResizeMode: 'onChange',
   });
 
+  const isResizingColumn = table.getState().columnSizingInfo.isResizingColumn;
+  useEffect(() => {
+    if (isResizingColumn) return;
+    try {
+      localStorage.setItem(
+        COLUMN_SIZING_STORAGE_KEY,
+        JSON.stringify(columnSizing)
+      );
+    } catch {
+      // Storage may be unavailable; resizing still works for this session.
+    }
+  }, [columnSizing, isResizingColumn]);
+
   // 处理详情点击
-  const handleDetailClick = (bean: ExtendedCoffeeBean) => {
+  const handleDetailClick = useCallback((bean: ExtendedCoffeeBean) => {
     window.dispatchEvent(
       new CustomEvent('beanDetailOpened', { detail: { bean } })
     );
-  };
+  }, []);
 
   if (allBeans.length === 0) {
     return (
@@ -804,9 +962,18 @@ const TableView: React.FC<TableViewProps> = ({
         onScroll={clearHoverPreview}
       >
         <table
-          className="w-full min-w-max border-separate border-spacing-0"
-          style={{ minWidth: table.getTotalSize() }}
+          aria-label="咖啡豆"
+          className="table-fixed border-separate border-spacing-0"
+          style={{ width: table.getTotalSize() }}
         >
+          <caption className="sr-only">
+            咖啡豆列表。点击列标题切换排序，可依次选择多列排序。聚焦行后按回车查看详情。
+          </caption>
+          <colgroup>
+            {table.getVisibleLeafColumns().map(column => (
+              <col key={column.id} style={{ width: column.getSize() }} />
+            ))}
+          </colgroup>
           {/* 表头 - 使用 border-separate 解决 sticky 边框问题 */}
           <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-900">
             {table.getHeaderGroups().map(headerGroup => (
@@ -820,20 +987,19 @@ const TableView: React.FC<TableViewProps> = ({
                   );
                   const isSorted = header.column.getIsSorted();
                   const canSort = header.column.getCanSort();
-                  const canResize = header.column.getCanResize();
-                  const isResizing = header.column.getIsResizing();
-                  const resizeHandler = header.getResizeHandler();
 
                   return (
                     <th
                       key={header.id}
                       className="group relative border-b border-neutral-200/50 bg-neutral-50 text-left text-xs leading-relaxed font-medium whitespace-nowrap text-neutral-600 select-none dark:border-neutral-800/50 dark:bg-neutral-900 dark:text-neutral-400"
-                      style={{
-                        width: header.getSize(),
-                        minWidth:
-                          header.column.columnDef.minSize ??
-                          DEFAULT_COLUMN_MIN_SIZE,
-                      }}
+                      scope="col"
+                      aria-sort={
+                        sortIndex === 0 && isSorted
+                          ? isSorted === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : undefined
+                      }
                     >
                       {header.isPlaceholder ? null : (
                         <div
@@ -841,7 +1007,9 @@ const TableView: React.FC<TableViewProps> = ({
                         >
                           <button
                             type="button"
-                            className={`inline-flex items-center ${
+                            disabled={!canSort}
+                            aria-label={`${String(header.column.columnDef.header)}${isSorted ? `，${isSorted === 'asc' ? '升序' : '降序'}，排序优先级 ${sortIndex + 1}` : ''}，点击切换排序`}
+                            className={`flex w-full min-w-0 items-center text-left focus-visible:outline-2 focus-visible:outline-offset-2 ${
                               canSort
                                 ? 'cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200'
                                 : 'cursor-default'
@@ -852,10 +1020,12 @@ const TableView: React.FC<TableViewProps> = ({
                                 : undefined
                             }
                           >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
+                            <span className="truncate">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                            </span>
                             <SortIcon
                               direction={isSorted}
                               index={
@@ -865,37 +1035,13 @@ const TableView: React.FC<TableViewProps> = ({
                               }
                             />
                           </button>
-                          {canResize && (
-                            <div
-                              role="separator"
-                              aria-label={`调整${
-                                String(
-                                  flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext()
-                                  )
-                                ) || '列'
-                              }宽度`}
-                              aria-orientation="vertical"
-                              className={`absolute top-0 right-0 z-20 h-full w-4 translate-x-1/2 cursor-col-resize touch-none ${
-                                isResizing
-                                  ? 'opacity-100'
-                                  : 'opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100'
-                              }`}
-                              onMouseDown={resizeHandler}
-                              onTouchStart={resizeHandler}
-                              onDoubleClick={() => header.column.resetSize()}
-                              onClick={event => event.stopPropagation()}
-                            >
-                              <span
-                                className={`absolute top-1/2 left-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-200 transition-opacity dark:bg-neutral-800 ${
-                                  isResizing ? 'opacity-100' : 'opacity-70'
-                                }`}
-                              />
-                            </div>
-                          )}
                         </div>
                       )}
+                      {!isLast &&
+                        !header.isPlaceholder &&
+                        header.column.getCanResize() && (
+                          <ColumnResizeHandle header={header} table={table} />
+                        )}
                     </th>
                   );
                 })}
@@ -903,93 +1049,18 @@ const TableView: React.FC<TableViewProps> = ({
             ))}
           </thead>
           {/* 表体 */}
-          <tbody>
-            {table.getRowModel().rows.map(row => {
-              const bean = row.original;
-              const isEmpty = isBeanEmpty(bean);
-              const isActive = activeBeanId === bean.id;
-
-              return (
-                <tr
-                  key={row.id}
-                  className={`cursor-pointer hover:bg-neutral-100 active:bg-neutral-100 dark:hover:bg-neutral-800/30 dark:active:bg-neutral-800/30 ${
-                    isActive ? 'bg-neutral-100 dark:bg-neutral-800/30' : ''
-                  } ${isEmpty ? 'opacity-50' : ''}`}
-                  onClick={() => handleDetailClick(bean)}
-                  aria-selected={isActive}
-                >
-                  {row.getVisibleCells().map((cell, index) => {
-                    const isFirst = index === 0;
-                    const isLast = index === row.getVisibleCells().length - 1;
-                    const isCapacity = cell.column.id === 'capacity';
-                    const isName = cell.column.id === 'name';
-                    const isNotes = cell.column.id === 'notes';
-                    const isRoaster = cell.column.id === 'roaster';
-                    const isPreviewCell = isName || isRoaster;
-                    const isRating =
-                      cell.column.id === 'rating' && Boolean(onRate);
-
-                    const cellClass =
-                      'text-xs leading-relaxed font-medium text-neutral-600 dark:text-neutral-400';
-                    const paddingClass = `py-2.5 ${isFirst ? 'pl-6 pr-3' : isLast ? 'pl-3 pr-6' : 'px-3'}`;
-                    // 名称、备注、风味列限制宽度
-                    const widthClass =
-                      cell.column.id === 'name' ||
-                      cell.column.id === 'notes' ||
-                      cell.column.id === 'flavor'
-                        ? 'max-w-[200px] truncate'
-                        : 'whitespace-nowrap';
-
-                    return (
-                      <td
-                        key={cell.id}
-                        className={`${cellClass} ${paddingClass} ${widthClass} ${
-                          isName || isNotes ? 'select-text' : ''
-                        } border-b border-neutral-200/50 dark:border-neutral-800/50`}
-                        style={{
-                          width: cell.column.getSize(),
-                          minWidth:
-                            cell.column.columnDef.minSize ??
-                            DEFAULT_COLUMN_MIN_SIZE,
-                        }}
-                        onClick={
-                          isCapacity && !isEmpty
-                            ? e => {
-                                e.stopPropagation();
-                                onRemainingClick?.(bean, e);
-                              }
-                            : isRating
-                              ? e => handleRateClick(bean, e)
-                              : undefined
-                        }
-                        onMouseEnter={
-                          isPreviewCell
-                            ? e =>
-                                handlePreviewCellMouseEnter(
-                                  bean,
-                                  isRoaster ? 'roaster' : 'bean',
-                                  e
-                                )
-                            : undefined
-                        }
-                        onMouseMove={
-                          isPreviewCell ? handleNameCellMouseMove : undefined
-                        }
-                        onMouseLeave={
-                          isPreviewCell ? clearHoverPreview : undefined
-                        }
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
+          <TableBody
+            columns={columns}
+            rows={table.getRowModel().rows}
+            activeBeanId={activeBeanId}
+            onRate={onRate}
+            onRemainingClick={onRemainingClick}
+            handleDetailClick={handleDetailClick}
+            handleRateClick={handleRateClick}
+            handlePreviewCellMouseEnter={handlePreviewCellMouseEnter}
+            handleNameCellMouseMove={handleNameCellMouseMove}
+            clearHoverPreview={clearHoverPreview}
+          />
         </table>
       </div>
       {supportsHoverPreview && (
